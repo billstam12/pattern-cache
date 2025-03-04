@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.datasource.connector;
+package gr.imsi.athenarc.visual.middleware.datasource.connection;
 
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.SQLQueryExecutor;

@@ -1,24 +1,69 @@
 package gr.imsi.athenarc.visual.middleware.datasource;
 
-import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
-import gr.imsi.athenarc.visual.middleware.datasource.dataset.CsvDataset;
-import gr.imsi.athenarc.visual.middleware.datasource.dataset.InfluxDBDataset;
-import gr.imsi.athenarc.visual.middleware.datasource.dataset.PostgreSQLDataset;
-import gr.imsi.athenarc.visual.middleware.datasource.executor.CsvQueryExecutor;
-import gr.imsi.athenarc.visual.middleware.datasource.executor.InfluxDBQueryExecutor;
-import gr.imsi.athenarc.visual.middleware.datasource.executor.QueryExecutor;
-import gr.imsi.athenarc.visual.middleware.datasource.executor.SQLQueryExecutor;
+import java.io.IOException;
+
+import gr.imsi.athenarc.visual.middleware.datasource.config.*;
+import gr.imsi.athenarc.visual.middleware.datasource.connection.*;
+import gr.imsi.athenarc.visual.middleware.datasource.dataset.*;
+import gr.imsi.athenarc.visual.middleware.datasource.executor.*;
 
 public class DataSourceFactory {
+    
+    public static DataSource createDataSource(DataSourceConfiguration config) {
+        if (config instanceof InfluxDBConfiguration) {
+            return createInfluxDBDataSource((InfluxDBConfiguration) config);
+        }
+        else if (config instanceof PostgeSQLConfiguration) {
+            return createPostgreSQLDataSource((PostgeSQLConfiguration) config);
+        } else if (config instanceof CsvConfiguration) {
+            return createCsvDataSource((CsvConfiguration) config);
+        }
+        throw new IllegalArgumentException("Unsupported data source configuration");
+    }
 
-    public static DataSource getDataSource(QueryExecutor queryExecutor, AbstractDataset dataset) {
-        if(dataset instanceof PostgreSQLDataset)
-            return new PostgreSQLDatasource((SQLQueryExecutor) queryExecutor, (PostgreSQLDataset) dataset);
-        else if(dataset instanceof InfluxDBDataset)
-            return new InfluxDBDatasource((InfluxDBQueryExecutor) queryExecutor, (InfluxDBDataset) dataset);
-        else if(dataset instanceof CsvDataset)
-            return new CsvDatasource((CsvQueryExecutor) queryExecutor, (CsvDataset) dataset);
+    private static DataSource createInfluxDBDataSource(InfluxDBConfiguration config) {
+        InfluxDBConnection connection = new InfluxDBConnection(
+            config.getUrl(), 
+            config.getOrg(), 
+            config.getToken(), 
+            config.getBucket()
+        );
+        
+        InfluxDBDataset dataset = new InfluxDBDataset(
+            config.getSchema(),
+            config.getId(),
+            config.getTimeFormat()
+        );
+        
+        InfluxDBQueryExecutor executor = (InfluxDBQueryExecutor) connection.connect().getQueryExecutor(dataset);
+        return new InfluxDBDatasource(executor, dataset);
+    }
 
-        throw new IllegalArgumentException("Unsupported Datasource");
+    private static DataSource createPostgreSQLDataSource(PostgeSQLConfiguration config) {
+        JDBCConnection connection = new JDBCConnection(
+            config.getUrl(), 
+            config.getUsername(), 
+            config.getPassword()
+        );
+        
+        PostgreSQLDataset dataset = new PostgreSQLDataset(
+            config.getSchema(),
+            config.getId(),
+            config.getTimeFormat()
+        );
+        
+        SQLQueryExecutor executor = (SQLQueryExecutor) connection.connect().getQueryExecutor(dataset);
+        return new PostgreSQLDatasource(executor, dataset);
+    }
+
+    private static DataSource createCsvDataSource(CsvConfiguration config) {
+        try {
+            CsvDataset dataset = new CsvDataset(config.getPath(), config.getTimeFormat(), config.getTimeCol(), config.getDelimiter(), config.getHasHeader());
+            QueryExecutor executor = new CsvQueryExecutor(dataset);
+            return new CsvDatasource((CsvQueryExecutor) executor, (CsvDataset) dataset);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }

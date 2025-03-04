@@ -1,6 +1,6 @@
 package gr.imsi.athenarc.visual.middleware.datasource.dataset;
 
-import gr.imsi.athenarc.visual.middleware.datasource.connector.JDBCConnection;
+import gr.imsi.athenarc.visual.middleware.datasource.connection.JDBCConnection;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.SQLQueryExecutor;
 import gr.imsi.athenarc.visual.middleware.domain.TimeRange;
 

@@ -35,9 +35,8 @@ public class CsvDataset extends AbstractDataset {
         super(id, schema, table, timeFormat);
     }
 
-    public CsvDataset(String filePath, String id, String schema, String table,
-         String timeFormat, String timeCol, String delimiter, boolean hasHeader) throws IOException {
-        super(id, schema, table, timeFormat);
+    public CsvDataset(String filePath, String timeFormat, String timeCol, String delimiter, boolean hasHeader) throws IOException {
+        super(filePath, filePath, filePath, timeFormat);
         this.filePath = filePath;
         this.timeCol = timeCol;
         this.delimiter = delimiter;

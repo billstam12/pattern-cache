@@ -1,57 +1,54 @@
 package gr.imsi.athenarc.visual.middleware.datasource.iterator.raw;
 
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
-
+import gr.imsi.athenarc.visual.middleware.datasource.iterator.InfluxDBIterator;
 import gr.imsi.athenarc.visual.middleware.domain.DataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
+import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
 
-public class InfluxDBDataPointsIterator implements Iterator<DataPoint> {
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 
-    private final Integer numberOfTables;
-    private int currentTable;
-    private int currentSize;
-    private int current;
-    private List<FluxRecord> currentRecords;    
+public class InfluxDBDataPointsIterator extends InfluxDBIterator<DataPoint> {
+    
     private final Map<String, List<TimeInterval>> missingIntervalsPerMeasureName;
-    Map<String, Integer> measuresMap;
-    private final List<FluxTable> tables;
 
-    public InfluxDBDataPointsIterator(Map<String, List<TimeInterval>> missingIntervalsPerMeasureName, Map<String, Integer> measuresMap, List<FluxTable> tables) {
+    public InfluxDBDataPointsIterator(List<FluxTable> tables, 
+                                    Map<String, Integer> measuresMap,
+                                    Map<String, List<TimeInterval>> missingIntervalsPerMeasureName) {
+        super(tables, measuresMap);
         this.missingIntervalsPerMeasureName = missingIntervalsPerMeasureName;
-        this.currentTable = 0;
-        this.tables = tables;
-        this.currentRecords = tables.get(currentTable).getRecords();
-        this.currentSize = this.currentRecords.size();
-        this.numberOfTables = tables.size();
-        this.measuresMap = measuresMap;
-        this.current = 0;
     }
 
     @Override
-    public boolean hasNext() {
-        if (current < currentSize) return true;
-        else {
-            if (currentTable < numberOfTables - 1) {
-                current = 0;
-                currentTable++;
-                currentRecords = tables.get(currentTable).getRecords();
-                currentSize = currentRecords.size();
-                return true;
-            } else return false;
+    protected DataPoint getNext() {
+        FluxRecord record = currentRecords.get(current++);
+        if (record == null) {
+            throw new NoSuchElementException("Invalid record at position " + (current - 1));
         }
-    }
 
-    @Override
-    public DataPoint next() {
-        FluxRecord fluxRecord = tables.get(currentTable).getRecords().get(current++);
-        String measure = Objects.requireNonNull(fluxRecord.getField());
-        return new ImmutableDataPoint(Objects.requireNonNull(fluxRecord.getTime()).toEpochMilli(), (double) Objects.requireNonNull(fluxRecord.getValue()), measuresMap.get(measure));
+        String measure = record.getField();
+        if (measure == null || !measuresMap.containsKey(measure)) {
+            throw new IllegalStateException("Invalid measure field in record");
+        }
+
+        Object value = record.getValue();
+        if (!(value instanceof Number)) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("Skipping null or non-numeric value for measure {} at time {}", 
+                    measure, DateTimeUtil.format(record.getTime().toEpochMilli()));
+            }
+            return next();
+        }
+
+        long timestamp = getTimestampFromRecord(record, "_time");
+        return new ImmutableDataPoint(
+            timestamp,
+            ((Number) value).doubleValue(),
+            measuresMap.get(measure)
+        );
     }
 }

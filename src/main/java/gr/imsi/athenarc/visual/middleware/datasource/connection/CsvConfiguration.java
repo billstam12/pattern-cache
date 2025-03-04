@@ -1,16 +1,21 @@
-package gr.imsi.athenarc.visual.middleware.datasource.connector;
+package gr.imsi.athenarc.visual.middleware.datasource.connection;
 
 public class CsvConfiguration {
 
-    private final String path, timeFormat, timeCol, delimiter;
+    private final String path, timeFormat, id, timeCol, delimiter;
     private final boolean hasHeader;
 
-    public CsvConfiguration(String path, String timeFormat, String timeCol, String delimiter, boolean hasHeader) {
+    public CsvConfiguration(String path, String id, String timeFormat, String timeCol, String delimiter, boolean hasHeader) {
         this.path = path;
+        this.id = id;
         this.timeFormat = timeFormat;
         this.timeCol = timeCol;
         this.delimiter = delimiter;
         this.hasHeader = hasHeader;
+    }
+
+    public String getId() {
+        return id;
     }
 
     public String getPath() {

@@ -32,8 +32,6 @@ public class CsvQueryExecutor implements QueryExecutor {
     CsvDataset dataset;
     String table;
     String schema;
-    private int timeColumnIndex;
-    private DateTimeFormatter formatter;
 
 
     public CsvQueryExecutor() {
@@ -43,7 +41,6 @@ public class CsvQueryExecutor implements QueryExecutor {
         this.dataset = (CsvDataset) dataset;
         this.schema = dataset.getSchema();
         this.table = dataset.getTableName();
-        this.formatter = DateTimeFormatter.ofPattern(this.dataset.getTimeFormat());
     }
 
     /*

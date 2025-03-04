@@ -1,7 +1,6 @@
 
 package gr.imsi.athenarc.visual.middleware.datasource;
 
-import com.google.common.collect.Iterators;
 import com.influxdb.query.FluxTable;
 
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.InfluxDBDataset;
@@ -112,12 +111,11 @@ public class InfluxDBDatasource implements DataSource {
             try {
                 List<FluxTable> fluxTables;
                 fluxTables = influxDBQueryExecutor.executeRawInfluxQuery(influxDBQuery);
-                LOG.info("{} tables fetched", fluxTables);
-                return new InfluxDBDataPointsIterator(influxDBQuery.getMissingIntervalsPerMeasure(), measuresMap, fluxTables);
+                return new InfluxDBDataPointsIterator(fluxTables, measuresMap, influxDBQuery.getMissingIntervalsPerMeasure());
             } catch (Exception e){
                 LOG.error("No data in a specified query");
             }
-            return Iterators.concat(new Iterator[0]);
+            return Collections.emptyIterator();
         }
     }
 
@@ -168,7 +166,7 @@ public class InfluxDBDatasource implements DataSource {
                 if (fluxTables.size() == 0) return Collections.emptyIterator();
                 return new InfluxDBMinMaxDataPointsIterator(fluxTables, measuresMap);
             }
-            return Iterators.concat(new Iterator[0]);
+            return Collections.emptyIterator();
         }
 
         @Override

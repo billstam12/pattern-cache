@@ -1,33 +1,26 @@
 package gr.imsi.athenarc.visual.middleware.datasource.iterator.m4;
 
-import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
+import gr.imsi.athenarc.visual.middleware.datasource.iterator.PostgreSQLIterator;
 import gr.imsi.athenarc.visual.middleware.domain.*;
 import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class PostgreSQLM4DataPointsIterator implements Iterator<AggregatedDataPoint> {
+public class PostgreSQLM4DataPointsIterator extends PostgreSQLIterator<AggregatedDataPoint> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(DataSource.class);
-
-    private final ResultSet resultSet;
     private final List<TimeInterval> unionTimeIntervals;
     private final Map<String, Long> aggregateIntervals;
-
     private final Map<String, Integer> measuresMap;
 
-
     public PostgreSQLM4DataPointsIterator(ResultSet resultSet,
-                                                   Map<String, List<TimeInterval>> missingIntervalsPerMeasure,
-                                                   Map<String, Long> aggregateIntervals, Map<String, Integer> measuresMap) throws SQLException {
-        this.resultSet = resultSet;
+                                        Map<String, List<TimeInterval>> missingIntervalsPerMeasure,
+                                        Map<String, Long> aggregateIntervals,
+                                        Map<String, Integer> measuresMap) {
+        super(resultSet);
         this.unionTimeIntervals = missingIntervalsPerMeasure.values().stream()
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
@@ -36,25 +29,9 @@ public class PostgreSQLM4DataPointsIterator implements Iterator<AggregatedDataPo
     }
 
     @Override
-    public boolean hasNext() {
+    protected AggregatedDataPoint getNext() {
         try {
-            return resultSet.next();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-
-    /*
-       For each grouping k that comes from the query.
-       Get the values, put them in a list.
-       Then pass through the list to initialize the corresponding aggregator.
-       A unionGroup is a subQuery based on the UNION of the query.
-     */
-    @Override
-    public AggregatedDataPoint next() {
-        try {
+            StatsAggregator statsAggregator = new StatsAggregator();
             String measure = resultSet.getString(1);
             long t_min = resultSet.getLong(2);
             long t_max = resultSet.getLong(3);
@@ -62,8 +39,6 @@ public class PostgreSQLM4DataPointsIterator implements Iterator<AggregatedDataPo
             int k = resultSet.getInt(5);
             int unionGroup = resultSet.getInt(6); // signifies the union id
             Long aggregateInterval = aggregateIntervals.get(measure);
-
-            StatsAggregator statsAggregator = new StatsAggregator();
 
             TimeInterval correspondingInterval = unionTimeIntervals.get(unionGroup);
 
@@ -84,9 +59,9 @@ public class PostgreSQLM4DataPointsIterator implements Iterator<AggregatedDataPo
                     statsAggregator.getMaxValue());
             return new ImmutableAggregatedDataPoint(firstTimestamp, lastTimestamp, measuresMap.get(measure), statsAggregator);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("Error retrieving next M4 data point", e);
+            return null;
         }
-        return null;
     }
 }
 

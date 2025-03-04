@@ -1,6 +1,7 @@
 package gr.imsi.athenarc.visual.middleware.datasource.iterator.minmax;
 
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
+import gr.imsi.athenarc.visual.middleware.datasource.iterator.PostgreSQLIterator;
 import gr.imsi.athenarc.visual.middleware.domain.*;
 import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
 import org.slf4j.Logger;
@@ -11,20 +12,19 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class PostgreSQLMinMaxDataPointsIterator implements Iterator<AggregatedDataPoint> {
-
+public class PostgreSQLMinMaxDataPointsIterator extends PostgreSQLIterator<AggregatedDataPoint> {
 
     private static final Logger LOG = LoggerFactory.getLogger(DataSource.class);
 
-    private final ResultSet resultSet;
     private final List<TimeInterval> unionTimeIntervals;
     private final Map<String, Long> aggregateIntervals;
     private final Map<String, Integer> measuresMap;
 
     public PostgreSQLMinMaxDataPointsIterator(ResultSet resultSet,
-                                                 Map<String, List<TimeInterval>> missingIntervalsPerMeasure,
-                                                 Map<String, Long> aggregateIntervals, Map<String, Integer> measuresMap) throws SQLException {
-        this.resultSet = resultSet;
+                                            Map<String, List<TimeInterval>> missingIntervalsPerMeasure,
+                                            Map<String, Long> aggregateIntervals,
+                                            Map<String, Integer> measuresMap) {
+        super(resultSet);
         this.unionTimeIntervals = missingIntervalsPerMeasure.values().stream()
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
@@ -33,21 +33,10 @@ public class PostgreSQLMinMaxDataPointsIterator implements Iterator<AggregatedDa
     }
 
     @Override
-    public boolean hasNext() {
+    protected AggregatedDataPoint getNext() {
         try {
-            return resultSet.next();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-
-    @Override
-    public AggregatedDataPoint next() {
-        NonTimestampedStatsAggregator statsAggregator = new NonTimestampedStatsAggregator();
-        // get row data
-        try {
+            NonTimestampedStatsAggregator statsAggregator = new NonTimestampedStatsAggregator();
+            // get row data
             String measure = resultSet.getString(1);
             int k = resultSet.getInt(2);
             double v_min = resultSet.getDouble(3);
@@ -72,8 +61,8 @@ public class PostgreSQLMinMaxDataPointsIterator implements Iterator<AggregatedDa
                     DateTimeUtil.format(firstTimestamp), DateTimeUtil.format(lastTimestamp), statsAggregator.getMinValue(), statsAggregator.getMaxValue());
             return new ImmutableAggregatedDataPoint(firstTimestamp, lastTimestamp, measuresMap.get(measure), statsAggregator);
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("Error retrieving next aggregated data point", e);
+            return null;
         }
-        return null;
     }
 }

@@ -1,11 +1,11 @@
-package gr.imsi.athenarc.visual.middleware.datasource.connector;
+package gr.imsi.athenarc.visual.middleware.datasource.connection;
 
 import java.sql.SQLException;
 
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.QueryExecutor;
 
-abstract interface DatabaseConnection {
+public interface DatabaseConnection {
 
     public DatabaseConnection connect() throws  SQLException;
     

@@ -97,7 +97,7 @@ public class PostgreSQLDatasource implements DataSource {
             catch(SQLException e) {
                 e.printStackTrace();
             }
-            return Iterators.concat(new Iterator[0]);
+            return Collections.emptyIterator();
         }
 
         @Override
@@ -178,7 +178,7 @@ public class PostgreSQLDatasource implements DataSource {
             } catch (SQLException e) {
                 e.printStackTrace();
             }
-            return Iterators.concat(new Iterator[0]);
+            return Collections.emptyIterator();
         }
 
         @Override

@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.datasource.connector;
+package gr.imsi.athenarc.visual.middleware.datasource.connection;
 
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;

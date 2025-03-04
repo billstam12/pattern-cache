@@ -3,13 +3,8 @@ package gr.imsi.athenarc.visual.middleware.datasource.executor;
 import com.influxdb.client.DeleteApi;
 import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.QueryApi;
-import com.influxdb.client.WriteApi;
-import com.influxdb.client.domain.WritePrecision;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
-import com.opencsv.bean.CsvToBean;
-import com.opencsv.bean.CsvToBeanBuilder;
-
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.InfluxDBDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.query.DataSourceQuery;
