@@ -4,24 +4,25 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 
 import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.visual.middleware.domain.ViewPort;
 
 public class Query implements TimeInterval {
 
-    long from;
-    long to;
-    List<Integer> measures;
-    ViewPort viewPort;
+    private final long from;
+    private final long to;
+    private final List<Integer> measures;
+    private final ViewPort viewPort;
 
-    public Query() {}
-    public Query(long from, long to, List<Integer> measures, int width, int height) {
+    private final List<SegmentSpecification> segmentSpecifications;
+
+    public Query(long from, long to, List<Integer> measures, int width, int height, List<SegmentSpecification> segmentSpecifications) {
         this.from = from;
         this.to = to;
         this.measures = measures;
         this.viewPort = new ViewPort(width, height);
+        this.segmentSpecifications = segmentSpecifications;
     }
 
     @Override
@@ -62,6 +63,10 @@ public class Query implements TimeInterval {
         return measures;
     }
     
+    public List<SegmentSpecification> getSegmentSpecifications() {
+        return segmentSpecifications;
+    }
+
     @Override
     public String toString() {
         return "Query{" +

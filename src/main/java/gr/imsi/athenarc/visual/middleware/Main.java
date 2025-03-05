@@ -21,15 +21,12 @@ public class Main {
         // Connetion properties
         String influxUrl = properties.getProperty("influxdb.url");
         String org = properties.getProperty("influxdb.org");
-        String token = properties.getProperty("influxdb.token");    
-
-        long from = 1583408619000L;
-        long to = 1683408619000L;
-        List<Integer> measures = Arrays.asList(2);
+        String token = properties.getProperty("influxdb.token");  
+        
+        // Dataset properties
         String bucket = "more";
         String measurement = "intel_lab_exp";
         String timeFormat = "yyyy-MM-dd[ HH:mm:ss]";
-
         InfluxDBConfiguration influxDBConfiguration = new InfluxDBConfiguration.Builder()
             .url(influxUrl)
             .org(org)
@@ -39,6 +36,12 @@ public class Main {
             .measurement(measurement)
             .build();   
         DataSource dataSource = DataSourceFactory.createDataSource(influxDBConfiguration);
+
+        // Query properties
+        long from = 1583408619000L;
+        long to = 1683408619000L;
+        List<Integer> measures = Arrays.asList(2);
+        
     
     }
 
