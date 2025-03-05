@@ -37,7 +37,7 @@ public class DataSourceFactory {
             config.getMeasurement()
         );
         
-        InfluxDBQueryExecutor executor = (InfluxDBQueryExecutor) connection.connect().getQueryExecutor(dataset);
+        InfluxDBQueryExecutor executor = (InfluxDBQueryExecutor) connection.getQueryExecutor(dataset);
         return new InfluxDBDatasource(executor, dataset);
     }
 
@@ -58,7 +58,7 @@ public class DataSourceFactory {
                 config.getSchema(),
                 config.getTable()
             );
-            SQLQueryExecutor executor = (SQLQueryExecutor) connection.connect().getQueryExecutor(dataset);
+            SQLQueryExecutor executor = (SQLQueryExecutor) connection.getQueryExecutor(dataset);
             return new PostgreSQLDatasource(executor, dataset);
         } catch (SQLException e) {
             e.printStackTrace();

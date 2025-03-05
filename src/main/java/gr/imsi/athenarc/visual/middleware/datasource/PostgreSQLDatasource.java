@@ -1,6 +1,7 @@
 package gr.imsi.athenarc.visual.middleware.datasource;
 import com.google.common.collect.Iterators;
 
+import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.PostgreSQLDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.SQLQueryExecutor;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.m4.PostgreSQLM4DataPointsIterator;
@@ -222,4 +223,7 @@ public class PostgreSQLDatasource implements DataSource {
     }
 
 
+    public AbstractDataset getDataset(){
+        return dataset;
+    }
 }

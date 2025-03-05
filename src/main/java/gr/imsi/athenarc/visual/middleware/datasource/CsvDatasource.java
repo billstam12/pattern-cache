@@ -2,6 +2,7 @@ package gr.imsi.athenarc.visual.middleware.datasource;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.m4.CsvM4DataPointsIterator;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.minmax.CsvMinMaxDataPointsIterator;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.raw.CsvDataPointsIterator;
+import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.CsvDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.CsvQueryExecutor;
 import gr.imsi.athenarc.visual.middleware.datasource.query.CsvQuery;
@@ -230,5 +231,9 @@ public class CsvDatasource implements DataSource {
         public String getToDate(String format) {
             return Instant.ofEpochMilli(csvQuery.getFrom()).atZone(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern(format));
         }
+    }
+
+    public AbstractDataset getDataset(){
+        return dataset;
     }
 }

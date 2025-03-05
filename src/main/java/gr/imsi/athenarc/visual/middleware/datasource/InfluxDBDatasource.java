@@ -3,6 +3,7 @@ package gr.imsi.athenarc.visual.middleware.datasource;
 
 import com.influxdb.query.FluxTable;
 
+import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.InfluxDBDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.InfluxDBQueryExecutor;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.m4.InfluxDBM4DataPointsIterator;
@@ -199,5 +200,10 @@ public class InfluxDBDatasource implements DataSource {
             return Instant.ofEpochMilli(influxDBQuery.getTo()).atZone(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern(format));
 
         }
+    }
+
+    @Override
+    public AbstractDataset getDataset() {
+        return dataset;
     }
 }

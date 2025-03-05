@@ -271,5 +271,4 @@ public class PixelColumn implements TimeInterval {
     public String toString() {
         return "PixelColumn{ timeInterval: " + getIntervalString() + ", stats: " + statsAggregator + "}";
     }
-
 }

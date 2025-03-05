@@ -3,9 +3,14 @@ package gr.imsi.athenarc.visual.middleware.util;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
+import gr.imsi.athenarc.visual.middleware.domain.TimeRange;
+
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class DateTimeUtil {
@@ -90,4 +95,29 @@ public class DateTimeUtil {
     public static int indexInInterval(final long startTime, final long endTime, final long aggregateInterval, final long time) {
         return (int) ((time - startTime ) / aggregateInterval);
     }
+
+    /**
+     *
+     * @param pixelColumnInterval interval of the pixel columns
+     * @param ranges missing ranges to group
+     * @return
+     */
+    public static List<TimeInterval> groupIntervals(long pixelColumnInterval, List<TimeInterval> ranges) {
+        if(ranges.size() == 0) return ranges;
+        List<TimeInterval> groupedRanges = new ArrayList<>();
+        TimeInterval currentGroup = ranges.get(0);
+        for(TimeInterval currentRange : ranges){
+            if (currentGroup.getTo() + (pixelColumnInterval * 10) >= currentRange.getFrom() && groupedRanges.size() > 0) {
+                // Extend the current group
+                currentGroup = new TimeRange(currentGroup.getFrom(), currentRange.getTo());
+                groupedRanges.set(groupedRanges.size() - 1, currentGroup);
+            } else {
+                // Start a new group
+                currentGroup = currentRange;
+                groupedRanges.add(currentGroup);
+            }
+        }
+        return groupedRanges;
+    }
+
 }

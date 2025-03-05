@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.visual.middleware.datasource.config.InfluxDBConfiguration;
+import gr.imsi.athenarc.visual.middleware.datasource.config.PostgeSQLConfiguration;
+import gr.imsi.athenarc.visual.middleware.domain.DataPoints;
 
 public class Main {
     private static final Logger LOG = LoggerFactory.getLogger(Main.class);
@@ -23,6 +25,11 @@ public class Main {
         String org = properties.getProperty("influxdb.org");
         String token = properties.getProperty("influxdb.token");  
         
+        String postrgresUrl = properties.getProperty("postgres.url");
+        String username = properties.getProperty("postgres.username");
+        String password = properties.getProperty("postgres.password");
+
+
         // Dataset properties
         String bucket = "more";
         String measurement = "intel_lab_exp";
@@ -35,12 +42,27 @@ public class Main {
             .timeFormat(timeFormat)
             .measurement(measurement)
             .build();   
-        DataSource dataSource = DataSourceFactory.createDataSource(influxDBConfiguration);
+            
+        // DataSource intelLabInflux = DataSourceFactory.createDataSource(influxDBConfiguration);
+
+        PostgeSQLConfiguration postgreSQLConfiguration = new PostgeSQLConfiguration.Builder()
+            .url(postrgresUrl)
+            .schema(bucket)
+            .username(username)
+            .password(password)
+            .timeFormat(timeFormat)
+            .table(measurement)
+            .build(); 
+
+        DataSource intelLabPostgres = DataSourceFactory.createDataSource(postgreSQLConfiguration);
 
         // Query properties
         long from = 1583408619000L;
         long to = 1683408619000L;
         List<Integer> measures = Arrays.asList(2);
+
+        DataPoints dataPoints = intelLabPostgres.getDataPoints(from, to, measures);
+        dataPoints.forEach(dp -> dp.getTimestamp());
         
     
     }

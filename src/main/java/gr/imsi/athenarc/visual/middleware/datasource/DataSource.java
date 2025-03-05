@@ -3,6 +3,7 @@ package gr.imsi.athenarc.visual.middleware.datasource;
 import java.util.List;
 import java.util.Map;
 
+import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.visual.middleware.domain.DataPoints;
 import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
@@ -50,5 +51,8 @@ public interface DataSource {
      * @param measures The measure values to include in every data point
      */
     public DataPoints getAllDataPoints(List<Integer> measures);
+
+
+    public AbstractDataset getDataset();
 
 }

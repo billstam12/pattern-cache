@@ -14,15 +14,17 @@ public class Query implements TimeInterval {
     private final long to;
     private final List<Integer> measures;
     private final ViewPort viewPort;
+    private final double accuracy;
 
     private final List<SegmentSpecification> segmentSpecifications;
 
-    public Query(long from, long to, List<Integer> measures, int width, int height, List<SegmentSpecification> segmentSpecifications) {
+    public Query(long from, long to, List<Integer> measures, int width, int height, double accuracy) {
         this.from = from;
         this.to = to;
         this.measures = measures;
+        this.accuracy = accuracy;
         this.viewPort = new ViewPort(width, height);
-        this.segmentSpecifications = segmentSpecifications;
+        this.segmentSpecifications = null;
     }
 
     @Override
@@ -65,6 +67,10 @@ public class Query implements TimeInterval {
     
     public List<SegmentSpecification> getSegmentSpecifications() {
         return segmentSpecifications;
+    }
+
+    public double getAccuracy(){
+        return accuracy;
     }
 
     @Override
