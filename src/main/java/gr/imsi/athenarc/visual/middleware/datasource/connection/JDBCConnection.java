@@ -10,31 +10,14 @@ import java.io.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.Properties;
 
 public class JDBCConnection implements DatabaseConnection {
     private static final Logger LOG = LoggerFactory.getLogger(JDBCConnection.class);
 
-    String config;
     String host;
     String user;
     String password;
     Connection connection;
-    private final Properties properties = new Properties();
-
-    public JDBCConnection(String config) {
-        this.config = config;
-        InputStream inputStream
-                = getClass().getClassLoader().getResourceAsStream(config);
-        try {
-            properties.load(inputStream);
-            host = properties.getProperty("host");
-            user = properties.getProperty("user");
-            password = properties.getProperty("password");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
     public JDBCConnection(String host, String user, String password){
         this.host = host;

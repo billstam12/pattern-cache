@@ -22,6 +22,7 @@ public class InfluxDBDataset extends AbstractDataset {
 
 
     public InfluxDBDataset(){}
+    
     // Abstract class implementation
     public InfluxDBDataset(String id, String bucket, String measurement){
         super(id, bucket, measurement, DEFAULT_INFLUX_FORMAT);

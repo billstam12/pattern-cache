@@ -1,6 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.query;
-
-import com.google.common.collect.Range;
+package gr.imsi.athenarc.visual.middleware.cache.query;
 import com.opencsv.CSVWriter;
 
 import gr.imsi.athenarc.visual.middleware.domain.DataPoint;
@@ -15,7 +13,6 @@ import java.nio.file.Paths;
 import java.util.DoubleSummaryStatistics;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class QueryResults implements Serializable {
 
@@ -33,23 +30,6 @@ public class QueryResults implements Serializable {
 
     private double progressiveQueryTime = 0;
 
-    private Map<Integer, Integer> aggFactors;
-
-    private boolean flag;
-
-    private Map<Integer, List<Range<Integer>>> litPixels;
-    
-    public Map<Integer, List<List<String>>> getLitPixelsAsString() {
-        return litPixels.entrySet().stream()
-        .collect(Collectors.toMap(
-                Map.Entry::getKey,
-                e -> e.getValue().stream()
-                        .map(range -> range == null
-                                ? List.of("[]")
-                                : List.of(range.toString()))
-                        .collect(Collectors.toList())
-        ));
-    }
 
     public TimeInterval getTimeRange() {
         return this.timeRange;
@@ -81,22 +61,6 @@ public class QueryResults implements Serializable {
 
     public void setIoCount(long ioCount) {
         this.ioCount = ioCount;
-    }
-
-    public Map<Integer, Integer> getAggFactors() {
-        return aggFactors;
-    }
-
-    public void setAggFactors(Map<Integer, Integer> aggFactors) {
-        this.aggFactors = aggFactors;
-    }
-
-    public Map<Integer, List<Range<Integer>>> getLitPixels() {
-        return litPixels;
-    }
-
-    public void setLitPixels(Map<Integer, List<Range<Integer>>> litPixels) {
-        this.litPixels = litPixels;
     }
 
     public void toCsv(String path) {
@@ -184,14 +148,6 @@ public class QueryResults implements Serializable {
 
     public void setQueryTime(double queryTime) {
         this.queryTime = queryTime;
-    }
-
-    public boolean isFlag() {
-        return flag;
-    }
-
-    public void setFlag(boolean flag) {
-        this.flag = flag;
     }
 
     public double getProgressiveQueryTime() {

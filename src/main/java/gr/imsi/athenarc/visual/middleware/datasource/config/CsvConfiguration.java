@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.datasource.connection;
+package gr.imsi.athenarc.visual.middleware.datasource.config;
 
 public class CsvConfiguration {
 

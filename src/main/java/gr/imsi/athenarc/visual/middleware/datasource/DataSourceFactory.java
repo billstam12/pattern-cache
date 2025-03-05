@@ -1,6 +1,7 @@
 package gr.imsi.athenarc.visual.middleware.datasource;
 
 import java.io.IOException;
+import java.sql.SQLException;
 
 import gr.imsi.athenarc.visual.middleware.datasource.config.*;
 import gr.imsi.athenarc.visual.middleware.datasource.connection.*;
@@ -22,17 +23,18 @@ public class DataSourceFactory {
     }
 
     private static DataSource createInfluxDBDataSource(InfluxDBConfiguration config) {
-        InfluxDBConnection connection = new InfluxDBConnection(
+        InfluxDBConnection connection = (InfluxDBConnection) new InfluxDBConnection(
             config.getUrl(), 
             config.getOrg(), 
             config.getToken(), 
             config.getBucket()
-        );
+        ).connect();
         
         InfluxDBDataset dataset = new InfluxDBDataset(
-            config.getSchema(),
-            config.getId(),
-            config.getTimeFormat()
+            connection,
+            config.getMeasurement(),
+            config.getBucket(),
+            config.getMeasurement()
         );
         
         InfluxDBQueryExecutor executor = (InfluxDBQueryExecutor) connection.connect().getQueryExecutor(dataset);
@@ -40,20 +42,28 @@ public class DataSourceFactory {
     }
 
     private static DataSource createPostgreSQLDataSource(PostgeSQLConfiguration config) {
-        JDBCConnection connection = new JDBCConnection(
+        
+        
+        PostgreSQLDataset dataset;
+        try {
+            JDBCConnection connection = (JDBCConnection) new JDBCConnection(
             config.getUrl(), 
             config.getUsername(), 
             config.getPassword()
-        );
-        
-        PostgreSQLDataset dataset = new PostgreSQLDataset(
-            config.getSchema(),
-            config.getId(),
-            config.getTimeFormat()
-        );
-        
-        SQLQueryExecutor executor = (SQLQueryExecutor) connection.connect().getQueryExecutor(dataset);
-        return new PostgreSQLDatasource(executor, dataset);
+            ).connect();
+
+            dataset = new PostgreSQLDataset(
+                connection,
+                config.getTable(),
+                config.getSchema(),
+                config.getTable()
+            );
+            SQLQueryExecutor executor = (SQLQueryExecutor) connection.connect().getQueryExecutor(dataset);
+            return new PostgreSQLDatasource(executor, dataset);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private static DataSource createCsvDataSource(CsvConfiguration config) {

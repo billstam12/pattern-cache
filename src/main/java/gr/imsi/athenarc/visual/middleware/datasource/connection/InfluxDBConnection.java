@@ -10,36 +10,17 @@ import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.InputStream;
-import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 public class InfluxDBConnection implements DatabaseConnection {
 
+
     private static final Logger LOG = LoggerFactory.getLogger(InfluxDBConnection.class);
-    private String config;
     private InfluxDBClient client;
     private String token;
     private String org;
     private String url;
     private String bucket;
-    private Properties properties  = new Properties();;
-
-    public InfluxDBConnection(String influxDBCfg) {
-        this.config = influxDBCfg;
-        InputStream inputStream
-                = getClass().getClassLoader().getResourceAsStream(config);
-        try {
-            properties.load(inputStream);
-            token = properties.getProperty("token");
-            org = properties.getProperty("org");
-            url = properties.getProperty("url");
-            bucket = properties.getProperty("bucket");
-        }
-        catch (Exception e) {
-            LOG.error(e.getClass().getName() + ": " + e.getMessage());
-        }
-    }
 
     public InfluxDBConnection(String url, String org, String token, String bucket) {
         this.url = url;

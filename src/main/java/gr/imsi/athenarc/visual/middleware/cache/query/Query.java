@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.query;
+package gr.imsi.athenarc.visual.middleware.cache.query;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -15,16 +15,12 @@ public class Query implements TimeInterval {
     long to;
     List<Integer> measures;
     ViewPort viewPort;
-    Map<Integer, Double[]> filter;
-    float accuracy;
 
     public Query() {}
-    public Query(long from, long to, List<Integer> measures, float accuracy, int width, int height, Map<Integer, Double[]> filter) {
+    public Query(long from, long to, List<Integer> measures, int width, int height) {
         this.from = from;
         this.to = to;
         this.measures = measures;
-        this.filter = filter;
-        this.accuracy = accuracy;
         this.viewPort = new ViewPort(width, height);
     }
 
@@ -65,15 +61,7 @@ public class Query implements TimeInterval {
     public List<Integer> getMeasures() {
         return measures;
     }
-
-    public float getAccuracy() {
-        return accuracy;
-    }
-
-    public Map<Integer, Double[]> getFilter() {
-        return filter;
-    }
-
+    
     @Override
     public String toString() {
         return "Query{" +
@@ -81,8 +69,6 @@ public class Query implements TimeInterval {
                 ", to=" + to +
                 ", measures=" + measures +
                 ", viewPort=" + viewPort +
-                ", filter= " + filter +
-                ", accuracy=" + accuracy +
                 '}';
     }
 }
