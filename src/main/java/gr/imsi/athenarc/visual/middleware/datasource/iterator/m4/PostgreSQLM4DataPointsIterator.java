@@ -1,8 +1,13 @@
 package gr.imsi.athenarc.visual.middleware.datasource.iterator.m4;
 
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.PostgreSQLIterator;
-import gr.imsi.athenarc.visual.middleware.domain.*;
-import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
+import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.DataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
+import gr.imsi.athenarc.visual.middleware.domain.ImmutableAggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;

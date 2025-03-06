@@ -3,9 +3,9 @@ package gr.imsi.athenarc.visual.middleware.datasource.dataset;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 
-import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
 import gr.imsi.athenarc.visual.middleware.datasource.connection.InfluxDBConnection;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.InfluxDBQueryExecutor;
+import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.visual.middleware.domain.TimeRange;
 
 import java.util.*;

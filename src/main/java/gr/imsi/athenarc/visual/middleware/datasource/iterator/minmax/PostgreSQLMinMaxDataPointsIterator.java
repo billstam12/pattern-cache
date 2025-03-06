@@ -3,7 +3,7 @@ package gr.imsi.athenarc.visual.middleware.datasource.iterator.minmax;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.PostgreSQLIterator;
 import gr.imsi.athenarc.visual.middleware.domain.*;
-import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

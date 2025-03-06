@@ -12,10 +12,10 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.visual.middleware.datasource.csv.CsvTimeSeriesRandomAccessReader;
 import gr.imsi.athenarc.visual.middleware.domain.IntervalTree;
 import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.visual.middleware.domain.TimeRange;
-import gr.imsi.athenarc.visual.middleware.util.io.csv.CsvTimeSeriesRandomAccessReader;
 
 public class CsvDataset extends AbstractDataset {
 

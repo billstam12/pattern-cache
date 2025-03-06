@@ -6,10 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.visual.middleware.domain.ImmutableAggregatedDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.NonTimestampedStatsAggregator;
 import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
-import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
 
 public class CsvMinMaxDataPointsIterator implements Iterator<AggregatedDataPoint> {
 

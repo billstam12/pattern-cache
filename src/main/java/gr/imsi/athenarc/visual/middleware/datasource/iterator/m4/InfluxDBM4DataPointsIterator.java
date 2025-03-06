@@ -3,7 +3,10 @@ package gr.imsi.athenarc.visual.middleware.datasource.iterator.m4;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.InfluxDBIterator;
-import gr.imsi.athenarc.visual.middleware.domain.*;
+import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.ImmutableAggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.StatsAggregator;
 
 import java.util.List;
 import java.util.Map;

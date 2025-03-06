@@ -4,9 +4,9 @@ import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.InfluxDBIterator;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.visual.middleware.domain.ImmutableAggregatedDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.NonTimestampedStatsAggregator;
-import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
 
 import java.util.List;
 import java.util.Map;

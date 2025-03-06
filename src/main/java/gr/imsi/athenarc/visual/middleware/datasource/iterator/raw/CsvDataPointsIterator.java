@@ -8,9 +8,9 @@ import java.util.NoSuchElementException;
 import java.util.Queue;
 
 import gr.imsi.athenarc.visual.middleware.domain.DataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
-import gr.imsi.athenarc.visual.middleware.util.DateTimeUtil;
 /**
  * A simple iterator that returns ImmutableDataPoint objects for each measure
  * and only for timestamps within the measure's intervals.
