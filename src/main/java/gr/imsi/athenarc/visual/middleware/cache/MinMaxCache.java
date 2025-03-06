@@ -15,8 +15,7 @@ public class MinMaxCache {
     private final PrefetchManager prefetchManager;
     private final DataProcessor dataProcessor;
 
-    protected MinMaxCache(DataSource dataSource, double prefetchingFactor, int aggFactor, int dataReductionRatio) {
-        // Constructor logic for MinMaxCache
+    public MinMaxCache(DataSource dataSource, double prefetchingFactor, int aggFactor, int dataReductionRatio) {
         cacheQueryExecutor = new CacheQueryExecutor(dataSource, aggFactor);
         cacheManager = new CacheManager(dataSource);
         dataProcessor = new DataProcessor(dataSource, dataReductionRatio);

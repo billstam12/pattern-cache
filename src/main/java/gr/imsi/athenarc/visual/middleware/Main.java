@@ -8,11 +8,11 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.visual.middleware.cache.MinMaxCache;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.visual.middleware.datasource.config.InfluxDBConfiguration;
 import gr.imsi.athenarc.visual.middleware.datasource.config.PostgeSQLConfiguration;
-import gr.imsi.athenarc.visual.middleware.domain.DataPoints;
 
 public class Main {
     private static final Logger LOG = LoggerFactory.getLogger(Main.class);
@@ -55,16 +55,11 @@ public class Main {
             .build(); 
 
         DataSource intelLabPostgres = DataSourceFactory.createDataSource(postgreSQLConfiguration);
-
         // Query properties
         long from = 1583408619000L;
         long to = 1683408619000L;
         List<Integer> measures = Arrays.asList(2);
-
-        DataPoints dataPoints = intelLabPostgres.getDataPoints(from, to, measures);
-        dataPoints.forEach(dp -> dp.getTimestamp());
-        
-    
+        MinMaxCache minMaxCache = new MinMaxCache(intelLabPostgres, 1, 4, 6);
     }
 
     public static Properties readProperties(){
