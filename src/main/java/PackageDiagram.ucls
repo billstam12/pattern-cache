@@ -3,213 +3,284 @@
   realizations="true" associations="true" dependencies="true" nesting-relationships="true" router="FAN">  
   <package id="1" language="java" name="gr.imsi.athenarc.visual.middleware.cache" project="pattern-cache" 
     file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/cache" binary="false" corner="BOTTOM_RIGHT">    
-    <position height="50" width="260" x="837" y="37"/>    
+    <position height="50" width="260" x="735" y="127"/>    
     <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
   </package>  
   <package id="2" language="java" name="gr.imsi.athenarc.visual.middleware.cache.query" project="pattern-cache" 
     file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/cache/query" binary="false" 
     corner="BOTTOM_RIGHT">    
-    <position height="-1" width="-1" x="195" y="97"/>    
+    <position height="50" width="295" x="118" y="217"/>    
     <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
   </package>  
-  <package id="3" language="java" name="gr.imsi.athenarc.visual.middleware.datasource" project="pattern-cache" 
+  <package id="3" language="java" name="gr.imsi.athenarc.visual.middleware.cache.query.repetition" 
+    project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/cache/query/repetition" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="50" width="351" x="41" y="307"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="4" language="java" name="gr.imsi.athenarc.visual.middleware.datasource" project="pattern-cache" 
     file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource" binary="false" 
     corner="BOTTOM_RIGHT">    
-    <position height="50" width="290" x="420" y="127"/>    
+    <position height="-1" width="-1" x="1570" y="132"/>    
     <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
   </package>  
-  <package id="4" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.dataset" project="pattern-cache" 
-    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/dataset" binary="false" 
-    corner="BOTTOM_RIGHT">    
-    <position height="50" width="336" x="837" y="217"/>    
-    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
-  </package>  
-  <package id="5" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.connection" 
-    project="pattern-cache" file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/connection" 
-    binary="false" corner="BOTTOM_RIGHT">    
-    <position height="-1" width="-1" x="644" y="295"/>    
-    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
-  </package>  
-  <package id="6" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.query" project="pattern-cache" 
-    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/query" binary="false" 
-    corner="BOTTOM_RIGHT">    
-    <position height="50" width="325" x="376" y="487"/>    
-    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
-  </package>  
-  <package id="7" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.executor" project="pattern-cache" 
-    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/executor" binary="false" 
-    corner="BOTTOM_RIGHT">    
-    <position height="50" width="344" x="493" y="397"/>    
-    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
-  </package>  
-  <package id="8" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.iterator" project="pattern-cache" 
-    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/iterator" binary="false" 
-    corner="BOTTOM_RIGHT">    
-    <position height="-1" width="-1" x="141" y="261"/>    
-    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
-  </package>  
-  <package id="9" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.config" project="pattern-cache" 
+  <package id="5" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.config" project="pattern-cache" 
     file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/config" binary="false" 
     corner="BOTTOM_RIGHT">    
-    <position height="-1" width="-1" x="136" y="320"/>    
+    <position height="50" width="328" x="367" y="127"/>    
     <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
   </package>  
-  <package id="10" language="java" name="gr.imsi.athenarc.visual.middleware.domain" project="pattern-cache" 
-    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/domain" binary="false" corner="BOTTOM_RIGHT">    
-    <position height="50" width="267" x="722" y="667"/>    
+  <package id="6" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.connection" 
+    project="pattern-cache" file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/connection" 
+    binary="false" corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="1421" y="384"/>    
     <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
   </package>  
-  <package id="11" language="java" name="gr.imsi.athenarc.visual.middleware.util" project="pattern-cache" 
-    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/util" binary="false" corner="BOTTOM_RIGHT">    
-    <position height="-1" width="-1" x="1198" y="555"/>    
-    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
-  </package>  
-  <package id="12" language="java" name="gr.imsi.athenarc.visual.middleware.util.io.csv" project="pattern-cache" 
-    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/util/io/csv" binary="false" 
+  <package id="7" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.csv" project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/csv" binary="false" 
     corner="BOTTOM_RIGHT">    
-    <position height="-1" width="-1" x="918" y="503"/>    
+    <position height="-1" width="-1" x="1039" y="530"/>    
     <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
   </package>  
-  <dependency id="13">    
-    <end type="SOURCE" refId="7"/>    
-    <end type="TARGET" refId="6"/>  
-  </dependency>  
-  <dependency id="14">    
-    <end type="SOURCE" refId="1"/>    
-    <end type="TARGET" refId="3"/>  
-  </dependency>  
-  <dependency id="15">    
-    <bendpoint x="387" y="217"/>    
-    <bendpoint x="387" y="307"/>    
-    <bendpoint x="345" y="397"/>    
-    <bendpoint x="345" y="487"/>    
-    <bendpoint x="345" y="577"/>    
-    <end type="SOURCE" refId="3"/>    
-    <end type="TARGET" refId="10"/>  
-  </dependency>  
-  <dependency id="16">    
-    <bendpoint x="846" y="307"/>    
-    <end type="SOURCE" refId="4"/>    
-    <end type="TARGET" refId="7"/>  
-  </dependency>  
+  <package id="8" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.dataset" project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/dataset" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="1017" y="382"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="9" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.executor" project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/executor" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="1373" y="280"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="10" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.iterator" project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/iterator" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="1870" y="632"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="11" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.iterator.m4" 
+    project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/iterator/m4" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="2275" y="532"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="12" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.iterator.minmax" 
+    project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/iterator/minmax" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="1458" y="521"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="13" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.iterator.raw" 
+    project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/iterator/raw" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="1883" y="537"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="14" language="java" name="gr.imsi.athenarc.visual.middleware.datasource.query" project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/datasource/query" binary="false" 
+    corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="658" y="380"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="15" language="java" name="gr.imsi.athenarc.visual.middleware.domain" project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware/domain" binary="false" corner="BOTTOM_RIGHT">    
+    <position height="-1" width="-1" x="1352" y="688"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
+  <package id="16" language="java" name="gr.imsi.athenarc.visual.middleware" project="pattern-cache" 
+    file="/pattern-cache/src/main/java/gr/imsi/athenarc/visual/middleware" binary="false" corner="BOTTOM_RIGHT">    
+    <position height="50" width="222" x="843" y="37"/>    
+    <display autosize="true" stereotype="true" sort-features="false" accessors="true"/>  
+  </package>  
   <dependency id="17">    
-    <end type="SOURCE" refId="1"/>    
-    <end type="TARGET" refId="4"/>  
+    <bendpoint x="827" y="307"/>    
+    <end type="SOURCE" refId="4"/>    
+    <end type="TARGET" refId="14"/>  
   </dependency>  
   <dependency id="18">    
-    <bendpoint x="408" y="217"/>    
-    <bendpoint x="408" y="307"/>    
-    <bendpoint x="408" y="397"/>    
-    <end type="SOURCE" refId="3"/>    
-    <end type="TARGET" refId="6"/>  
-  </dependency>  
-  <dependency id="19">    
-    <end type="SOURCE" refId="11"/>    
-    <end type="TARGET" refId="10"/>  
-  </dependency>  
-  <dependency id="20">    
-    <bendpoint x="633" y="270"/>    
-    <end type="SOURCE" refId="4"/>    
-    <end type="TARGET" refId="5"/>  
-  </dependency>  
-  <dependency id="21">    
-    <bendpoint x="1203" y="127"/>    
-    <bendpoint x="1203" y="217"/>    
-    <bendpoint x="1203" y="307"/>    
-    <bendpoint x="1203" y="397"/>    
-    <bendpoint x="1203" y="487"/>    
-    <end type="SOURCE" refId="1"/>    
-    <end type="TARGET" refId="11"/>  
-  </dependency>  
-  <dependency id="22">    
-    <bendpoint x="324" y="217"/>    
-    <bendpoint x="324" y="307"/>    
-    <bendpoint x="324" y="397"/>    
-    <bendpoint x="324" y="487"/>    
-    <bendpoint x="324" y="629"/>    
-    <end type="SOURCE" refId="2"/>    
-    <end type="TARGET" refId="10"/>  
-  </dependency>  
-  <dependency id="23">    
-    <end type="SOURCE" refId="5"/>    
-    <end type="TARGET" refId="7"/>  
-  </dependency>  
-  <dependency id="24">    
-    <bendpoint x="558" y="577"/>    
-    <end type="SOURCE" refId="6"/>    
-    <end type="TARGET" refId="10"/>  
-  </dependency>  
-  <dependency id="25">    
-    <end type="SOURCE" refId="12"/>    
-    <end type="TARGET" refId="11"/>  
-  </dependency>  
-  <dependency id="26">    
     <end type="SOURCE" refId="1"/>    
     <end type="TARGET" refId="2"/>  
   </dependency>  
-  <dependency id="27">    
-    <end type="SOURCE" refId="3"/>    
-    <end type="TARGET" refId="4"/>  
+  <dependency id="19">    
+    <bendpoint x="1666" y="554"/>    
+    <end type="SOURCE" refId="13"/>    
+    <end type="TARGET" refId="15"/>  
   </dependency>  
-  <dependency id="28">    
-    <bendpoint x="1354" y="127"/>    
-    <bendpoint x="1354" y="217"/>    
-    <bendpoint x="1354" y="307"/>    
-    <bendpoint x="1354" y="397"/>    
-    <bendpoint x="1354" y="487"/>    
-    <bendpoint x="1354" y="577"/>    
+  <dependency id="20">    
+    <bendpoint x="848" y="217"/>    
+    <bendpoint x="848" y="307"/>    
     <end type="SOURCE" refId="1"/>    
-    <end type="TARGET" refId="10"/>  
+    <end type="TARGET" refId="8"/>  
   </dependency>  
-  <dependency id="29">    
-    <bendpoint x="429" y="217"/>    
-    <bendpoint x="429" y="307"/>    
-    <end type="SOURCE" refId="3"/>    
+  <dependency id="21">    
+    <bendpoint x="2485" y="307"/>    
+    <bendpoint x="2485" y="397"/>    
+    <bendpoint x="2493" y="681"/>    
+    <end type="SOURCE" refId="4"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="22">    
+    <bendpoint x="1097" y="455"/>    
+    <end type="SOURCE" refId="9"/>    
     <end type="TARGET" refId="7"/>  
   </dependency>  
-  <dependency id="30">    
-    <end type="SOURCE" refId="7"/>    
-    <end type="TARGET" refId="12"/>  
+  <dependency id="23">    
+    <end type="SOURCE" refId="9"/>    
+    <end type="TARGET" refId="14"/>  
   </dependency>  
-  <dependency id="31">    
-    <bendpoint x="366" y="127"/>    
-    <bendpoint x="366" y="217"/>    
-    <bendpoint x="366" y="307"/>    
-    <bendpoint x="366" y="397"/>    
-    <end type="SOURCE" refId="1"/>    
-    <end type="TARGET" refId="6"/>  
+  <dependency id="24">    
+    <end type="SOURCE" refId="4"/>    
+    <end type="TARGET" refId="9"/>  
   </dependency>  
-  <dependency id="32">    
-    <bendpoint x="731" y="487"/>    
-    <bendpoint x="731" y="577"/>    
+  <dependency id="25">    
     <end type="SOURCE" refId="7"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="26">    
+    <end type="SOURCE" refId="13"/>    
     <end type="TARGET" refId="10"/>  
   </dependency>  
+  <dependency id="27">    
+    <end type="SOURCE" refId="9"/>    
+    <end type="TARGET" refId="12"/>  
+  </dependency>  
+  <dependency id="28">    
+    <bendpoint x="1226" y="487"/>    
+    <end type="SOURCE" refId="9"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="29">    
+    <bendpoint x="1570" y="307"/>    
+    <end type="SOURCE" refId="12"/>    
+    <end type="TARGET" refId="4"/>  
+  </dependency>  
+  <dependency id="30">    
+    <end type="SOURCE" refId="2"/>    
+    <end type="TARGET" refId="3"/>  
+  </dependency>  
+  <dependency id="31">    
+    <end type="SOURCE" refId="9"/>    
+    <end type="TARGET" refId="8"/>  
+  </dependency>  
+  <dependency id="32">    
+    <end type="SOURCE" refId="16"/>    
+    <end type="TARGET" refId="1"/>  
+  </dependency>  
   <dependency id="33">    
-    <bendpoint x="865" y="576"/>    
+    <end type="SOURCE" refId="1"/>    
+    <end type="TARGET" refId="4"/>  
+  </dependency>  
+  <dependency id="34">    
+    <end type="SOURCE" refId="16"/>    
+    <end type="TARGET" refId="5"/>  
+  </dependency>  
+  <dependency id="35">    
     <end type="SOURCE" refId="12"/>    
     <end type="TARGET" refId="10"/>  
   </dependency>  
-  <dependency id="34">    
-    <bendpoint x="1070" y="307"/>    
-    <bendpoint x="1070" y="397"/>    
-    <bendpoint x="1070" y="487"/>    
-    <bendpoint x="1051" y="577"/>    
-    <end type="SOURCE" refId="4"/>    
+  <dependency id="36">    
+    <bendpoint x="803" y="546"/>    
+    <end type="SOURCE" refId="8"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="37">    
+    <bendpoint x="422" y="307"/>    
+    <bendpoint x="422" y="397"/>    
+    <bendpoint x="422" y="487"/>    
+    <end type="SOURCE" refId="2"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="38">    
+    <bendpoint x="1145" y="127"/>    
+    <end type="SOURCE" refId="16"/>    
+    <end type="TARGET" refId="4"/>  
+  </dependency>  
+  <dependency id="39">    
+    <end type="SOURCE" refId="8"/>    
+    <end type="TARGET" refId="6"/>  
+  </dependency>  
+  <dependency id="40">    
+    <bendpoint x="2065" y="673"/>    
+    <end type="SOURCE" refId="11"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="41">    
+    <bendpoint x="613" y="217"/>    
+    <bendpoint x="613" y="307"/>    
+    <end type="SOURCE" refId="1"/>    
+    <end type="TARGET" refId="14"/>  
+  </dependency>  
+  <dependency id="42">    
+    <end type="SOURCE" refId="11"/>    
     <end type="TARGET" refId="10"/>  
   </dependency>  
-  <dependency id="35">    
-    <bendpoint x="1091" y="307"/>    
-    <bendpoint x="1091" y="397"/>    
-    <bendpoint x="1091" y="487"/>    
+  <dependency id="43">    
+    <bendpoint x="443" y="217"/>    
+    <bendpoint x="443" y="307"/>    
+    <bendpoint x="443" y="397"/>    
+    <bendpoint x="443" y="487"/>    
+    <end type="SOURCE" refId="1"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="44">    
+    <end type="SOURCE" refId="9"/>    
+    <end type="TARGET" refId="11"/>  
+  </dependency>  
+  <dependency id="45">    
+    <bendpoint x="1773" y="307"/>    
     <end type="SOURCE" refId="4"/>    
     <end type="TARGET" refId="11"/>  
   </dependency>  
-  <dependency id="36">    
-    <bendpoint x="867" y="307"/>    
-    <bendpoint x="867" y="397"/>    
+  <dependency id="46">    
+    <end type="SOURCE" refId="8"/>    
+    <end type="TARGET" refId="7"/>  
+  </dependency>  
+  <dependency id="47">    
+    <bendpoint x="1247" y="397"/>    
+    <end type="SOURCE" refId="6"/>    
+    <end type="TARGET" refId="9"/>  
+  </dependency>  
+  <dependency id="48">    
+    <end type="SOURCE" refId="6"/>    
+    <end type="TARGET" refId="8"/>  
+  </dependency>  
+  <dependency id="49">    
+    <bendpoint x="1621" y="429"/>    
     <end type="SOURCE" refId="4"/>    
     <end type="TARGET" refId="12"/>  
+  </dependency>  
+  <dependency id="50">    
+    <bendpoint x="1671" y="292"/>    
+    <end type="SOURCE" refId="4"/>    
+    <end type="TARGET" refId="13"/>  
+  </dependency>  
+  <dependency id="51">    
+    <bendpoint x="802" y="556"/>    
+    <end type="SOURCE" refId="14"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="52">    
+    <end type="SOURCE" refId="12"/>    
+    <end type="TARGET" refId="15"/>  
+  </dependency>  
+  <dependency id="53">    
+    <bendpoint x="1084" y="270"/>    
+    <end type="SOURCE" refId="4"/>    
+    <end type="TARGET" refId="8"/>  
+  </dependency>  
+  <dependency id="54">    
+    <end type="SOURCE" refId="8"/>    
+    <end type="TARGET" refId="9"/>  
+  </dependency>  
+  <dependency id="55">    
+    <end type="SOURCE" refId="9"/>    
+    <end type="TARGET" refId="13"/>  
   </dependency>  
   <classifier-display autosize="true" stereotype="true" package="true" initial-value="false" signature="true" 
     sort-features="false" accessors="true" visibility="true">    
