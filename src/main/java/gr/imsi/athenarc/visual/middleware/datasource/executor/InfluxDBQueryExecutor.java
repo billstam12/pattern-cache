@@ -1,10 +1,11 @@
 package gr.imsi.athenarc.visual.middleware.datasource.executor;
 
-import com.influxdb.client.DeleteApi;
-import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.QueryApi;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
+
+import gr.imsi.athenarc.visual.middleware.datasource.connection.DatabaseConnection;
+import gr.imsi.athenarc.visual.middleware.datasource.connection.InfluxDBConnection;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.InfluxDBDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.query.DataSourceQuery;
@@ -15,34 +16,19 @@ import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileNotFoundException;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 
 public class InfluxDBQueryExecutor implements QueryExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(InfluxDBQueryExecutor.class);
 
-    InfluxDBClient influxDBClient;
-    InfluxDBDataset dataset;
+    private final InfluxDBConnection databaseConnection;
+    private final InfluxDBDataset dataset;
 
-    String table;
-    String bucket;
-    String org;
 
-    public InfluxDBQueryExecutor(InfluxDBClient influxDBClient, String bucket, String org){
-        this.influxDBClient = influxDBClient;
-        this.bucket = bucket;
-        this.org = org;
-    }
-    public InfluxDBQueryExecutor(InfluxDBClient influxDBClient, AbstractDataset dataset, String org) {
-        this.influxDBClient = influxDBClient;
+    public InfluxDBQueryExecutor(DatabaseConnection databaseConnection, AbstractDataset dataset) {
+        this.databaseConnection = (InfluxDBConnection) databaseConnection;
         this.dataset = (InfluxDBDataset) dataset;
-        this.table = dataset.getTableName();
-        this.bucket = dataset.getSchema();
-        this.org = org;
     }
 
 
@@ -58,22 +44,6 @@ public class InfluxDBQueryExecutor implements QueryExecutor {
 
     @Override
     public Map<Integer, List<DataPoint>> executeMinMaxQuery(DataSourceQuery q) {return collect(executeMinMaxInfluxQuery((InfluxDBQuery) q));}
-
-    @Override
-    public void initialize(String path) throws FileNotFoundException {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public void drop() {
-        OffsetDateTime start = OffsetDateTime.of(LocalDateTime.of(1970, 1, 1,
-                0, 0, 0), ZoneOffset.UTC);
-        OffsetDateTime stop = OffsetDateTime.now();
-        String predicate = "_measurement=" + table;
-        DeleteApi deleteApi = influxDBClient.getDeleteApi();
-        deleteApi.delete(start, stop, predicate, bucket, org);
-    }
-
 
     Comparator<DataPoint> compareLists = new Comparator<DataPoint>() {
         @Override
@@ -119,7 +89,7 @@ public class InfluxDBQueryExecutor implements QueryExecutor {
     }
 
     public List<FluxTable> executeDbQuery(String query) {
-        QueryApi queryApi = influxDBClient.getQueryApi();
+        QueryApi queryApi = databaseConnection.getClient().getQueryApi();
         LOG.info("Executing Query: \n" + query);
         return queryApi.query(query);
     }

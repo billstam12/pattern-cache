@@ -173,16 +173,6 @@ public class CsvQueryExecutor implements QueryExecutor {
         return collectDataPoints(csvDataPointsIterator);
     }
 
-    @Override
-    public void initialize(String path) throws NoSuchMethodException {
-        throw new NoSuchMethodException("Unsupported method");
-    }
-
-    @Override
-    public void drop() throws NoSuchMethodException {
-        throw new NoSuchMethodException("Unsupported method");
-    }
-
     Comparator<DataPoint> compareLists = new Comparator<DataPoint>() {
         @Override
         public int compare(DataPoint s1, DataPoint s2) {

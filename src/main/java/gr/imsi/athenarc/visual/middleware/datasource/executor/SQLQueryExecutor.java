@@ -1,5 +1,7 @@
 package gr.imsi.athenarc.visual.middleware.datasource.executor;
 
+import gr.imsi.athenarc.visual.middleware.datasource.connection.DatabaseConnection;
+import gr.imsi.athenarc.visual.middleware.datasource.connection.JDBCConnection;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.PostgreSQLDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.query.DataSourceQuery;
@@ -9,37 +11,22 @@ import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.sql.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class SQLQueryExecutor implements QueryExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(SQLQueryExecutor.class);
 
     PostgreSQLDataset dataset;
-    Connection connection;
-    String table;
-    String schema;
+    JDBCConnection connection;
     private final String dropFolder = "postgres-drop-queries";
     private final String initFolder = "postgres-init-queries";
 
-
-    public SQLQueryExecutor(Connection connection) {
-        this.connection = connection;
-    }
-    public SQLQueryExecutor(Connection connection, AbstractDataset dataset) {
-        this.connection = connection;
+    public SQLQueryExecutor(DatabaseConnection connection, AbstractDataset dataset) {
+        this.connection = (JDBCConnection) connection;
         this.dataset = (PostgreSQLDataset) dataset;
-        this.schema = dataset.getSchema();
-        this.table = dataset.getTableName();
     }
 
     @Override
@@ -55,36 +42,6 @@ public class SQLQueryExecutor implements QueryExecutor {
     @Override
     public Map<Integer, List<DataPoint>> executeMinMaxQuery(DataSourceQuery q) throws SQLException {
         return collectData(executeMinMaxSqlQuery((SQLQuery) q));
-    }
-
-    @Override
-    public void initialize(String path) throws SQLException {
-        InputStream inputStream
-                = getClass().getClassLoader().getResourceAsStream(initFolder + "/" + table + ".sql");
-        String[] statements = new BufferedReader(
-                new InputStreamReader(inputStream, StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n")).split(";");
-        for (String statement : statements){
-            LOG.info("Executing: " + statement);
-            connection.prepareStatement(statement.replace("%path", path)).executeUpdate();
-        }
-    }
-
-    @Override
-    public void drop() throws SQLException {
-        String name = Paths.get(dropFolder, table + ".sql").toString();
-        LOG.info("Opening {}", name);
-        InputStream inputStream
-                = getClass().getClassLoader().getResourceAsStream(name);
-        String[] statements = new BufferedReader(
-                new InputStreamReader(inputStream, StandardCharsets.UTF_8))
-                .lines()
-                .collect(Collectors.joining("\n")).split(";");
-        for (String statement : statements){
-            LOG.info("Executing: " + statement);
-            connection.prepareStatement(statement).executeUpdate();
-        }
     }
 
     Comparator<DataPoint> compareLists = new Comparator<DataPoint>() {
@@ -139,18 +96,9 @@ public class SQLQueryExecutor implements QueryExecutor {
 
     public ResultSet executeDbQuery(String query) throws SQLException {
         LOG.debug("Executing Query: \n" + query);
-        PreparedStatement preparedStatement =  connection.prepareStatement(query);
+        PreparedStatement preparedStatement =  connection.getConnection().prepareStatement(query);
         return preparedStatement.executeQuery();
     }
 
-   
-
-    public String getTable() {
-        return table;
-    }
-
-    public String getSchema() {
-        return schema;
-    }
 }
 

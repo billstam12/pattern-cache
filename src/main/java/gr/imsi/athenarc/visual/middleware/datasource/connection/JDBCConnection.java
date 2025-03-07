@@ -1,12 +1,8 @@
 package gr.imsi.athenarc.visual.middleware.datasource.connection;
 
-import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
-import gr.imsi.athenarc.visual.middleware.datasource.executor.SQLQueryExecutor;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -51,25 +47,22 @@ public class JDBCConnection implements DatabaseConnection {
         }
     }
 
-    private SQLQueryExecutor createQueryExecutor(AbstractDataset dataset) {
-        if(connection == null){
-            LOG.error("Connection is not initialized");
-            return null;
-        }
-        return new SQLQueryExecutor(connection, dataset);
+    public String getHost() {
+        return host;
     }
 
-    public boolean isClosed(){
-        try {
-            return connection.isClosed();
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return true;
-        }
+    public String getUser() {
+        return user;
     }
 
-    @Override
-    public SQLQueryExecutor getQueryExecutor(AbstractDataset dataset) {
-        return this.createQueryExecutor(dataset);
+    public String getPassword() {
+        return password;
     }
+
+    public Connection getConnection() {
+        return connection;
+    }
+
+    
+
 }

@@ -4,8 +4,6 @@ import com.influxdb.client.InfluxDBClient;
 import com.influxdb.client.InfluxDBClientFactory;
 import com.influxdb.client.InfluxDBClientOptions;
 
-import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
-import gr.imsi.athenarc.visual.middleware.datasource.executor.InfluxDBQueryExecutor;
 import okhttp3.OkHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,19 +46,6 @@ public class InfluxDBConnection implements DatabaseConnection {
         return this;
     }
 
-    private InfluxDBQueryExecutor createQueryExecutor(AbstractDataset dataset) {
-        if(client == null){
-            LOG.error("Connection is not initialized");
-            return null;
-        }
-        return new InfluxDBQueryExecutor(client, dataset, org);
-    }
-
-    @Override
-    public InfluxDBQueryExecutor getQueryExecutor(AbstractDataset dataset) {
-        return this.createQueryExecutor(dataset);
-    }
-
     @Override
     public void closeConnection() {
         try {
@@ -71,4 +56,27 @@ public class InfluxDBConnection implements DatabaseConnection {
             throw e;
         }
     }
+
+    public InfluxDBClient getClient() {
+        return client;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public String getOrg() {
+        return org;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public String getBucket() {
+        return bucket;
+    }
+
+
+    
 }

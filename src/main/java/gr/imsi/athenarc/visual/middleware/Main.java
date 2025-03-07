@@ -43,7 +43,7 @@ public class Main {
             .measurement(measurement)
             .build();   
             
-        // DataSource intelLabInflux = DataSourceFactory.createDataSource(influxDBConfiguration);
+        DataSource intelLabInflux = DataSourceFactory.createDataSource(influxDBConfiguration);
 
         PostgeSQLConfiguration postgreSQLConfiguration = new PostgeSQLConfiguration.Builder()
             .url(postrgresUrl)
@@ -54,12 +54,12 @@ public class Main {
             .table(measurement)
             .build(); 
 
-        DataSource intelLabPostgres = DataSourceFactory.createDataSource(postgreSQLConfiguration);
+        // DataSource intelLabPostgres = DataSourceFactory.createDataSource(postgreSQLConfiguration);
         // Query properties
         long from = 1583408619000L;
         long to = 1683408619000L;
         List<Integer> measures = Arrays.asList(2);
-        MinMaxCache minMaxCache = new MinMaxCache(intelLabPostgres, 1, 4, 6);
+        MinMaxCache minMaxCache = new MinMaxCache(intelLabInflux, 1, 4, 6);
     }
 
     public static Properties readProperties(){

@@ -1,6 +1,5 @@
 package gr.imsi.athenarc.visual.middleware.datasource.iterator.minmax;
 
-import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.datasource.iterator.PostgreSQLIterator;
 import gr.imsi.athenarc.visual.middleware.domain.*;
 
@@ -14,7 +13,7 @@ import java.util.stream.Collectors;
 
 public class PostgreSQLMinMaxDataPointsIterator extends PostgreSQLIterator<AggregatedDataPoint> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(DataSource.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PostgreSQLIterator.class);
 
     private final List<TimeInterval> unionTimeIntervals;
     private final Map<String, Long> aggregateIntervals;
