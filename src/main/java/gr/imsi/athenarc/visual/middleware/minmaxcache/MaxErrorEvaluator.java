@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.cache;
+package gr.imsi.athenarc.visual.middleware.minmaxcache;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -39,13 +39,14 @@ public class DataSourceFactory {
             config.getToken(), 
             config.getBucket()
         ).connect();
-        
+        InfluxDBQueryExecutor executor = new InfluxDBQueryExecutor(connection);
+
         InfluxDBDataset dataset = new InfluxDBDataset(
             config.getMeasurement(),
             config.getBucket(),
             config.getMeasurement()
         );
-        InfluxDBQueryExecutor executor = new InfluxDBQueryExecutor(connection, dataset);
+
         fillInfluxDBDatasetInfo(dataset, executor);
 
         return new InfluxDBDatasource(executor, dataset);
@@ -59,13 +60,13 @@ public class DataSourceFactory {
             config.getUsername(), 
             config.getPassword()
             ).connect();
+            SQLQueryExecutor executor = new SQLQueryExecutor(connection);
 
             dataset = new PostgreSQLDataset(
                 config.getTable(),
                 config.getSchema(),
                 config.getTable()
             );
-            SQLQueryExecutor executor = new SQLQueryExecutor(connection, dataset);
             fillPostgreSQLDatasetInfo(dataset, executor);
             return new PostgreSQLDatasource(executor, dataset);
         } catch (SQLException e) {
@@ -85,7 +86,7 @@ public class DataSourceFactory {
         return null;
     }
 
-     private static void fillInfluxDBDatasetInfo(InfluxDBDataset dataset, InfluxDBQueryExecutor influxDBQueryExecutor) {
+    private static void fillInfluxDBDatasetInfo(InfluxDBDataset dataset, InfluxDBQueryExecutor influxDBQueryExecutor) {
         // Fetch first timestamp
         String firstQuery = "from(bucket:\"" + dataset.getSchema() + "\")\n" +
             "  |> range(start: 1970-01-01T00:00:00.000Z, stop: now())\n" +
@@ -110,7 +111,8 @@ public class DataSourceFactory {
         // Fetch the second timestamp to calculate the sampling interval.
         // Query on first time plus some time later
         String secondQuery = "from(bucket:\"" + dataset.getSchema() + "\")\n" +
-            "  |> range(start:" + DateTimeUtil.format(firstTime, influxFormat).replace("\"", "") + ", stop: " + DateTimeUtil.format(firstTime + 60000, influxFormat).replace("\"", "") + ")\n" +
+            "  |> range(start:" + DateTimeUtil.format(firstTime, influxFormat).replace("\"", "") + 
+            ", stop: " + DateTimeUtil.format(firstTime + 360000, influxFormat).replace("\"", "") + ")\n" +
             "  |> filter(fn: (r) => r[\"_measurement\"] == \"" + dataset.getTableName() + "\")\n" +
             "  |> limit(n: 2)\n";  // Fetch the first two records
     

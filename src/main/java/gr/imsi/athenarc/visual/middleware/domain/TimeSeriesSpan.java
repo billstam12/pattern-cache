@@ -1,6 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.cache;
-import gr.imsi.athenarc.visual.middleware.domain.DataPoints;
-
+package gr.imsi.athenarc.visual.middleware.domain;
 import java.util.Iterator;
 
 /**

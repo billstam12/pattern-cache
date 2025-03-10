@@ -1,8 +1,9 @@
-package gr.imsi.athenarc.visual.middleware.cache;
+package gr.imsi.athenarc.visual.middleware.minmaxcache;
 
-import gr.imsi.athenarc.visual.middleware.cache.query.Query;
-import gr.imsi.athenarc.visual.middleware.cache.query.QueryResults;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
+import gr.imsi.athenarc.visual.middleware.minmaxcache.query.Query;
+import gr.imsi.athenarc.visual.middleware.minmaxcache.query.QueryResults;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

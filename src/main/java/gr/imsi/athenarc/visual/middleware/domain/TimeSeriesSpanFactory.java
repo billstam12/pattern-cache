@@ -1,6 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.cache;
-import gr.imsi.athenarc.visual.middleware.domain.*;
-
+package gr.imsi.athenarc.visual.middleware.domain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,7 +16,7 @@ public class TimeSeriesSpanFactory {
      * @param missingIntervalsPerMeasure  list of ranges for each measure that this points belong to
      * @return A list of RawTimeSeriesSpan for each measure
      */
-    protected static Map<Integer, List<TimeSeriesSpan>> createRaw(DataPoints dataPoints, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure){
+    public static Map<Integer, List<TimeSeriesSpan>> createRaw(DataPoints dataPoints, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure){
         Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
         Iterator<DataPoint> it = dataPoints.iterator();
         DataPoint dataPoint = null;
@@ -62,7 +60,7 @@ public class TimeSeriesSpanFactory {
      * @param aggregateIntervalsPerMeasure aggregate intervals with which to fetch data for each measure
      * @return A list of AggregateTimeSeriesSpan for each measure
      */
-    protected static Map<Integer, List<TimeSeriesSpan>> createAggregate(AggregatedDataPoints aggregatedDataPoints,
+    public static Map<Integer, List<TimeSeriesSpan>> createAggregate(AggregatedDataPoints aggregatedDataPoints,
                                                                      Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
                                                                      Map<Integer, Long> aggregateIntervalsPerMeasure) {
         Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
@@ -91,10 +89,9 @@ public class TimeSeriesSpanFactory {
                     }
                     else {
                         changed = false;
-                        j = DateTimeUtil.indexInInterval(range.getFrom(), range.getTo(), aggregateInterval, aggregatedDataPoint.getTimestamp());
                         LOG.debug("Adding {} between {}-{} with aggregate interval {} for measure {} at position {}",
                                 aggregatedDataPoint.getTimestamp(), range.getFrom(), range.getTo(), aggregateInterval, measure, j);
-                        timeSeriesSpan.addAggregatedDataPoint(j, aggregatedDataPoint);
+                        timeSeriesSpan.addAggregatedDataPoint(aggregatedDataPoint);
                     }
                 }
                 timeSeriesSpansForMeasure.add(timeSeriesSpan);
@@ -102,6 +99,18 @@ public class TimeSeriesSpanFactory {
             spans.put(measure, timeSeriesSpansForMeasure);
         }
         return spans;
+    }
+
+
+    public static TimeSeriesSpan createAggregate(AggregatedDataPoints aggregatedDataPoints, TimeInterval range, int measure, long aggregateInterval) {
+        Iterator<AggregatedDataPoint> it = aggregatedDataPoints.iterator();
+        AggregatedDataPoint aggregatedDataPoint = null;
+        AggregateTimeSeriesSpan timeSeriesSpan = new AggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+        while (it.hasNext()) {   
+            aggregatedDataPoint = it.next();     
+            timeSeriesSpan.addAggregatedDataPoint(aggregatedDataPoint);
+        }
+        return timeSeriesSpan;
     }
 }
 

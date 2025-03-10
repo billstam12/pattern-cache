@@ -1,18 +1,22 @@
 package gr.imsi.athenarc.visual.middleware;
 
 import java.io.InputStream;
-import java.util.Arrays;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.visual.middleware.cache.MinMaxCache;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.visual.middleware.datasource.config.InfluxDBConfiguration;
-import gr.imsi.athenarc.visual.middleware.datasource.config.PostgeSQLConfiguration;
+import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
+import gr.imsi.athenarc.visual.middleware.patterncache.PatternCache;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.TimeFilter;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.ValueFilter;
 
 public class Main {
     private static final Logger LOG = LoggerFactory.getLogger(Main.class);
@@ -24,15 +28,10 @@ public class Main {
         String influxUrl = properties.getProperty("influxdb.url");
         String org = properties.getProperty("influxdb.org");
         String token = properties.getProperty("influxdb.token");  
-        
-        String postrgresUrl = properties.getProperty("postgres.url");
-        String username = properties.getProperty("postgres.username");
-        String password = properties.getProperty("postgres.password");
-
-
+    
         // Dataset properties
         String bucket = "more";
-        String measurement = "intel_lab_exp";
+        String measurement = "spx";
         String timeFormat = "yyyy-MM-dd[ HH:mm:ss]";
         InfluxDBConfiguration influxDBConfiguration = new InfluxDBConfiguration.Builder()
             .url(influxUrl)
@@ -43,23 +42,37 @@ public class Main {
             .measurement(measurement)
             .build();   
             
-        DataSource intelLabInflux = DataSourceFactory.createDataSource(influxDBConfiguration);
+        DataSource influxDataSource = DataSourceFactory.createDataSource(influxDBConfiguration);
 
-        PostgeSQLConfiguration postgreSQLConfiguration = new PostgeSQLConfiguration.Builder()
-            .url(postrgresUrl)
-            .schema(bucket)
-            .username(username)
-            .password(password)
-            .timeFormat(timeFormat)
-            .table(measurement)
-            .build(); 
-
-        // DataSource intelLabPostgres = DataSourceFactory.createDataSource(postgreSQLConfiguration);
         // Query properties
-        long from = 1583408619000L;
-        long to = 1683408619000L;
-        List<Integer> measures = Arrays.asList(2);
-        MinMaxCache minMaxCache = new MinMaxCache(intelLabInflux, 1, 4, 6);
+        long from = DateTimeUtil.parseDateTimeString("2006-01-01 00:00:00", "yyyy-MM-dd HH:mm:ss");
+        long to = DateTimeUtil.parseDateTimeString("2011-01-01 00:00:00", "yyyy-MM-dd HH:mm:ss");
+        int measure = 1;
+        ChronoUnit chronoUnit = ChronoUnit.DAYS;
+        List<SegmentSpecification> segmentSpecs = new ArrayList<>();
+        TimeFilter singleUnitTimeFilter = new TimeFilter(false, 1, 1);
+        
+        ValueFilter smallSlopeUpValueFilter = new ValueFilter(false, 0.05, 0.1);
+        ValueFilter smallSlopeDownValueFilter = new ValueFilter(false, -0.1, -0.05);
+        ValueFilter largeSlopeDownValueFilter = new ValueFilter(false, -1, -0.2);
+        
+        SegmentSpecification upSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeUpValueFilter);
+        SegmentSpecification downSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeDownValueFilter);
+        SegmentSpecification largeDownSpec = new SegmentSpecification(singleUnitTimeFilter, largeSlopeDownValueFilter);
+
+        segmentSpecs.add(upSpec);
+        segmentSpecs.add(downSpec);
+        segmentSpecs.add(upSpec);
+        segmentSpecs.add(downSpec);
+        segmentSpecs.add(upSpec);
+        segmentSpecs.add(largeDownSpec);
+
+        PatternQuery patternQuery = new PatternQuery(from, to, measure, chronoUnit, segmentSpecs);
+        PatternCache patternCache = new PatternCache(influxDataSource);
+
+        patternCache.executeQuery(patternQuery);
+
+        influxDataSource.closeConnection();
     }
 
     public static Properties readProperties(){

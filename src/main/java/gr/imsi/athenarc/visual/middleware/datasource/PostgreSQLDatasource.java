@@ -1,6 +1,4 @@
 package gr.imsi.athenarc.visual.middleware.datasource;
-import com.google.common.collect.Iterators;
-
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.PostgreSQLDataset;
 import gr.imsi.athenarc.visual.middleware.datasource.executor.SQLQueryExecutor;
@@ -18,6 +16,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -225,5 +224,15 @@ public class PostgreSQLDatasource implements DataSource {
 
     public AbstractDataset getDataset(){
         return dataset;
+    }
+
+    @Override
+    public AggregatedDataPoints getAggregatedDataPoints(long from, long to, int measure, ChronoUnit chronoUnit) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getAggregatedDataPoints'");
+    }
+
+    public void closeConnection() {
+        sqlQueryExecutor.closeConnection();
     }
 }

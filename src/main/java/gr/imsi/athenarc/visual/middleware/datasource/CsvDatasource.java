@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class CsvDatasource implements DataSource {
@@ -34,7 +36,7 @@ public class CsvDatasource implements DataSource {
         this.dataset = dataset;
         this.csvQueryExecutor = csvQueryExecutor;
     }
-
+    
     @Override
     public AggregatedDataPoints getMinMaxDataPoints(long from, long to,
                                                         Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, Map<Integer, Integer> numberOfGroups) {
@@ -235,5 +237,14 @@ public class CsvDatasource implements DataSource {
 
     public AbstractDataset getDataset(){
         return dataset;
+    }
+
+    @Override
+    public AggregatedDataPoints getAggregatedDataPoints(long from, long to, int measure, ChronoUnit chronoUnit) {
+        throw new UnsupportedOperationException("Unimplemented method 'getAggregatedDataPoints'");
+    }
+
+    public void closeConnection() {
+        throw new UnsupportedOperationException("Unimplemented method 'closeConnection'");
     }
 }

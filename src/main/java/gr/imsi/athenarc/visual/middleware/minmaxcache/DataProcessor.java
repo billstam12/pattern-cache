@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.cache;
+package gr.imsi.athenarc.visual.middleware.minmaxcache;
 
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.domain.*;

@@ -114,12 +114,6 @@ public class CsvQueryExecutor implements QueryExecutor {
         return mergedIntervals;
     }
 
-    @Override
-    public Map<Integer, List<DataPoint>> execute(String s) throws IOException {
-        throw new UnsupportedOperationException("Unsupported method");
-    }
-
-    @Override
     public Map<Integer, List<DataPoint>> executeM4Query(DataSourceQuery q) throws IOException {
         CsvQuery csvQuery = (CsvQuery) q;
         Iterable<String[]> csvDataPoints = executeCsvQuery(csvQuery);
@@ -137,8 +131,6 @@ public class CsvQueryExecutor implements QueryExecutor {
 
     }
 
-
-    @Override
     public Map<Integer, List<DataPoint>> executeMinMaxQuery(DataSourceQuery q) throws IOException {
         CsvQuery csvQuery = (CsvQuery) q;
         Iterable<String[]> csvDataPoints = executeCsvQuery(csvQuery);
@@ -156,7 +148,6 @@ public class CsvQueryExecutor implements QueryExecutor {
        return collectAggregateDatapoints(csvAggregateDataPointsIterator);
     }
 
-    @Override
     public Map<Integer, List<DataPoint>> executeRawQuery(DataSourceQuery q) throws IOException {
         CsvQuery csvQuery = (CsvQuery) q;
         Iterable<String[]> csvDataPoints = executeCsvQuery(csvQuery);
@@ -172,16 +163,6 @@ public class CsvQueryExecutor implements QueryExecutor {
             measuresMap, dataset.getTimeColumnIndex(), DateTimeFormatter.ofPattern(dataset.getTimeFormat()));
         return collectDataPoints(csvDataPointsIterator);
     }
-
-    Comparator<DataPoint> compareLists = new Comparator<DataPoint>() {
-        @Override
-        public int compare(DataPoint s1, DataPoint s2) {
-            if (s1==null && s2==null) return 0; //swapping has no point here
-            if (s1==null) return  1;
-            if (s2==null) return -1;
-            return (int) (s1.getTimestamp() - s2.getTimestamp());
-        }
-    };
 
     public String getTable() {
         return table;

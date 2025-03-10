@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.cache.query.repetition;
+package gr.imsi.athenarc.visual.middleware.patterncache.query.repetition;
 
 public class KleenePlus implements RepetitionFactor {
 

@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.cache.query;
+package gr.imsi.athenarc.visual.middleware.minmaxcache.query;
 import com.opencsv.CSVWriter;
 
 import gr.imsi.athenarc.visual.middleware.domain.DataPoint;

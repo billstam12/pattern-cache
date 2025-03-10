@@ -1,6 +1,5 @@
-package gr.imsi.athenarc.visual.middleware.cache;
+package gr.imsi.athenarc.visual.middleware.domain;
 
-import gr.imsi.athenarc.visual.middleware.domain.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

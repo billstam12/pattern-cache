@@ -1,7 +1,9 @@
 package gr.imsi.athenarc.visual.middleware.datasource;
 
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
@@ -14,6 +16,19 @@ import gr.imsi.athenarc.visual.middleware.domain.TimeInterval;
 public interface DataSource {
 
     /**
+     * Returns an {@link AggregatedDataPoints} instance to access the aggregated data points in the time series,
+     * that have a timestamp greater than or equal to the startTimestamp,
+     * and less than or equal to the endTimestamp,
+     * aggregated in the specified time unit.
+     * @param from
+     * @param to
+     * @param measure
+     * @param chronoUnit
+     * @return
+     */
+    AggregatedDataPoints getAggregatedDataPoints(long from, long to, int measure, ChronoUnit chronoUnit);
+
+    /**
      * Returns an {@link AggregatedDataPoints} instance to access the first,last,min,max
      * data points in the time series, that have a timestamp between each of the missing intervals of each measure
      * @param from The start time of range to fetch
@@ -23,7 +38,8 @@ public interface DataSource {
      */
     AggregatedDataPoints getM4DataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, Map<Integer, Integer> numberOfGroups);
 
-        /**
+
+    /**
      * Returns an {@link AggregatedDataPoints} instance to access the min,max data points in the time series, that
      * have a timestamp between each of the missing intervals of each measure
      * @param from The start time of range to fetch
@@ -52,7 +68,8 @@ public interface DataSource {
      */
     public DataPoints getAllDataPoints(List<Integer> measures);
 
-
     public AbstractDataset getDataset();
+
+    public void closeConnection();
 
 }

@@ -1,6 +1,4 @@
-package gr.imsi.athenarc.visual.middleware.cache;
-
-import gr.imsi.athenarc.visual.middleware.domain.*;
+package gr.imsi.athenarc.visual.middleware.domain;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,9 +49,9 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         this.from = from;
         this.to = to;
         this.aggregateInterval = aggregateInterval;
-        LOG.debug("Initializing time series span ({},{}) measure = {} with size {}, aggregate interval {}", getFromDate(), getToDate(), measure, size, aggregateInterval);
         this.measure = measure;
         this.aggregates = new long[size * 5];
+        LOG.debug("Initializing time series span ({},{}) measure = {} with size {}, aggregate interval {}", getFromDate(), getToDate(), measure, size, aggregateInterval);
     }
 
 
@@ -61,7 +59,9 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         initialize(from, to, aggregateInterval, measure);
     }
 
-    protected void addAggregatedDataPoint(int i, AggregatedDataPoint aggregatedDataPoint) {
+    protected void addAggregatedDataPoint(AggregatedDataPoint aggregatedDataPoint) {
+        int i = DateTimeUtil.indexInInterval(getFrom(), getTo(), aggregateInterval, aggregatedDataPoint.getTimestamp());
+
         Stats stats = aggregatedDataPoint.getStats();
         count += stats.getCount();
         if (stats.getCount() == 0) {
