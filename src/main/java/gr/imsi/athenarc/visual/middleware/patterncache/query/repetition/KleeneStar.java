@@ -1,19 +1,25 @@
 package gr.imsi.athenarc.visual.middleware.patterncache.query.repetition;
 
+/**
+ * Represents the Kleene star operator (*) - matches zero or more occurrences.
+ */
 public class KleeneStar implements RepetitionFactor {
 
-    // * => "zero or more"
-
-    @Override
-    public boolean isCountValid(int count) {
-        // zero or more is always valid
-        return (count >= 0);
+    // Maximum number of repetitions to try before stopping
+    private final int maxRepetitions;
+    
+    public KleeneStar() {
+        // Default to a reasonable upper limit to prevent infinite loops
+        this(Integer.MAX_VALUE);
+    }
+    
+    public KleeneStar(int maxRepetitions) {
+        this.maxRepetitions = maxRepetitions;
     }
 
     @Override
-    public double repetitionPenalty(int count) {
-        // If everything is allowed, we can define zero penalty always.
-        // Or define a penalty if we prefer a certain "optimal" count for approximate matching.
-        return 0.0;
+    public boolean isValid(int count) {
+        // Zero or more is always valid
+        return count >= 0;
     }
 }

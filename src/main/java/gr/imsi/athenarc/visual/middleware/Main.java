@@ -50,12 +50,12 @@ public class Main {
         int measure = 1;
         ChronoUnit chronoUnit = ChronoUnit.DAYS;
         List<SegmentSpecification> segmentSpecs = new ArrayList<>();
-        TimeFilter singleUnitTimeFilter = new TimeFilter(false, 1, 1);
+        TimeFilter singleUnitTimeFilter = new TimeFilter(false, 6, 10);
         
         ValueFilter smallSlopeUpValueFilter = new ValueFilter(false, 0.05, 0.1);
         ValueFilter smallSlopeDownValueFilter = new ValueFilter(false, -0.1, -0.05);
         ValueFilter largeSlopeDownValueFilter = new ValueFilter(false, -1, -0.2);
-        
+    
         SegmentSpecification upSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeUpValueFilter);
         SegmentSpecification downSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeDownValueFilter);
         SegmentSpecification largeDownSpec = new SegmentSpecification(singleUnitTimeFilter, largeSlopeDownValueFilter);
@@ -66,6 +66,7 @@ public class Main {
         segmentSpecs.add(downSpec);
         segmentSpecs.add(upSpec);
         segmentSpecs.add(largeDownSpec);
+
 
         PatternQuery patternQuery = new PatternQuery(from, to, measure, chronoUnit, segmentSpecs);
         PatternCache patternCache = new PatternCache(influxDataSource);

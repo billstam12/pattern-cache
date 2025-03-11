@@ -1,19 +1,26 @@
 package gr.imsi.athenarc.visual.middleware.patterncache.query.repetition;
 
+/**
+ * Represents the Kleene plus operator (+) - matches one or more occurrences.
+ */
 public class KleenePlus implements RepetitionFactor {
 
-    // + => "one or more"
-
-    @Override
-    public boolean isCountValid(int count) {
-        // one or more => must be at least 1
-        return (count >= 1);
+    // Maximum number of repetitions to try before stopping
+    private final int maxRepetitions;
+    
+    public KleenePlus() {
+        // Default to a reasonable upper limit to prevent infinite loops
+        this(Integer.MAX_VALUE);
+    }
+    
+    public KleenePlus(int maxRepetitions) {
+        this.maxRepetitions = maxRepetitions;
     }
 
     @Override
-    public double repetitionPenalty(int count) {
-        // zero penalty if count >= 1, else big penalty for 0
-        // In approximate logic, if count=0, maybe penalty=9999, or we can do count-based.
-        return (count >= 1) ? 0.0 : 9999.0;
+    public boolean isValid(int count) {
+        // One or more - must have at least one match
+        return count >= 1;
     }
+
 }

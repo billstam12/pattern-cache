@@ -2,7 +2,6 @@ package gr.imsi.athenarc.visual.middleware.patterncache.query;
 
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class PatternQuery {
     private long from;

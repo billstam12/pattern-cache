@@ -71,10 +71,10 @@ public class InfluxDBSlopeDataPointsIterator extends InfluxDBIterator<Aggregated
     }
 
     private void logAggregatedPoint(AggregatedDataPoint point, StatsAggregator stats) {
-        LOG.debug("Created aggregate Datapoint {} - {} with min: {} and max: {}",
-            DateTimeUtil.format(point.getFrom()),
-            DateTimeUtil.format(point.getTo()),
-            stats.getFirstValue(),
-            stats.getLastValue());
+        // LOG.debug("Created aggregate Datapoint {} - {} first: {} and last {}",
+        //     DateTimeUtil.format(point.getFrom()),
+        //     DateTimeUtil.format(point.getTo()),
+        //     stats.getFirstValue(),
+        //     stats.getLastValue());
     }
 }

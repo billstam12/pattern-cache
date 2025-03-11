@@ -1,23 +1,24 @@
 package gr.imsi.athenarc.visual.middleware.patterncache.query.repetition;
 
+/**
+ * Requires exactly N consecutive matches of a segment.
+ */
 public class Exactly implements RepetitionFactor {
-
-    private final int k;
-
-    public Exactly(int k) {
-        this.k = k;
+    private final int count;
+    
+    public Exactly(int count) {
+        if (count <= 0) {
+            throw new IllegalArgumentException("Count must be positive");
+        }
+        this.count = count;
     }
-
+    
     @Override
-    public boolean isCountValid(int count) {
-        return (count == k);
+    public boolean isValid(int matchCount) {
+        return matchCount == count;
     }
-
-    @Override
-    public double repetitionPenalty(int count) {
-        // Example approximate logic:
-        //  zero penalty if count == k,
-        //  otherwise penalty grows with the absolute difference.
-        return Math.abs(count - k);
+    
+    public int getCount() {
+        return count;
     }
 }

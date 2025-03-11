@@ -5,7 +5,6 @@ import com.influxdb.query.FluxTable;
 
 import gr.imsi.athenarc.visual.middleware.datasource.connection.DatabaseConnection;
 import gr.imsi.athenarc.visual.middleware.datasource.connection.InfluxDBConnection;
-import gr.imsi.athenarc.visual.middleware.datasource.query.InfluxDBQuery;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,24 +20,6 @@ public class InfluxDBQueryExecutor implements QueryExecutor {
     public InfluxDBQueryExecutor(DatabaseConnection databaseConnection) {
         this.databaseConnection = (InfluxDBConnection) databaseConnection;
     }
-
-    public List<FluxTable> executeM4InfluxQuery(InfluxDBQuery q) {
-        String flux = q.m4QuerySkeleton();
-        return executeDbQuery(flux);
-    }
-
-
-    public List<FluxTable> executeMinMaxInfluxQuery(InfluxDBQuery q) {
-        String flux = q.minMaxQuerySkeleton();
-        return executeDbQuery(flux);
-    }
-
-
-    public List<FluxTable> executeRawInfluxQuery(InfluxDBQuery q){
-        String flux = q.rawQuerySkeleton();
-        return executeDbQuery(flux);
-    }
-
 
     public List<FluxTable> executeDbQuery(String query) {
         QueryApi queryApi = databaseConnection.getClient().getQueryApi();
