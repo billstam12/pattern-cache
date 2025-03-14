@@ -33,15 +33,14 @@ public class Sketch implements AggregatedDataPoint {
         }
     }
     
-    public void combine(Sketch sketch){
-        if(this.getTo() == sketch.getFrom()){
-            this.to = sketch.getTo();
-            this.statsAggregator.combine(sketch.getStats());
-            this.duration += sketch.getDuration();
+    public void combine(Sketch sketch) {
+        if (this.getTo() != sketch.getFrom()) {
+            throw new IllegalArgumentException("Cannot combine sketches that are not consecutive. " +
+                "Current sketch ends at " + this.getTo() + " but next sketch starts at " + sketch.getFrom());
         }
-        else{
-            LOG.error("Cannot combine sketches that are not consecutive");
-        }
+        this.to = sketch.getTo();
+        this.statsAggregator.combine(sketch.getStats());
+        this.duration += 1;
     }
 
     public int getDuration(){
@@ -57,33 +56,26 @@ public class Sketch implements AggregatedDataPoint {
         return to;
     }
 
+
+    @Override
+    public DataPoint getRepresnentativeDataPoint() {
+        if(statsAggregator.getCount() == 0){
+            return null;
+        } 
+        return statsAggregator.getLastDataPoint();
+    }
+
     @Override
     public long getTimestamp() {
-        throw new UnsupportedOperationException("Sketch does not have a representative timestamp");
+        return getRepresnentativeDataPoint().getTimestamp();   
     }
 
     @Override
     public double getValue() {
         if(statsAggregator.getCount() == 0){
             return 0;
-        }  
-        DataPoint firstDataPoint = statsAggregator.getFirstDataPoint();
-        DataPoint lastDataPoint = statsAggregator.getLastDataPoint();
-        
-        // Calculate slope based on first and last data points
-        double valueChange = lastDataPoint.getValue() - firstDataPoint.getValue();
-        long timeChange = lastDataPoint.getTimestamp() - firstDataPoint.getTimestamp();
-        
-        if (timeChange == 0) {
-            return 0; // No time difference, return flat slope
-        }
-        
-        double slope = valueChange / timeChange;
-        
-        // Using a simple normalization approach - could be refined based on expected slope ranges
-        double normalizedSlope = 0.5 + Math.atan(slope) / Math.PI; // Maps to range [-0.5,0.5]
-        
-        return normalizedSlope;
+        } 
+        return getRepresnentativeDataPoint().getValue(); 
     }
 
     @Override

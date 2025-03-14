@@ -60,12 +60,6 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
         return to;
     }
 
-
-    @Override
-    public double getValue() {
-        throw new UnsupportedOperationException();
-    }
-
     @Override
     public int getCount() {
         return stats.getCount();
@@ -84,6 +78,16 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
     @Override
     public String toString() {
         return getString();
+    }
+
+    @Override
+    public double getValue() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public DataPoint getRepresnentativeDataPoint() {
+        throw new UnsupportedOperationException("There is no representative data point for an ImmutableAggregatedDataPoint");
     }
 
 }

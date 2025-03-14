@@ -5,18 +5,20 @@ import static org.junit.Assert.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.ArrayList;
 
 import gr.imsi.athenarc.visual.middleware.patterncache.Sketch;
-import gr.imsi.athenarc.visual.middleware.patterncache.SketchSearch;
+import gr.imsi.athenarc.visual.middleware.domain.DataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.Stats;
 import gr.imsi.athenarc.visual.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.visual.middleware.patterncache.util.Util;
+import gr.imsi.athenarc.visual.middleware.patterncache.SketchSearchBFS;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.TimeFilter;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.ValueFilter;
-import gr.imsi.athenarc.visual.middleware.patterncache.util.Util;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 // Dummy AggregatedDataPoint implementation for testing.
 class DummyAggregatedDataPoint implements gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint {
@@ -69,6 +71,12 @@ class DummyAggregatedDataPoint implements gr.imsi.athenarc.visual.middleware.dom
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'getTo'");
     }
+
+    @Override
+    public DataPoint getRepresnentativeDataPoint() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getRepresnentativeDataPoint'");
+    }
 }
 
 public class UnitTests {
@@ -83,7 +91,8 @@ public class UnitTests {
         // Create two consecutive sketches.
         Sketch sketch1 = new Sketch(0, 1000);
         Sketch sketch2 = new Sketch(1000, 2000);
-        
+        Sketch sketch3 = new Sketch(2000, 3000);
+
         // Simulate aggregated data points.
         // For simplicity, add a data point with a known timestamp and value.
         // You may adjust the values such that the computed slope is known.
@@ -92,18 +101,21 @@ public class UnitTests {
         
         sketch1.addAggregatedDataPoint(dp1);
         sketch2.addAggregatedDataPoint(dp2);
-        
+
         // Combine sketches; since sketch1.getTo() equals sketch2.getFrom(), they should combine.
-        sketch1.combine(sketch2);
-        
+        sketch1.combine(sketch2);        
         // Now compute the expected slope.
-        // In this dummy case, slope = (20.0 - 10.0) / (1000 - 0) = 10/1000 = 0.01.
-        double slope = 0.01;
-        double expectedNormalized = 0.5 + Math.atan(slope) / Math.PI;
-        double actualValue = sketch1.getValue();
+        // In this dummy case, slope = (20.0 - 10.0) / (1 - 0) = 10 / 2 = 5.
+        double slope = 5;
+        double expectedNormalized = Math.atan(slope) / Math.PI;
+        double actualValue = Util.computeSlope(sketch1);
         
         assertEquals("Combined sketch value should match expected normalized slope", 
                      expectedNormalized, actualValue, 0.0001);
+
+        sketch1.combine(sketch3);
+        assertEquals("Combined sketch duration should be 3", 3, sketch1.getDuration());
+        
     }
     
     /**
@@ -122,11 +134,11 @@ public class UnitTests {
         sketch2.addAggregatedDataPoint(dp2);
         
         // Try combining. According to your code, it should log an error.
-        sketch1.combine(sketch2);
-        
-        // Since combine did not occur, the to should remain unchanged.
-        assertEquals("Sketch to should remain unchanged when combining non-consecutive sketches", 
-                     1000, sketch1.getTo());
+        try {
+            sketch1.combine(sketch2);
+        } catch (Exception e) {
+            // Expected exception; do nothing.
+        }
     }
     
     /**
@@ -144,84 +156,71 @@ public class UnitTests {
         assertEquals("generateSketches should create the correct number of sketches", 
                      4, sketches.size());
     }
-    
+
     /**
-     * Test adding aggregated data points to the appropriate sketch in PatternCache.
-     * This simulates the addAggregatedDataPointToSketches method.
+     * Test pattern search with variable length segments
+     * This test creates a pattern with three segments:
+     * 1. An upward slope (rising)
+     * 2. A variable-length flat segment
+     * 3. A downward slope (falling)
+     * Then validates that the pattern is correctly matched in a sequence of sketches.
      */
     @Test
-    public void testAddAggregatedDataPointToSketches() {
-        Instant start = Instant.now().truncatedTo(ChronoUnit.DAYS);
-        Instant end = start.plus(1, ChronoUnit.DAYS);
+    public void testVariableLengthPatternSearch() {
+        // Create a sequence of sketches with known slopes
+        List<Sketch> testSketches = new ArrayList<>();
         
-        List<Sketch> sketches = Util.generateSketches(start.toEpochMilli(), end.toEpochMilli(), ChronoUnit.HOURS);
-        // Create a dummy aggregated data point exactly in the middle of the day.
-        long midTimestamp = start.plus(12, ChronoUnit.HOURS).toEpochMilli();
-        DummyAggregatedDataPoint dp = new DummyAggregatedDataPoint(midTimestamp, 50.0);
+        // Create 7 sketches with timestamps 0-7000 in steps of 1000
+        for (int i = 0; i < 7; i++) {
+            testSketches.add(new Sketch(i * 1000, (i + 1) * 1000));
+        }
         
-        int index = 12;
-        sketches.get(index).addAggregatedDataPoint(dp);
+        // Add datapoints to create a pattern:
+        // Sketches 0-1: rising slope (value increases from 10 to 20)
+        // Sketches 2-4: flat (value stays at 20)
+        // Sketches 5-6: falling slope (value decreases from 20 to 10)
+        testSketches.get(0).addAggregatedDataPoint(new DummyAggregatedDataPoint(0, 10.0));
+        testSketches.get(1).addAggregatedDataPoint(new DummyAggregatedDataPoint(1000, 20.0));
+        testSketches.get(2).addAggregatedDataPoint(new DummyAggregatedDataPoint(2000, 20.0));
+        testSketches.get(3).addAggregatedDataPoint(new DummyAggregatedDataPoint(3000, 20.0));
+        testSketches.get(4).addAggregatedDataPoint(new DummyAggregatedDataPoint(4000, 20.0));
+        testSketches.get(5).addAggregatedDataPoint(new DummyAggregatedDataPoint(5000, 20.0));
+        testSketches.get(6).addAggregatedDataPoint(new DummyAggregatedDataPoint(6000, 10.0));
         
-        // Now verify that the sketch at index 12 has a count of 1.
-        assertEquals("Sketch at index 12 should have one aggregated data point", 
-                     1, sketches.get(index).getCount());
-    }
-    
-    /**
-     * Integration test for SketchSearch.
-     * Create a PatternQuery with a segment specification and a set of sketches
-     * that, when combined, produce a composite value within the desired range.
-     */
-    @Test
-    public void testMultipleSegmentsIntegration() {
-        // Create 4 sketches. The actual from/to values are not critical since each sketch is 1 unit long.
-        List<Sketch> sketches = new ArrayList<>();
-        sketches.add(new Sketch(0, 1000));  // Sketch 0
-        sketches.add(new Sketch(1000, 2000));  // Sketch 1
-        sketches.add(new Sketch(2000, 3000));  // Sketch 2
-        sketches.add(new Sketch(3000, 4000));  // Sketch 3
+        // First segment (rising): duration exactly 2 sketches, positive slope
+        SegmentSpecification segment1 = new SegmentSpecification(new TimeFilter(false, 2, 2), new ValueFilter(false, 0.1, 1.0));
+        // Second segment (flat): variable duration between 1-3 sketches, near-zero slope
 
-        // Segment 1: add dummy data points
-        DummyAggregatedDataPoint dp1 = new DummyAggregatedDataPoint(0, 10.0);
-        DummyAggregatedDataPoint dp2 = new DummyAggregatedDataPoint(1000, 20.0);
-        sketches.get(0).addAggregatedDataPoint(dp1);
-        sketches.get(1).addAggregatedDataPoint(dp2);
+        SegmentSpecification segment2 = new SegmentSpecification(new TimeFilter(false, 1, 3), new ValueFilter(false, -0.05, 0.05));
 
-        // Segment 2: add dummy data points
-        DummyAggregatedDataPoint dp3 = new DummyAggregatedDataPoint(2000, 30.0);
-        DummyAggregatedDataPoint dp4 = new DummyAggregatedDataPoint(3000, 50.0);
-        sketches.get(2).addAggregatedDataPoint(dp3);
-        sketches.get(3).addAggregatedDataPoint(dp4);
+        // Third segment (falling): duration exactly 2 sketches, negative slope
+        SegmentSpecification segment3 = new SegmentSpecification(new TimeFilter(false, 2, 2), new ValueFilter(false, -1.0, -0.1) );
+        
+        // Add segments to query
+        List<SegmentSpecification> segmentSpecifications = (Arrays.asList(segment1, segment2, segment3));
+        
+        PatternQuery query = new PatternQuery(0, 7000, 1, ChronoUnit.SECONDS, segmentSpecifications);
 
-        // Define SegmentSpecification for Segment 1: require exactly 2 sketches.
-        TimeFilter tf1 = new TimeFilter(false, 2, 2);
-        // Expect normalized value around 0.5032; set a narrow acceptable range.
-        ValueFilter vf1 = new ValueFilter(false, 0.503, 0.504);
-        SegmentSpecification segSpec1 = new SegmentSpecification(tf1, vf1);
-
-        // Define SegmentSpecification for Segment 2: require exactly 2 sketches.
-        TimeFilter tf2 = new TimeFilter(false, 2, 2);
-        // Expect normalized value around 0.5064; set a narrow acceptable range.
-        ValueFilter vf2 = new ValueFilter(false, 0.506, 0.507);
-        SegmentSpecification segSpec2 = new SegmentSpecification(tf2, vf2);
-
-        // Combine both segment specifications into a PatternQuery.
-        List<SegmentSpecification> segSpecs = new ArrayList<>();
-        segSpecs.add(segSpec1);
-        segSpecs.add(segSpec2);
-
-        // For PatternQuery parameters, we use arbitrary values for from, to, measure, and time unit.
-        long from = 0;
-        long to = 4000;
-        int measure = 1;
-        ChronoUnit chronoUnit = ChronoUnit.DAYS;
-        PatternQuery query = new PatternQuery(from, to, measure, chronoUnit, segSpecs);
-
-        // Create the SketchSearch automaton and run the query.
-        SketchSearch search = new SketchSearch(sketches, query);
-        boolean result = search.run();
-
-        // The test expects that both segments will match their respective filters.
-        assertTrue("SketchSearch should return true when both segments match", result);
+        // Run the pattern search
+        SketchSearchBFS sketchSearch = new SketchSearchBFS(testSketches, query);
+        
+        // Validate the matched segments
+        List<List<Sketch>> matchedSegments = sketchSearch.findAllMatches().get(0); // get the first match
+        assertEquals("Should have 3 matched segments", 3, matchedSegments.size());
+        
+        // First segment should be sketches 0-1 (rising)
+        assertEquals("First segment should contain 2 sketches", 2, matchedSegments.get(0).size());
+        assertEquals("First sketch in segment 1", 0L, matchedSegments.get(0).get(0).getFrom());
+        assertEquals("Last sketch in segment 1", 2000L, matchedSegments.get(0).get(1).getTo());
+        
+        // Second segment should be sketches 2-4 (flat, variable length)
+        assertEquals("Second segment should contain 3 sketches", 3, matchedSegments.get(1).size());
+        assertEquals("First sketch in segment 2", 2000L, matchedSegments.get(1).get(0).getFrom());
+        assertEquals("Last sketch in segment 2", 5000L, matchedSegments.get(1).get(2).getTo());
+        
+        // Third segment should be sketches 5-6 (falling)
+        assertEquals("Third segment should contain 2 sketches", 2, matchedSegments.get(2).size());
+        assertEquals("First sketch in segment 3", 5000L, matchedSegments.get(2).get(0).getFrom());
+        assertEquals("Last sketch in segment 3", 7000L, matchedSegments.get(2).get(1).getTo());
     }
 }

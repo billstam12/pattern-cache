@@ -50,11 +50,11 @@ public class Main {
         int measure = 1;
         ChronoUnit chronoUnit = ChronoUnit.DAYS;
         List<SegmentSpecification> segmentSpecs = new ArrayList<>();
-        TimeFilter singleUnitTimeFilter = new TimeFilter(false, 6, 10);
+        TimeFilter singleUnitTimeFilter = new TimeFilter(false, 1, 2);
         
-        ValueFilter smallSlopeUpValueFilter = new ValueFilter(false, 0.05, 0.1);
-        ValueFilter smallSlopeDownValueFilter = new ValueFilter(false, -0.1, -0.05);
-        ValueFilter largeSlopeDownValueFilter = new ValueFilter(false, -1, -0.2);
+        ValueFilter smallSlopeUpValueFilter = new ValueFilter(false, 0.01, 0.1);
+        ValueFilter smallSlopeDownValueFilter = new ValueFilter(false, -0.1, -0.01);
+        ValueFilter largeSlopeDownValueFilter = new ValueFilter(false, -0.5, -0.2);
     
         SegmentSpecification upSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeUpValueFilter);
         SegmentSpecification downSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeDownValueFilter);
@@ -62,9 +62,9 @@ public class Main {
 
         segmentSpecs.add(upSpec);
         segmentSpecs.add(downSpec);
-        segmentSpecs.add(upSpec);
-        segmentSpecs.add(downSpec);
-        segmentSpecs.add(upSpec);
+        // segmentSpecs.add(upSpec);
+        // // segmentSpecs.add(downSpec);
+        // // segmentSpecs.add(upSpec);
         segmentSpecs.add(largeDownSpec);
 
 

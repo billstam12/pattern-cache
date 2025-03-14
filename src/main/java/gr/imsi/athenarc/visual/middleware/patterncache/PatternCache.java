@@ -2,7 +2,6 @@ package gr.imsi.athenarc.visual.middleware.patterncache;
 
 
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Iterator;
 
 import org.slf4j.Logger;
@@ -47,9 +46,19 @@ public class PatternCache {
             AggregatedDataPoint aggregatedDataPoint = iterator.next();
             addAggregatedDataPointToSketches(from, to, chronoUnit, sketches, aggregatedDataPoint);
         }
+        long startTime = System.currentTimeMillis();
+        LOG.info("Starting BFS search, over {} aggregate data.", sketches.size());
+        SketchSearchBFS sketchSearch = new SketchSearchBFS(sketches, query);
+        List<List<List<Sketch>>> matches = sketchSearch.findAllMatches();
+        long endTime = System.currentTimeMillis();
+        LOG.info("BFS search took {} ms", endTime - startTime);
+        LOG.info("Found {} matches", matches.size());
 
-        SketchSearch sketchSearchAutomaton = new SketchSearch(sketches, query);
-        LOG.info("{}", sketchSearchAutomaton.run());
+        List<List<Sketch>> firstMatch = matches.get(0);
+        for (int i = 0; i < firstMatch.size(); i++) {
+            List<Sketch> segment = firstMatch.get(i);
+            // LOG.info("Segment {}: {}, {}", i, segment, segment.duratioN);
+        }
     }
 
 

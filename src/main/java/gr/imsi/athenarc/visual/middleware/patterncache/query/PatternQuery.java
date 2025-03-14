@@ -4,11 +4,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class PatternQuery {
+
     private long from;
     private long to;
     private int measure;
     private ChronoUnit timeUnit;
     private final List<SegmentSpecification> segmentSpecifications;
+
+    // private final List<PatternNode> patternNodes;
 
     public PatternQuery(long from, long to, int measure, ChronoUnit timeUnit, List<SegmentSpecification> segmentSpecifications) {
         this.from = from;
