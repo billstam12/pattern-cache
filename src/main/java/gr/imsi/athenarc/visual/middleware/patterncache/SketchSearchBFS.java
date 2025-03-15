@@ -8,11 +8,11 @@ import java.util.Queue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternNode;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.TimeFilter;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.ValueFilter;
-import gr.imsi.athenarc.visual.middleware.patterncache.util.Util;
 
 /**
  * Demonstrates a BFS (NFA-like) approach to match all segments of a PatternQuery
@@ -23,15 +23,15 @@ public class SketchSearchBFS {
     private static final Logger LOG = LoggerFactory.getLogger(SketchSearchBFS.class);
     
     private final List<Sketch> sketches;
-    private final PatternQuery query;
+    private final List<PatternNode> patternNodes;
     
     // We'll store all complete matches here.
     // Each match is a List<List<Sketch>> (one sub-list for each segment).
     private final List<List<List<Sketch>>> allMatches = new ArrayList<>();
     
-    public SketchSearchBFS(List<Sketch> sketches, PatternQuery query) {
+    public SketchSearchBFS(List<Sketch> sketches, List<PatternNode> patternNodes) {
         this.sketches = sketches;
-        this.query = query;
+        this.patternNodes = patternNodes;
     }
     
     /**
@@ -41,7 +41,7 @@ public class SketchSearchBFS {
     public List<List<List<Sketch>>> findAllMatches() {
         
         // Basic checks
-        if (sketches.isEmpty() || query.getSegmentSpecifications().isEmpty()) {
+        if (sketches.isEmpty() || patternNodes.isEmpty()) {
             LOG.warn("Either the sketches list is empty or the pattern query has no segments.");
             return allMatches; // empty
         }
@@ -66,7 +66,7 @@ public class SketchSearchBFS {
         
         Queue<State> queue = new LinkedList<>();
         
-        int totalSegments = query.getSegmentSpecifications().size();
+        int totalSegments = patternNodes.size();
         
         // Initialize the queue: we can start from any index in sketches
         for (int startIdx = 0; startIdx < sketches.size(); startIdx++) {
@@ -95,7 +95,7 @@ public class SketchSearchBFS {
             }
             
             // Try matching the current segment at (segIndex) 
-            SegmentSpecification segmentSpec = query.getSegmentSpecifications().get(segIndex);
+            SegmentSpecification segmentSpec = ((SegmentSpecNode) patternNodes.get(segIndex)).getSpec();
             
             // Get all possible subranges for this segment from "startIdx"
             List<List<Sketch>> possibleMatches = findPossibleMatches(startIdx, segmentSpec);
@@ -126,8 +126,8 @@ public class SketchSearchBFS {
         TimeFilter timeFilter = segment.getTimeFilter();
         ValueFilter valueFilter = segment.getValueFilter();
         
-        int minSketches = timeFilter.getTimeLow();
-        int maxSketches = timeFilter.getTimeHigh();
+        int minSketches = Math.max(2, timeFilter.getTimeLow());
+        int maxSketches = timeFilter.getTimeHigh() + 1;
                 
         // We'll iterate from [minSketches..maxSketches], as long as we stay in range
         for (int count = minSketches; 
@@ -181,7 +181,7 @@ public class SketchSearchBFS {
         if (filter.isValueAny()) {
             return true;
         }
-        double slope = Util.computeSlope(sketch);
+        double slope = sketch.computeSlope();
         double low = filter.getValueLow();
         double high = filter.getValueHigh();
         boolean match = (slope >= low && slope <= high);

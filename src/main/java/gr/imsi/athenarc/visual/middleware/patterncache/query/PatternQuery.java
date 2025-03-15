@@ -4,25 +4,18 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class PatternQuery {
+    private final long from;
+    private final long to;
+    private final int measure;
+    private final ChronoUnit chronoUnit;
+    private final List<PatternNode> patternNodes;
 
-    private long from;
-    private long to;
-    private int measure;
-    private ChronoUnit timeUnit;
-    private final List<SegmentSpecification> segmentSpecifications;
-
-    // private final List<PatternNode> patternNodes;
-
-    public PatternQuery(long from, long to, int measure, ChronoUnit timeUnit, List<SegmentSpecification> segmentSpecifications) {
+    public PatternQuery(long from, long to, int measure, ChronoUnit chronoUnit, List<PatternNode> patternNodes) {
         this.from = from;
         this.to = to;
         this.measure = measure;
-        this.timeUnit = timeUnit;
-        this.segmentSpecifications = segmentSpecifications;
-    }
-
-    public List<SegmentSpecification> getSegmentSpecifications() {
-        return segmentSpecifications;
+        this.chronoUnit = chronoUnit;
+        this.patternNodes = patternNodes;
     }
 
     public long getFrom() {
@@ -31,14 +24,22 @@ public class PatternQuery {
 
     public long getTo() {
         return to;
-    }   
+    }
 
     public int getMeasure() {
         return measure;
     }
 
     public ChronoUnit getChronoUnit() {
-        return timeUnit;
+        return chronoUnit;
     }
 
+    public List<PatternNode> getPatternNodes() {
+        return patternNodes;
+    }
+
+    // For backward compatibility during transition
+    public List<PatternNode> getSegmentSpecifications() {
+        return patternNodes;
+    }
 }

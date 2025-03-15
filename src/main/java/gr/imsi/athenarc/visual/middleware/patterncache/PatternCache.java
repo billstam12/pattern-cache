@@ -14,8 +14,8 @@ import java.time.temporal.ChronoUnit;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
 import gr.imsi.athenarc.visual.middleware.patterncache.util.Util;
 
 public class PatternCache {
@@ -35,7 +35,7 @@ public class PatternCache {
         int measure = query.getMeasure();
         ChronoUnit chronoUnit = query.getChronoUnit();
         ChronoUnit subChronoUnit = ChronoUnit.HOURS;
-        List<SegmentSpecification> segmentSpecifications = query.getSegmentSpecifications();
+        List<PatternNode> patternNodes = query.getPatternNodes();
         AggregatedDataPoints aggregatedDataPoints = dataSource.getSlopeDataPoints(from, to, measure, subChronoUnit);
         
         // Create sketches based on the query's timeUnit
@@ -47,17 +47,25 @@ public class PatternCache {
             addAggregatedDataPointToSketches(from, to, chronoUnit, sketches, aggregatedDataPoint);
         }
         long startTime = System.currentTimeMillis();
-        LOG.info("Starting BFS search, over {} aggregate data.", sketches.size());
-        SketchSearchBFS sketchSearch = new SketchSearchBFS(sketches, query);
+        LOG.info("Starting search, over {} aggregate data.", sketches.size());
+        SketchSearch sketchSearch = new SketchSearch(sketches, patternNodes);
+        // SketchSearchBFS sketchSearch = new SketchSearchBFS(sketches, patternNodes);
+
         List<List<List<Sketch>>> matches = sketchSearch.findAllMatches();
         long endTime = System.currentTimeMillis();
-        LOG.info("BFS search took {} ms", endTime - startTime);
+        LOG.info("Search took {} ms", endTime - startTime);
         LOG.info("Found {} matches", matches.size());
 
-        List<List<Sketch>> firstMatch = matches.get(0);
-        for (int i = 0; i < firstMatch.size(); i++) {
-            List<Sketch> segment = firstMatch.get(i);
-            // LOG.info("Segment {}: {}, {}", i, segment, segment.duratioN);
+        if (!matches.isEmpty()) {
+            for (List<List<Sketch>> firstMatch : matches) {
+                LOG.info("Match:");
+                for (int i = 0; i < firstMatch.size(); i++) {
+                    List<Sketch> segment = firstMatch.get(i);
+                    Sketch combinedSketch = Util.combineSketches(segment);
+                    LOG.info("Segment {}: {}", i, combinedSketch);
+                }
+                LOG.info("");
+            }
         }
     }
 

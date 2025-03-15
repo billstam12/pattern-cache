@@ -2,8 +2,6 @@ package gr.imsi.athenarc.visual.middleware.patterncache.query;
 
 import java.util.List;
 
-import gr.imsi.athenarc.visual.middleware.patterncache.query.repetition.RepetitionFactor;
-
 public class GroupNode implements PatternNode {
     private final List<PatternNode> children;
     private final RepetitionFactor repetitionFactor;

@@ -3,8 +3,6 @@ package gr.imsi.athenarc.visual.middleware.patterncache.query;
 import java.util.Collections;
 import java.util.List;
 
-import gr.imsi.athenarc.visual.middleware.patterncache.query.repetition.RepetitionFactor;
-
 public class SegmentSpecNode implements PatternNode {
     
     private final SegmentSpecification spec;

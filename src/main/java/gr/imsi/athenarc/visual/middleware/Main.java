@@ -13,7 +13,11 @@ import gr.imsi.athenarc.visual.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.visual.middleware.datasource.config.InfluxDBConfiguration;
 import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.visual.middleware.patterncache.PatternCache;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.GroupNode;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.RepetitionFactor;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.TimeFilter;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.ValueFilter;
@@ -49,23 +53,28 @@ public class Main {
         long to = DateTimeUtil.parseDateTimeString("2011-01-01 00:00:00", "yyyy-MM-dd HH:mm:ss");
         int measure = 1;
         ChronoUnit chronoUnit = ChronoUnit.DAYS;
-        List<SegmentSpecification> segmentSpecs = new ArrayList<>();
+        List<PatternNode> segmentSpecs = new ArrayList<>();
         TimeFilter singleUnitTimeFilter = new TimeFilter(false, 1, 2);
         
         ValueFilter smallSlopeUpValueFilter = new ValueFilter(false, 0.01, 0.1);
         ValueFilter smallSlopeDownValueFilter = new ValueFilter(false, -0.1, -0.01);
         ValueFilter largeSlopeDownValueFilter = new ValueFilter(false, -0.5, -0.2);
-    
+
         SegmentSpecification upSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeUpValueFilter);
         SegmentSpecification downSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeDownValueFilter);
         SegmentSpecification largeDownSpec = new SegmentSpecification(singleUnitTimeFilter, largeSlopeDownValueFilter);
 
-        segmentSpecs.add(upSpec);
-        segmentSpecs.add(downSpec);
-        // segmentSpecs.add(upSpec);
-        // // segmentSpecs.add(downSpec);
-        // // segmentSpecs.add(upSpec);
-        segmentSpecs.add(largeDownSpec);
+        SegmentSpecNode upNode = new SegmentSpecNode(upSpec, RepetitionFactor.exactly(1));
+        SegmentSpecNode downNode = new SegmentSpecNode(downSpec,  RepetitionFactor.exactly(1));
+        SegmentSpecNode largeDownNode = new SegmentSpecNode(largeDownSpec,  RepetitionFactor.exactly(1));
+
+        List<PatternNode> upDownNode = new ArrayList<>();
+        upDownNode.add(upNode);
+        upDownNode.add(downNode);
+        GroupNode groupNode = new GroupNode(upDownNode, RepetitionFactor.exactly(1));
+
+        segmentSpecs.add(groupNode);
+        segmentSpecs.add(largeDownNode);
 
 
         PatternQuery patternQuery = new PatternQuery(from, to, measure, chronoUnit, segmentSpecs);
