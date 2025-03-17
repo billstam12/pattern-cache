@@ -19,7 +19,7 @@ public interface AggregatedDataPoint extends DataPoint, TimeInterval {
 
     int getMeasure();
 
-    DataPoint getRepresnentativeDataPoint();
+    DataPoint getRepresentativeDataPoint();
 
     default String getString() {
         return "{from: " + getFrom() + ", to: " + getTo() + ", stats: " + getStats() + "}";

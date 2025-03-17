@@ -36,8 +36,8 @@ public class InfluxDBDatasource implements DataSource {
     }
 
     @Override
-    public AggregatedDataPoints getSlopeDataPoints(long from, long to, int measure, ChronoUnit chronoUnit) {
-        return new InfluxDBSlopeDatapoints(from, to, measure, chronoUnit);        
+    public AggregatedDataPoints getSlopeDataPoints(long from, long to, int measure, AggregateInterval aggregateInterval) {
+        return new InfluxDBSlopeDatapoints(from, to, measure, aggregateInterval);        
     }
 
 
@@ -46,13 +46,13 @@ public class InfluxDBDatasource implements DataSource {
         private long from;
         private long to;
         private int measure;
-        private ChronoUnit chronoUnit;
+        private AggregateInterval aggregateInterval;
 
-        public InfluxDBSlopeDatapoints(long from, long to, int measure, ChronoUnit chronoUnit) {
+        public InfluxDBSlopeDatapoints(long from, long to, int measure, AggregateInterval aggregateInterval) {
            this.from = from;
            this.to = to; 
            this.measure = measure;
-           this.chronoUnit = chronoUnit;
+           this.aggregateInterval = aggregateInterval;
         }
 
         @NotNull
@@ -64,7 +64,7 @@ public class InfluxDBDatasource implements DataSource {
             String bucket = dataset.getSchema();
             String measurement = dataset.getTableName();
             String measureName = dataset.getHeader()[measure];
-            String fluxTimeInterval = getFluxTimeInterval(chronoUnit);
+            String fluxTimeInterval = getFluxTimeInterval(aggregateInterval);
             String fluxQuery =
                "customAggregateWindow = (every, fn, column=\"_value\", timeSrc=\"_time\", timeDst=\"_time\", tables=<-) =>\n" +
                 "  tables\n" +
@@ -133,22 +133,24 @@ public class InfluxDBDatasource implements DataSource {
     }
 
 
-    private String getFluxTimeInterval(ChronoUnit chronoUnit) {
+    private String getFluxTimeInterval(AggregateInterval aggregateInterval) {
+        ChronoUnit chronoUnit = aggregateInterval.getChronoUnit();
+        int multiplier = aggregateInterval.getMultiplier();
         switch (chronoUnit) {
             case SECONDS:
-                return "1s";
+                return multiplier + "s";
             case MINUTES:
-                return "1m";    
+                return multiplier + "m";    
             case HOURS:
-                return "1h";
+                return multiplier + "h";
             case DAYS:
-                return "1d";
+                return multiplier + "d";
             case WEEKS:
-                return "1w";
+                return multiplier + "w";
             case MONTHS:
-                return "1mo";
+                return multiplier + "mo";
             case YEARS:
-                return "1y";
+                return multiplier + "y";
             default:
                 throw new IllegalArgumentException("Unsupported chrono unit: " + chronoUnit);
         }

@@ -17,7 +17,7 @@ import gr.imsi.athenarc.visual.middleware.patterncache.query.GroupNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.RepetitionFactor;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecNode;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.SingleNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.TimeFilter;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.ValueFilter;
@@ -64,18 +64,17 @@ public class Main {
         SegmentSpecification downSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeDownValueFilter);
         SegmentSpecification largeDownSpec = new SegmentSpecification(singleUnitTimeFilter, largeSlopeDownValueFilter);
 
-        SegmentSpecNode upNode = new SegmentSpecNode(upSpec, RepetitionFactor.exactly(1));
-        SegmentSpecNode downNode = new SegmentSpecNode(downSpec,  RepetitionFactor.exactly(1));
-        SegmentSpecNode largeDownNode = new SegmentSpecNode(largeDownSpec,  RepetitionFactor.exactly(1));
-
+        SingleNode upNode = new SingleNode(upSpec, RepetitionFactor.exactly(1));
+        SingleNode downNode = new SingleNode(downSpec,  RepetitionFactor.exactly(1));
+        SingleNode largeDownNode = new SingleNode(largeDownSpec,  RepetitionFactor.exactly(1));
         List<PatternNode> upDownNode = new ArrayList<>();
+
         upDownNode.add(upNode);
         upDownNode.add(downNode);
-        GroupNode groupNode = new GroupNode(upDownNode, RepetitionFactor.exactly(1));
+        GroupNode groupNode0 = new GroupNode(upDownNode, RepetitionFactor.atMost(2));
 
-        segmentSpecs.add(groupNode);
+        segmentSpecs.add(groupNode0);
         segmentSpecs.add(largeDownNode);
-
 
         PatternQuery patternQuery = new PatternQuery(from, to, measure, chronoUnit, segmentSpecs);
         PatternCache patternCache = new PatternCache(influxDataSource);

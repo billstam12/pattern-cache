@@ -3,12 +3,12 @@ package gr.imsi.athenarc.visual.middleware.patterncache.query;
 import java.util.Collections;
 import java.util.List;
 
-public class SegmentSpecNode implements PatternNode {
+public class SingleNode implements PatternNode {
     
     private final SegmentSpecification spec;
     private final RepetitionFactor repetitionFactor;
 
-    public SegmentSpecNode(SegmentSpecification spec,
+    public SingleNode(SegmentSpecification spec,
                            RepetitionFactor repetitionFactor) {
         this.spec = spec;
         this.repetitionFactor = repetitionFactor;

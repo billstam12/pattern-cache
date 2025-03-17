@@ -4,16 +4,16 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 
 public class AggregateInterval implements Comparable<AggregateInterval> {
-    private long interval;
+    private int multiplier;
     private ChronoUnit chronoUnit;
 
-    public AggregateInterval(long interval, ChronoUnit chronoUnit) {
-        this.interval = interval;
+    public AggregateInterval(int multiplier, ChronoUnit chronoUnit) {
+        this.multiplier = multiplier;
         this.chronoUnit = chronoUnit;
     }
 
-    public long getInterval() {
-        return interval;
+    public int getMultiplier() {
+        return multiplier;
     }
 
     public ChronoUnit getChronoUnit() {
@@ -21,13 +21,13 @@ public class AggregateInterval implements Comparable<AggregateInterval> {
     }
 
     public Duration toDuration() {
-        return Duration.of(interval, chronoUnit);
+        return Duration.of(multiplier, chronoUnit);
     }
 
     @Override
     public String toString() {
         return "AggregateInterval{" +
-                interval +
+                multiplier +
                 " " +
                 chronoUnit +
                 '}';

@@ -26,23 +26,6 @@ public interface Stats {
 
     public double getAverageValue();
 
-    default DataPoint getMinDataPoint() {
-        return new ImmutableDataPoint(getMinTimestamp(), getMinValue(), -1);
-    }
-
-    default DataPoint getMaxDataPoint() {
-        return new ImmutableDataPoint(getMaxTimestamp(), getMaxValue(), -1);
-    }
-
-    default DataPoint getFirstDataPoint() {
-        return new ImmutableDataPoint(getFirstTimestamp(), getFirstValue(), -1);
-    }
-
-    default DataPoint getLastDataPoint() {
-        return new ImmutableDataPoint(getLastTimestamp(), getLastValue(), -1);
-    }
-
-
 
     default String getString(int measure) {
         return "{" +

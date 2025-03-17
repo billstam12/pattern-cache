@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.GroupNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.RepetitionFactor;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecNode;
+import gr.imsi.athenarc.visual.middleware.patterncache.query.SingleNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.TimeFilter;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.ValueFilter;
@@ -93,8 +93,8 @@ public class SketchSearch {
             List<PatternNode> remainingNodes = nodes.subList(1, nodes.size());
             
             // Handle node based on its type
-            if (currentNode instanceof SegmentSpecNode) {
-                matchSingleNode((SegmentSpecNode) currentNode, startIdx, remainingNodes, partialMatch, allMatches);
+            if (currentNode instanceof SingleNode) {
+                matchSingleNode((SingleNode) currentNode, startIdx, remainingNodes, partialMatch, allMatches);
             } else if (currentNode instanceof GroupNode) {
                 matchGroupNode((GroupNode) currentNode, startIdx, remainingNodes, partialMatch, allMatches);
             }
@@ -103,23 +103,53 @@ public class SketchSearch {
         /**
          * Matches a SegmentSpecNode against sketches
          */
-        private void matchSingleNode(SegmentSpecNode node, int startIdx, 
+        private void matchSingleNode(SingleNode node, int startIdx, 
                                          List<PatternNode> remainingNodes, 
                                          List<List<Sketch>> partialMatch, 
                                          List<List<List<Sketch>>> allMatches) {
             
-            SegmentSpecification spec = node.getSpec();
             RepetitionFactor repetition = node.getRepetitionFactor();
             int minReps = repetition.getMinRepetitions();
             int maxReps = repetition.getMaxRepetitions();
             
-            // Get all ways to match a single occurrence of this segment
-            List<List<Sketch>> possibleMatches = findPossibleMatches(startIdx, spec);
+            // For Kleene star (one or more), we need to try multiple repetitions progressively
+            // We'll use a recursive approach to handle this
+            matchSegmentWithRepetitions(node, startIdx, remainingNodes, partialMatch, allMatches, 0, minReps, maxReps);
+        }
+        
+        /**
+         * Recursively matches a segment with multiple repetitions
+         */
+        private void matchSegmentWithRepetitions(SingleNode node, int currentIdx,
+                                                List<PatternNode> remainingNodes,
+                                                List<List<Sketch>> currentMatch, 
+                                                List<List<List<Sketch>>> allMatches,
+                                                int currentReps, int minReps, int maxReps) {
             
-            // For each number of repetitions in the allowed range
-            for (int reps = minReps; reps <= maxReps; reps++) {
-                matchRepeatedSegment(node, possibleMatches, reps, startIdx, remainingNodes, 
-                                    partialMatch, allMatches);
+            // If we reached minimum repetitions, we can try to match remaining nodes
+            if (currentReps >= minReps) {
+                // Clone the current match to avoid modifying it in future recursions
+                List<List<Sketch>> matchToUse = new ArrayList<>(currentMatch);
+                matchPatternNodes(remainingNodes, currentIdx, matchToUse, allMatches);
+            }
+            
+            // If we're still below max repetitions, try one more repetition
+            if (currentReps < maxReps && currentIdx < sketches.size()) {
+                // Find all possible ways to match this segment at current position
+                List<List<Sketch>> possibleMatches = findPossibleMatches(currentIdx, node.getSpec());
+                
+                for (List<Sketch> match : possibleMatches) {
+                    if (!match.isEmpty()) {
+                        // Add this match and continue with one more repetition
+                        List<List<Sketch>> updatedMatch = new ArrayList<>(currentMatch);
+                        updatedMatch.add(match);
+                        
+                        int nextIdx = currentIdx + match.size();
+                        matchSegmentWithRepetitions(node, nextIdx, remainingNodes, 
+                                                   updatedMatch, allMatches, 
+                                                   currentReps + 1, minReps, maxReps);
+                    }
+                }
             }
         }
         
@@ -131,66 +161,58 @@ public class SketchSearch {
                                    List<List<Sketch>> partialMatch, 
                                    List<List<List<Sketch>>> allMatches) {
             
-            List<PatternNode> groupChildren = node.getChildren();
             RepetitionFactor repetition = node.getRepetitionFactor();
             int minReps = repetition.getMinRepetitions();
             int maxReps = repetition.getMaxRepetitions();
             
-            // For each number of repetitions in the allowed range
-            for (int reps = minReps; reps <= maxReps; reps++) {
-                // Create a flattened list with the group's children repeated 'reps' times
-                List<PatternNode> expandedNodes = new ArrayList<>();
-                for (int i = 0; i < reps; i++) {
-                    expandedNodes.addAll(groupChildren);
-                }
-                
-                // Append the remaining nodes
-                expandedNodes.addAll(remainingNodes);
-                
-                // Match this expanded pattern
-                matchPatternNodes(expandedNodes, startIdx, partialMatch, allMatches);
-            }
+            // For Kleene star groups, we need a similar recursive approach
+            matchGroupWithRepetitions(node, startIdx, remainingNodes, partialMatch, 
+                                    allMatches, 0, minReps, maxReps);
         }
         
         /**
-         * Matches a segment specification repeated a specified number of times
+         * Recursively matches a group with multiple repetitions
          */
-        private void matchRepeatedSegment(SegmentSpecNode node, 
-                                         List<List<Sketch>> possibleMatches, 
-                                         int repetitions,
-                                         int startIdx, 
-                                         List<PatternNode> remainingNodes,
-                                         List<List<Sketch>> partialMatch,
-                                         List<List<List<Sketch>>> allMatches) {
-                                         
-            // Base case: if repetitions is 0, move to remaining nodes
-            if (repetitions == 0) {
-                matchPatternNodes(remainingNodes, startIdx, partialMatch, allMatches);
-                return;
+        private void matchGroupWithRepetitions(GroupNode node, int currentIdx,
+                                             List<PatternNode> remainingNodes,
+                                             List<List<Sketch>> currentMatch,
+                                             List<List<List<Sketch>>> allMatches,
+                                             int currentReps, int minReps, int maxReps) {
+            
+            // If we've reached minimum repetitions, we can try to match remaining nodes
+            if (currentReps >= minReps) {
+                // Clone the current match to avoid modifying it in future recursions
+                List<List<Sketch>> matchToUse = new ArrayList<>(currentMatch);
+                matchPatternNodes(remainingNodes, currentIdx, matchToUse, allMatches);
             }
             
-            // For each possible match of this segment
-            for (List<Sketch> match : possibleMatches) {
-                if (match.isEmpty()) continue;
+            // If we're still below max repetitions, try one more repetition
+            if (currentReps < maxReps && currentIdx < sketches.size()) {
+                // Create a pattern with just the group's children
+                List<PatternNode> groupPattern = new ArrayList<>(node.getChildren());
                 
-                // Add this match to our partial solution
-                List<List<Sketch>> newPartial = new ArrayList<>(partialMatch);
-                newPartial.add(match);
+                // Try to match this group once
+                PatternMatcher subMatcher = new PatternMatcher(sketches);
+                List<List<Sketch>> groupMatches = new ArrayList<>();
+                List<List<List<Sketch>>> tempAllMatches = new ArrayList<>();
+                subMatcher.matchPatternNodes(groupPattern, currentIdx, groupMatches, tempAllMatches);
                 
-                int nextIdx = startIdx + match.size();
-                
-                // If this was the last repetition, proceed to remaining nodes
-                if (repetitions == 1) {
-                    matchPatternNodes(remainingNodes, nextIdx, newPartial, allMatches);
-                } else {
-                    // Otherwise, try to match more repetitions of this segment
-                    // Get possible matches starting from the next index
-                    List<List<Sketch>> nextPossibleMatches = nextIdx < sketches.size() ? 
-                        findPossibleMatches(nextIdx, node.getSpec()) : 
-                        new ArrayList<>();
+                // For each way the group matched
+                for (List<List<Sketch>> groupMatch : tempAllMatches) {
+                    // Calculate the next index after this match
+                    int nextIdx = currentIdx;
+                    for (List<Sketch> matchPart : groupMatch) {
+                        nextIdx += matchPart.size();
+                    }
                     
-                    matchRepeatedSegment(node, nextPossibleMatches, repetitions - 1, 
-                                        nextIdx, remainingNodes, newPartial, allMatches);
+                    // Add this match to our current match
+                    List<List<Sketch>> updatedMatch = new ArrayList<>(currentMatch);
+                    updatedMatch.addAll(groupMatch);
+                    
+                    // Continue with one more repetition
+                    matchGroupWithRepetitions(node, nextIdx, remainingNodes,
+                                           updatedMatch, allMatches,
+                                           currentReps + 1, minReps, maxReps);
                 }
             }
         }
@@ -207,7 +229,7 @@ public class SketchSearch {
         ValueFilter valueFilter = segment.getValueFilter();
         
         int minSketches = Math.max(2, timeFilter.getTimeLow()); // Ensure at least 2 sketches for slope
-        int maxSketches = timeFilter.getTimeHigh() + 1;
+        int maxSketches = timeFilter.getTimeHigh() + 1; 
                 
         // We'll iterate from [minSketches..maxSketches], as long as we stay in range
         for (int count = minSketches; 
@@ -221,7 +243,6 @@ public class SketchSearch {
             segmentSketches.add(sketches.get(startIndex));
             composite.addAggregatedDataPoint(sketches.get(startIndex));
             
-            boolean combinationValid = true;
             for (int i = 1; i < count; i++) {
                 Sketch nextSketch = sketches.get(startIndex + i);
                 try {
@@ -229,19 +250,8 @@ public class SketchSearch {
                     segmentSketches.add(nextSketch);
                 } catch (Exception e) {
                     LOG.error("Failed to combine sketches at index {}: {}", startIndex + i, e.getMessage());
-                    combinationValid = false;
                     break;
                 }
-            }
-            
-            if (!combinationValid) {
-                // This combination fails, skip it
-                continue;
-            }
-            
-            // Ensure we have at least 2 sketches for slope
-            if (count < 2) {
-                continue;
             }
             
             // Now check slope / value constraints

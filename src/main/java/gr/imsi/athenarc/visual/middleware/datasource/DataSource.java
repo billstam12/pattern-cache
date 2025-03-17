@@ -1,7 +1,7 @@
 package gr.imsi.athenarc.visual.middleware.datasource;
 
-import java.time.temporal.ChronoUnit;
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
+import gr.imsi.athenarc.visual.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
 
 /**
@@ -20,7 +20,7 @@ public interface DataSource {
      * @param chronoUnit
      * @return
      */
-    AggregatedDataPoints getSlopeDataPoints(long from, long to, int measure, ChronoUnit chronoUnit);
+    AggregatedDataPoints getSlopeDataPoints(long from, long to, int measure, AggregateInterval aggregateInterval);
 
     public AbstractDataset getDataset();
 

@@ -86,7 +86,7 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
     }
 
     @Override
-    public DataPoint getRepresnentativeDataPoint() {
+    public DataPoint getRepresentativeDataPoint() {
         throw new UnsupportedOperationException("There is no representative data point for an ImmutableAggregatedDataPoint");
     }
 

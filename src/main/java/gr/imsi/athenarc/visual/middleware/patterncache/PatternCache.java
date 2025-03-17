@@ -12,8 +12,10 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 
 import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
+import gr.imsi.athenarc.visual.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.visual.middleware.patterncache.nfa.NFASketchSearch;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternNode;
 import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
 import gr.imsi.athenarc.visual.middleware.patterncache.util.Util;
@@ -35,8 +37,9 @@ public class PatternCache {
         int measure = query.getMeasure();
         ChronoUnit chronoUnit = query.getChronoUnit();
         ChronoUnit subChronoUnit = ChronoUnit.HOURS;
+        AggregateInterval aggregateInterval = new AggregateInterval(1, subChronoUnit);
         List<PatternNode> patternNodes = query.getPatternNodes();
-        AggregatedDataPoints aggregatedDataPoints = dataSource.getSlopeDataPoints(from, to, measure, subChronoUnit);
+        AggregatedDataPoints aggregatedDataPoints = dataSource.getSlopeDataPoints(from, to, measure, aggregateInterval);
         
         // Create sketches based on the query's timeUnit
         List<Sketch> sketches = Util.generateSketches(from, to, chronoUnit);
@@ -46,9 +49,11 @@ public class PatternCache {
             AggregatedDataPoint aggregatedDataPoint = iterator.next();
             addAggregatedDataPointToSketches(from, to, chronoUnit, sketches, aggregatedDataPoint);
         }
+    
         long startTime = System.currentTimeMillis();
         LOG.info("Starting search, over {} aggregate data.", sketches.size());
-        SketchSearch sketchSearch = new SketchSearch(sketches, patternNodes);
+        // SketchSearch sketchSearch = new SketchSearch(sketches, patternNodes);
+        NFASketchSearch sketchSearch = new NFASketchSearch(sketches, patternNodes);
         // SketchSearchBFS sketchSearch = new SketchSearchBFS(sketches, patternNodes);
 
         List<List<List<Sketch>>> matches = sketchSearch.findAllMatches();
@@ -111,6 +116,7 @@ public class PatternCache {
                     " for timestamp " + timestamp + " is out of bounds (sketches size: " + 
                     sketches.size() + ")");
         }
+
     }
 
 }

@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.DataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.Stats;
 import gr.imsi.athenarc.visual.middleware.domain.StatsAggregator;
 
@@ -51,17 +52,14 @@ public class Sketch implements AggregatedDataPoint {
         }
         
         // Check if there are enough data points to calculate slope
-        if (this.getDuration() < 2) {
+        if (this.getDuration() < 1) {
             throw new IllegalArgumentException("Cannot compute slope with fewer than 2 data points. Found sketch with duration: " + this.getDuration());
         }
-        
-        DataPoint firstDataPoint = stats.getFirstDataPoint();
-        DataPoint lastDataPoint = stats.getLastDataPoint();
-        
+                
         // Calculate slope based on first and last data points
-        double valueChange = lastDataPoint.getValue() - firstDataPoint.getValue();
+        double valueChange = stats.getLastValue() - stats.getFirstValue();
         
-        double slope = valueChange / this.getDuration();
+        double slope = valueChange / (this.getDuration() - 1);
         
         // Using a simple normalization approach - could be refined based on expected slope ranges
         double normalizedSlope = Math.atan(slope) / Math.PI; // Maps to range [-0.5,0.5]
@@ -84,16 +82,16 @@ public class Sketch implements AggregatedDataPoint {
 
 
     @Override
-    public DataPoint getRepresnentativeDataPoint() {
+    public DataPoint getRepresentativeDataPoint() {
         if(statsAggregator.getCount() == 0){
             return null;
         } 
-        return statsAggregator.getLastDataPoint();
+        return new ImmutableDataPoint(statsAggregator.getLastTimestamp(), statsAggregator.getLastValue(), -1);
     }
 
     @Override
     public long getTimestamp() {
-        return getRepresnentativeDataPoint().getTimestamp();   
+        return getRepresentativeDataPoint().getTimestamp();   
     }
 
     @Override
@@ -101,7 +99,7 @@ public class Sketch implements AggregatedDataPoint {
         if(statsAggregator.getCount() == 0){
             return 0;
         } 
-        return getRepresnentativeDataPoint().getValue(); 
+        return getRepresentativeDataPoint().getValue(); 
     }
 
     @Override
