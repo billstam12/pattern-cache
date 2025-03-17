@@ -86,7 +86,7 @@ public class Sketch implements AggregatedDataPoint {
         if(statsAggregator.getCount() == 0){
             return null;
         } 
-        return new ImmutableDataPoint(statsAggregator.getLastTimestamp(), statsAggregator.getLastValue(), -1);
+        return new ImmutableDataPoint(statsAggregator.getLastTimestamp(), statsAggregator.getLastValue());
     }
 
     @Override
@@ -110,11 +110,6 @@ public class Sketch implements AggregatedDataPoint {
     @Override
     public Stats getStats() {
        return statsAggregator;
-    }
-
-    @Override
-    public int getMeasure() {
-        return -1;
     }
 
     public String toString() {

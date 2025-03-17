@@ -9,6 +9,7 @@ public interface Stats {
     public double getSum();
 
     public double getMinValue();
+
     public long getMinTimestamp();
 
     public double getMaxValue();
@@ -25,24 +26,6 @@ public interface Stats {
 
 
     public double getAverageValue();
-
-
-    default String getString(int measure) {
-        return "{" +
-                "measure=" + measure +
-                ", count=" + getCount() +
-                ", sum=" + getSum() +
-                ", min=" + getMinValue() +
-                ", minTimestamp=" + getMinTimestamp() +
-                ", max=" + getMaxValue() +
-                ", maxTimestamp=" + getMaxTimestamp() +
-                ", first=" + getFirstValue() +
-                ", firstTimestamp=" + getFirstTimestamp() +
-                ", last=" + getLastValue() +
-                ", lastTimestamp=" + getLastTimestamp() +
-                ", average=" + getAverageValue() +
-                '}';
-    }
 
     default String toString(int measure) {
         return "{" +

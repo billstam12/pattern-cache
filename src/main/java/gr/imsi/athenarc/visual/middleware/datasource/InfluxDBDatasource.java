@@ -95,9 +95,7 @@ public class InfluxDBDatasource implements DataSource {
                     "|> sort(columns: [\"_time\"], desc: false)\n";
             List<FluxTable> fluxTables = influxDBQueryExecutor.executeDbQuery(fluxQuery);
 
-            Map<String, Integer> measuresMap = new HashMap<>();
-            measuresMap.put(measureName, measure);
-            return new InfluxDBSlopeDataPointsIterator(fluxTables, measuresMap);
+            return new InfluxDBSlopeDataPointsIterator(fluxTables);
         }
 
         @Override

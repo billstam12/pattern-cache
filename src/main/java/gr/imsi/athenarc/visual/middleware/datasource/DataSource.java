@@ -10,9 +10,8 @@ import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
 public interface DataSource {
 
     /**
-     * Returns an {@link AggregatedDataPoints} instance to access the aggregated data points in the time series,
-     * that have a timestamp greater than or equal to the startTimestamp,
-     * and less than or equal to the endTimestamp,
+     * Returns an {@link AggregatedDataPoints} instance to access aggregated data points in the time series,
+     * that have a timestamp greater than or equal to the startTimestamp, and less than or equal to the endTimestamp,
      * aggregated in the specified time unit.
      * @param from
      * @param to

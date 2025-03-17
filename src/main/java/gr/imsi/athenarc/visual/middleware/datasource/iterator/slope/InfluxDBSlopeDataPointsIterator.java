@@ -10,24 +10,21 @@ import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.visual.middleware.domain.StatsAggregator;
 
 import java.util.List;
-import java.util.Map;
 
 public class InfluxDBSlopeDataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
 
     private static final int POINTS_PER_AGGREGATE = 2;
 
-    public InfluxDBSlopeDataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap) {
-        super(tables, measuresMap);
+    public InfluxDBSlopeDataPointsIterator(List<FluxTable> tables) {
+        super(tables);
     }
 
     @Override
     protected AggregatedDataPoint getNext() {
         StatsAggregator statsAggregator = new StatsAggregator();
-        String measure = "";
         
         for (int i = 0; i < POINTS_PER_AGGREGATE && current < currentSize; i++) {
             FluxRecord record = currentRecords.get(current);
-            measure = record.getField();
             
             Object value = record.getValue();
             if (value instanceof Number) {
@@ -36,8 +33,7 @@ public class InfluxDBSlopeDataPointsIterator extends InfluxDBIterator<Aggregated
                 
                 statsAggregator.accept(new ImmutableDataPoint(
                     timestamp, 
-                    doubleValue, 
-                    measuresMap.get(measure)
+                    doubleValue
                 ));
             }
             current++;
@@ -52,11 +48,10 @@ public class InfluxDBSlopeDataPointsIterator extends InfluxDBIterator<Aggregated
         AggregatedDataPoint point = new ImmutableAggregatedDataPoint(
             groupTimestamp, 
             currentGroupTimestamp, 
-            measuresMap.get(measure), 
             statsAggregator
         );
 
-        logAggregatedPoint(point, statsAggregator);
+        // logAggregatedPoint(point, statsAggregator);
         groupTimestamp = currentGroupTimestamp;
         
         return point;
@@ -71,10 +66,10 @@ public class InfluxDBSlopeDataPointsIterator extends InfluxDBIterator<Aggregated
     }
 
     private void logAggregatedPoint(AggregatedDataPoint point, StatsAggregator stats) {
-        // LOG.debug("Created aggregate Datapoint {} - {} first: {} and last {}",
-        //     DateTimeUtil.format(point.getFrom()),
-        //     DateTimeUtil.format(point.getTo()),
-        //     stats.getFirstValue(),
-        //     stats.getLastValue());
+        LOG.debug("Created aggregate Datapoint {} - {} first: {} and last {}",
+            DateTimeUtil.format(point.getFrom()),
+            DateTimeUtil.format(point.getTo()),
+            stats.getFirstValue(),
+            stats.getLastValue());
     }
 }

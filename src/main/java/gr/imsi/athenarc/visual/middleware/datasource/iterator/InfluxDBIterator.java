@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.NoSuchElementException;
 
 public abstract class InfluxDBIterator<T> implements Iterator<T> {
@@ -22,9 +21,8 @@ public abstract class InfluxDBIterator<T> implements Iterator<T> {
     protected int currentSize;
     protected List<FluxRecord> currentRecords;
     protected final List<FluxTable> tables;
-    protected final Map<String, Integer> measuresMap;
 
-    protected InfluxDBIterator(List<FluxTable> tables, Map<String, Integer> measuresMap) {
+    protected InfluxDBIterator(List<FluxTable> tables) {
         if (tables == null || tables.isEmpty()) {
             throw new IllegalArgumentException("Tables list cannot be null or empty");
         }
@@ -35,7 +33,6 @@ public abstract class InfluxDBIterator<T> implements Iterator<T> {
         this.currentSize = this.currentRecords.size();
         this.numberOfTables = tables.size();
         this.current = 0;
-        this.measuresMap = measuresMap;
         
         initializeTimestamps();
     }

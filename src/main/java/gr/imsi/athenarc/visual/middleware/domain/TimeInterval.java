@@ -42,7 +42,6 @@ public interface TimeInterval extends Comparable<TimeInterval> {
         return getTo() - getFrom();
     }
 
-
     default boolean contains(long x) {
         return getFrom() <= x && getTo() > x;
     }
