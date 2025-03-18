@@ -71,7 +71,7 @@ public class Main {
 
         upDownNode.add(upNode);
         upDownNode.add(downNode);
-        GroupNode groupNode0 = new GroupNode(upDownNode, RepetitionFactor.atMost(2));
+        GroupNode groupNode0 = new GroupNode(upDownNode, RepetitionFactor.oneOrMore());
 
         segmentSpecs.add(groupNode0);
         segmentSpecs.add(largeDownNode);

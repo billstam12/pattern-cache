@@ -19,4 +19,7 @@ public class SegmentSpecification {
         return valueFilter;
     }
     
+    public String toString(){
+        return "SegmentSpecification: " + timeFilter + " " + valueFilter;
+    }
 }

@@ -23,4 +23,8 @@ public class TimeFilter {
     public int getTimeHigh() {
         return timeHigh;
     }
+
+    public String toString() {
+        return "TimeFilter: " + (timeAny ? "ANY" : "[" + timeLow + ", " + timeHigh + "]");
+    }
 }

@@ -31,10 +31,6 @@ public class NFA {
         return s;
     }
 
-    public void addTransition(NFAState from, NFAState to, TransitionMatcher matcher) {
-        from.addTransition(new Transition(to, matcher));
-    }
-
     public List<NFAState> getStates() {
         return states;
     }

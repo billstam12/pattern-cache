@@ -23,4 +23,8 @@ public class ValueFilter {
     public double getValueHigh() {
         return valueHigh;
     }
+
+    public String toString() {
+        return "ValueFilter: " + (valueAny ? "ANY" : "[" + valueLow + ", " + valueHigh + "]");
+    }
 }
