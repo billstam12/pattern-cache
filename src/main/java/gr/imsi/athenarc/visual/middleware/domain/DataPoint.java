@@ -13,4 +13,6 @@ public interface DataPoint {
      * Returns a single measure value for the {@code timestamp)
      */
     double getValue();
+
+    int getMeasure();
 }

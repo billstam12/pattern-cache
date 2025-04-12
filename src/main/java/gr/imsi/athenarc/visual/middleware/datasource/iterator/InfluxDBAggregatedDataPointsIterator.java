@@ -1,0 +1,82 @@
+package gr.imsi.athenarc.visual.middleware.datasource.iterator;
+
+import com.influxdb.query.FluxRecord;
+import com.influxdb.query.FluxTable;
+
+import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
+import gr.imsi.athenarc.visual.middleware.domain.ImmutableAggregatedDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.ImmutableDataPoint;
+import gr.imsi.athenarc.visual.middleware.domain.StatsAggregator;
+
+import java.util.List;
+import java.util.Map;
+
+public class InfluxDBAggregatedDataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
+
+    private final int pointsPerAggregate;
+    private final Map<String, Integer> measuresMap;
+
+    public InfluxDBAggregatedDataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap, int pointsPerAggregate) {
+        super(tables);
+        this.pointsPerAggregate = pointsPerAggregate;
+        this.measuresMap = measuresMap;
+    }
+
+    @Override
+    protected AggregatedDataPoint getNext() {
+        StatsAggregator statsAggregator = new StatsAggregator();
+        String measureName = "";
+
+        for (int i = 0; i < pointsPerAggregate && current < currentSize; i++) {
+            FluxRecord record = currentRecords.get(current);
+            measureName = record.getField();
+            Object value = record.getValue();
+            if (value instanceof Number) {
+                double doubleValue = ((Number) value).doubleValue();
+                long timestamp = getTimestampFromRecord(record, "_time");
+                
+                statsAggregator.accept(new ImmutableDataPoint(
+                    timestamp, 
+                    doubleValue,
+                    measuresMap.get(measureName)
+                ));
+            }
+            current++;
+        }
+
+        updateGroupTimestamps();
+        
+        if (statsAggregator.getCount() == 0 && hasNext()) {
+            return next();
+        }
+
+        AggregatedDataPoint point = new ImmutableAggregatedDataPoint(
+            groupTimestamp, 
+            currentGroupTimestamp, 
+            measuresMap.get(measureName),
+            statsAggregator
+        );
+
+        logAggregatedPoint(point, statsAggregator);
+        groupTimestamp = currentGroupTimestamp;
+        
+        return point;
+    }
+
+    private void updateGroupTimestamps() {
+        if (current == currentSize) {
+            currentGroupTimestamp = getTimestampFromRecord(currentRecords.get(currentSize - 1), "_stop");
+        } else {
+            currentGroupTimestamp = getTimestampFromRecord(currentRecords.get(current), "_time");
+        }
+    }
+
+    private void logAggregatedPoint(AggregatedDataPoint point, StatsAggregator stats) {
+        LOG.debug("Created aggregate Datapoint {} - {} first: {} and last {}",
+            DateTimeUtil.format(point.getFrom()),
+            DateTimeUtil.format(point.getTo()),
+            stats.getFirstValue(),
+            stats.getLastValue());
+    }
+}

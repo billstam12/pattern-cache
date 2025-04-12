@@ -1,8 +1,11 @@
 package gr.imsi.athenarc.visual.middleware.datasource;
 
 import gr.imsi.athenarc.visual.middleware.datasource.dataset.AbstractDataset;
-import gr.imsi.athenarc.visual.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.visual.middleware.domain.MeasureAggregationRequest;
+
+import java.util.List;
+import java.util.Set;
 
 /**
  * Represents a time series data source
@@ -10,16 +13,15 @@ import gr.imsi.athenarc.visual.middleware.domain.AggregatedDataPoints;
 public interface DataSource {
 
     /**
-     * Returns an {@link AggregatedDataPoints} instance to access aggregated data points in the time series,
-     * that have a timestamp greater than or equal to the startTimestamp, and less than or equal to the endTimestamp,
-     * aggregated in the specified time unit.
-     * @param from
-     * @param to
-     * @param measure
-     * @param chronoUnit
-     * @return
+     * Returns an {@link AggregatedDataPoints} instance to access aggregated data points for multiple measures,
+     * each with its own missing intervals and aggregate interval.
+     * @param from global start timestamp
+     * @param to global end timestamp
+     * @param measureRequests list of measure-specific aggregation requests
+     * @param aggregateFunctions the set of aggregate functions to apply (same for all measures)
+     * @return aggregated data points
      */
-    AggregatedDataPoints getSlopeDataPoints(long from, long to, int measure, AggregateInterval aggregateInterval);
+    AggregatedDataPoints getAggregatedDataPoints(long from, long to, List<MeasureAggregationRequest> measureRequests, Set<String> aggregateFunctions);
 
     public AbstractDataset getDataset();
 

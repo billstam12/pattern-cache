@@ -9,9 +9,13 @@ public class ImmutableDataPoint implements DataPoint {
 
     private final double value;
 
-    public ImmutableDataPoint(final long timestamp, final double value) {
+    // The measure of this data point
+    private final int measure;
+
+    public ImmutableDataPoint(final long timestamp, final double value, int measure) {
         this.timestamp = timestamp;
         this.value = value;
+        this.measure = measure;
     }
 
 
@@ -21,6 +25,10 @@ public class ImmutableDataPoint implements DataPoint {
 
     public double getValue() {
         return value;
+    }
+
+    public int getMeasure() {
+        return measure;
     }
 
 

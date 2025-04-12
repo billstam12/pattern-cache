@@ -10,7 +10,8 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
      * Creates a new ImmutableAggregatedDataPoint from the given AggregatedDataPoint.
      */
     public static ImmutableAggregatedDataPoint fromAggregatedDataPoint(AggregatedDataPoint aggregatedDataPoint) {
-        return new ImmutableAggregatedDataPoint(aggregatedDataPoint.getFrom(), aggregatedDataPoint.getTo(), aggregatedDataPoint.getStats());
+        return new ImmutableAggregatedDataPoint(aggregatedDataPoint.getFrom(), aggregatedDataPoint.getTo(),
+                aggregatedDataPoint.getMeasure(), aggregatedDataPoint.getStats());
     }
 
     // The start timestamp of this data point (inclusive)
@@ -18,6 +19,9 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
 
     // The end timestamp of this data point (exclusive)
     private final long to;
+
+    // The measure of this data point
+    private final int measure;
 
     /**
      * An array of double values, corresponding to a set of measures.
@@ -33,9 +37,10 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
      * @param to The end timestamp (exclusive)
      * @param stats The stats of this aggregated data point
      */
-    public ImmutableAggregatedDataPoint(final long from, final long to, final Stats stats) {
+    public ImmutableAggregatedDataPoint(final long from, final long to, final int measure, final Stats stats) {
         this.from = from;
         this.to = to;
+        this.measure = measure;
         this.stats = stats;
 
     }
@@ -55,6 +60,12 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
         return to;
     }
 
+
+    @Override
+    public double getValue() {
+        throw new UnsupportedOperationException();
+    }
+
     @Override
     public int getCount() {
         return stats.getCount();
@@ -66,18 +77,13 @@ public class ImmutableAggregatedDataPoint implements AggregatedDataPoint {
     }
 
     @Override
+    public int getMeasure() {
+        return measure;
+    }
+
+    @Override
     public String toString() {
         return getString();
-    }
-
-    @Override
-    public double getValue() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public DataPoint getRepresentativeDataPoint() {
-        throw new UnsupportedOperationException("There is no representative data point for an ImmutableAggregatedDataPoint");
     }
 
 }

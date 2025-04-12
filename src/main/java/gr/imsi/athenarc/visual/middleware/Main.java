@@ -12,15 +12,15 @@ import gr.imsi.athenarc.visual.middleware.datasource.DataSource;
 import gr.imsi.athenarc.visual.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.visual.middleware.datasource.config.InfluxDBConfiguration;
 import gr.imsi.athenarc.visual.middleware.domain.DateTimeUtil;
-import gr.imsi.athenarc.visual.middleware.patterncache.PatternCache;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.GroupNode;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternNode;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.PatternQuery;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.RepetitionFactor;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.SingleNode;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.SegmentSpecification;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.TimeFilter;
-import gr.imsi.athenarc.visual.middleware.patterncache.query.ValueFilter;
+import gr.imsi.athenarc.visual.middleware.manager.QueryManager;
+import gr.imsi.athenarc.visual.middleware.query.pattern.GroupNode;
+import gr.imsi.athenarc.visual.middleware.query.pattern.PatternNode;
+import gr.imsi.athenarc.visual.middleware.query.pattern.PatternQuery;
+import gr.imsi.athenarc.visual.middleware.query.pattern.RepetitionFactor;
+import gr.imsi.athenarc.visual.middleware.query.pattern.SegmentSpecification;
+import gr.imsi.athenarc.visual.middleware.query.pattern.SingleNode;
+import gr.imsi.athenarc.visual.middleware.query.pattern.TimeFilter;
+import gr.imsi.athenarc.visual.middleware.query.pattern.ValueFilter;
 
 public class Main {
     private static final Logger LOG = LoggerFactory.getLogger(Main.class);
@@ -77,10 +77,8 @@ public class Main {
         segmentSpecs.add(largeDownNode);
 
         PatternQuery patternQuery = new PatternQuery(from, to, measure, chronoUnit, segmentSpecs);
-        PatternCache patternCache = new PatternCache(influxDataSource);
-
-        patternCache.executeQuery(patternQuery);
-
+        QueryManager queryManager = new QueryManager(influxDataSource);
+        queryManager.executeQuery(patternQuery);
         influxDataSource.closeConnection();
     }
 
