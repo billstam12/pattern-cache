@@ -55,8 +55,8 @@ public class PrefetchManager {
         ViewPort viewPort = prefetchQuery.getViewPort();
         long from = prefetchQuery.getFrom();
         long to = prefetchQuery.getTo();
-        long pixelColumnInterval = (to - from) / viewPort.getWidth();
-
+        long pixelColumnIntervalMillis = (to - from) / viewPort.getWidth();
+        AggregateInterval pixelColumnInterval = DateTimeUtil.roundDownToCalendarBasedInterval(pixelColumnIntervalMillis);
         Map<Integer, List<TimeSeriesSpan>> overlappingSpansPerMeasure = cache.getFromCacheForVisualization(prefetchQuery, pixelColumnInterval);
         Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure = new HashMap<>(measures.size());
         // Initialize Pixel Columns
@@ -64,8 +64,8 @@ public class PrefetchManager {
         for (int measure : measures) {
             List<PixelColumn> pixelColumns = new ArrayList<>();
             for (long j = 0; j < viewPort.getWidth(); j++) {
-                long pixelFrom = from + (j * pixelColumnInterval);
-                long pixelTo = pixelFrom + pixelColumnInterval;
+                long pixelFrom = from + (j * pixelColumnInterval.toDuration().toMillis());
+                long pixelTo = pixelFrom + pixelColumnInterval.toDuration().toMillis();
                 PixelColumn pixelColumn = new PixelColumn(pixelFrom, pixelTo, viewPort);
                 pixelColumns.add(pixelColumn);
             }

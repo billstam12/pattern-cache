@@ -1,51 +1,37 @@
 package gr.imsi.athenarc.middleware.manager.pattern.util;
 
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.StatsAggregator;
 import gr.imsi.athenarc.middleware.manager.pattern.Sketch;
 
 public class Util {
+   
     /**
-     * Generates a list of sketches, each representing one interval of the specified time unit
-     * between the given timestamps.
+     * Generate sketches covering the specified time range based on the AggregateInterval.
+     * Ensures the sketches are properly aligned with chronological boundaries.
      * 
-     * @param from The start timestamp (epoch milliseconds)
-     * @param to The end timestamp (epoch milliseconds)
-     * @param timeUnit The time unit to divide the interval by (DAYS, HOURS, MINUTES, etc.)
-     * @return A list of Sketch objects, each spanning exactly one interval of the specified time unit
+     * @param from Start timestamp (already aligned to time unit boundary)
+     * @param to End timestamp (already aligned to time unit boundary)
+     * @param timeUnit Aggregate interval for sketches
+     * @return List of sketches spanning the time range
      */
-    public static List<Sketch> generateSketches(long from, long to, ChronoUnit chronoUnit) {
+    public static List<Sketch> generateAlignedSketches(long from, long to, AggregateInterval timeUnit) {
         List<Sketch> sketches = new ArrayList<>();
         
-        // Convert epoch milliseconds to Instant
-        Instant startInstant = Instant.ofEpochMilli(from);
-        Instant endInstant = Instant.ofEpochMilli(to);
-        ZoneId zone = ZoneId.systemDefault();
-                
-        // Start with the truncated time unit (beginning of the time unit period)
-        Instant currentInstant = startInstant
-            .atZone(zone)
-            .truncatedTo(chronoUnit)
-            .toInstant();
+        // Calculate the number of complete intervals
+        long unitDurationMs = timeUnit.toDuration().toMillis();
+        int numIntervals = (int) Math.ceil((double)(to - from) / unitDurationMs);
         
-        // Generate sketches for each time unit interval
-        while (!currentInstant.isAfter(endInstant)) {
-            Instant nextInstant = currentInstant.plus(1, chronoUnit);
-            
-            // If we're past the end time, use the end time as the boundary
-            Instant intervalEnd = nextInstant.isAfter(endInstant) ? endInstant : nextInstant;
-            
-            sketches.add(new Sketch(
-                currentInstant.toEpochMilli(),
-                intervalEnd.toEpochMilli()
-            ));
-            
-            currentInstant = nextInstant;
+        // Create a sketch for each interval
+        for (int i = 0; i < numIntervals; i++) {
+            long sketchStart = from + (i * unitDurationMs);
+            long sketchEnd = Math.min(sketchStart + unitDurationMs, to);
+            sketches.add(new Sketch(sketchStart, sketchEnd));
         }
+        
         return sketches;
     }
 
@@ -54,8 +40,7 @@ public class Util {
             throw new IllegalArgumentException("Cannot combine empty list of sketches");
         }
         Sketch firstSketch = sketchs.get(0);
-        Sketch combinedSketch = new Sketch(firstSketch.getFrom(), firstSketch.getTo());
-        combinedSketch.addAggregatedDataPoint(firstSketch);
+        Sketch combinedSketch = firstSketch.clone();
 
         for(int i = 1; i < sketchs.size(); i++){
             combinedSketch.combine(sketchs.get(i));;

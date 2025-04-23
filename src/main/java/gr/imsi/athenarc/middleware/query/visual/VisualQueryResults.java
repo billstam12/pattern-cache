@@ -3,6 +3,7 @@ import com.opencsv.CSVWriter;
 
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
+import gr.imsi.athenarc.middleware.query.QueryResults;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -14,7 +15,7 @@ import java.util.DoubleSummaryStatistics;
 import java.util.List;
 import java.util.Map;
 
-public class VisualQueryResults implements Serializable {
+public class VisualQueryResults implements QueryResults, Serializable {
 
     private static final long serialVersionUID = 1L;
 

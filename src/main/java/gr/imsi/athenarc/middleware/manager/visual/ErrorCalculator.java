@@ -14,10 +14,10 @@ public class ErrorCalculator {
 
     private MaxErrorEvaluator maxErrorEvaluator;
     private boolean hasError = true;
-    private long pixelColumnInterval;
+    private AggregateInterval pixelColumnInterval;
     private double error;
 
-    protected double calculateTotalError(List<PixelColumn> pixelColumns, ViewPort viewPort, long pixelColumnInterval, double accuracy) {
+    protected double calculateTotalError(List<PixelColumn> pixelColumns, ViewPort viewPort, AggregateInterval pixelColumnInterval, double accuracy) {
         // Calculate errors using processed data
         maxErrorEvaluator = new MaxErrorEvaluator(viewPort, pixelColumns);
         this.pixelColumnInterval = pixelColumnInterval;

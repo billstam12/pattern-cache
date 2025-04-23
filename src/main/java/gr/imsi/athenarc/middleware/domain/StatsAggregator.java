@@ -49,6 +49,34 @@ public class StatsAggregator implements Consumer<DataPoint>, Stats, Serializable
         lastTimestamp = -1L;
     }
 
+    public void accept(AggregatedDataPoint dataPoint) {
+        if (dataPoint == null || dataPoint.getStats() == null) {
+            LOG.warn("Null aggregated data point or stats encountered, skipping");
+            return;
+        }
+        
+        Stats stats = dataPoint.getStats();
+        if (dataPoint.getCount() > 0) {
+            sum += stats.getSum();
+            minValue = Math.min(minValue, stats.getMinValue());
+            if (minValue == stats.getMinValue()) {
+                minTimestamp = stats.getMinTimestamp();
+            }
+            maxValue = Math.max(maxValue, stats.getMaxValue());
+            if (maxValue == stats.getMaxValue()) {
+                maxTimestamp = stats.getMaxTimestamp();
+            }
+            if (firstTimestamp > stats.getFirstTimestamp()) {
+                firstValue = stats.getFirstValue();
+                firstTimestamp = stats.getFirstTimestamp();
+            }
+            if (lastTimestamp < stats.getLastTimestamp()) {
+                lastValue = stats.getLastValue();
+                lastTimestamp = stats.getLastTimestamp();
+            }
+            count += dataPoint.getCount();
+        }
+    }
 
     /**
      * Adds another datapoint into the summary information.

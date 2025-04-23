@@ -3,6 +3,7 @@ package gr.imsi.athenarc.middleware.cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -86,8 +87,8 @@ public class RawTimeSeriesSpan implements TimeSeriesSpan {
     }
 
     @Override
-    public long getAggregateInterval() {
-        return -1;
+    public AggregateInterval getAggregateInterval() {
+        return null;
     }
 
     public Iterator<DataPoint> iterator(long queryStartTimestamp, long queryEndTimestamp) {

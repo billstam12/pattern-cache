@@ -380,12 +380,10 @@ public class NFASketchSearch {
              count <= maxSketches && (startIndex + count) <= allSketches.size();
              count++) {
     
-            Sketch composite = new Sketch(allSketches.get(startIndex).getFrom(),
-                                          allSketches.get(startIndex).getTo());
+            Sketch composite = allSketches.get(startIndex).clone();
             List<Sketch> segmentSketches = new ArrayList<>();
             segmentSketches.add(allSketches.get(startIndex));
-            composite.addAggregatedDataPoint(allSketches.get(startIndex));
-    
+            
             for (int i = 1; i < count; i++) {
                 Sketch next = allSketches.get(startIndex + i);
                 try {
@@ -411,7 +409,8 @@ public class NFASketchSearch {
         }
     
         double slope = sketch.computeSlope();
-        LOG.debug("Composite slope computed: {} (expected between {} and {})", 
+        LOG.debug("Composite sketch duration: {} time units, slope computed: {} (expected between {} and {})", 
+            sketch.getTo() - sketch.getFrom(), 
             slope, valueFilter.getValueLow(), valueFilter.getValueHigh());
     
         return (slope >= valueFilter.getValueLow() && slope <= valueFilter.getValueHigh());

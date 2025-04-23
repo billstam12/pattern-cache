@@ -85,7 +85,7 @@ public class TimeSeriesSpanFactory {
         AggregatedDataPoint aggregatedDataPoint = null;
         
         for (Integer measure : missingIntervalsPerMeasure.keySet()) {
-            long aggregateInterval = aggregateIntervalsPerMeasure.get(measure).toDuration().toMillis();
+            AggregateInterval aggregateInterval = aggregateIntervalsPerMeasure.get(measure);
             List<TimeSeriesSpan> timeSeriesSpansForMeasure = new ArrayList<>();
             boolean changed = false; 
             

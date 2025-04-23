@@ -1,6 +1,7 @@
 package gr.imsi.athenarc.middleware.cache;
 import java.util.Iterator;
 
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
 
 /**
@@ -28,7 +29,7 @@ public interface TimeSeriesSpan extends DataPoints {
     int getMeasure();
 
     /*
-        Return the aggregate Interval of this span. For raw it is equal to -1.
+        Return the aggregate Interval of this span. For raw it is null;
      */
-    long getAggregateInterval();
+    AggregateInterval getAggregateInterval();
 }

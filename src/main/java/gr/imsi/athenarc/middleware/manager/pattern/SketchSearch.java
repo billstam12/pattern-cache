@@ -237,11 +237,9 @@ public class SketchSearch {
              count++) {
             
             // Build one "composite" from sketches[startIndex .. startIndex+count-1]
-            Sketch composite = new Sketch(sketches.get(startIndex).getFrom(),
-                                          sketches.get(startIndex).getTo());
+            Sketch composite = sketches.get(startIndex).clone();
             List<Sketch> segmentSketches = new ArrayList<>();
             segmentSketches.add(sketches.get(startIndex));
-            composite.addAggregatedDataPoint(sketches.get(startIndex));
             
             for (int i = 1; i < count; i++) {
                 Sketch nextSketch = sketches.get(startIndex + i);

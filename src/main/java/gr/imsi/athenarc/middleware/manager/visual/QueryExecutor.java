@@ -28,6 +28,7 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
+import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
@@ -71,13 +72,12 @@ public class QueryExecutor {
 
         ViewPort viewPort = query.getViewPort();
 
-        long pixelColumnInterval = (to - from) / viewPort.getWidth();
+        long pixelColumnIntervalInMillis = (to - from) / viewPort.getWidth();
+        AggregateInterval pixelColumnInterval = DateTimeUtil.roundDownToCalendarBasedInterval(pixelColumnIntervalInMillis);
         double queryTime = 0;
         long ioCount = 0;
-
         Stopwatch stopwatch = Stopwatch.createUnstarted();
         stopwatch.start();
-        LOG.debug("Pixel column interval: " + pixelColumnInterval + " ms");
         List<Integer> measures = Optional.ofNullable(query.getMeasures()).orElse(dataset.getMeasures());
         Map<Integer, List<DataPoint>> resultData = new HashMap<>(measures.size());
         // Initialize Pixel Columns
@@ -85,8 +85,8 @@ public class QueryExecutor {
         for (int measure : measures) {
             List<PixelColumn> pixelColumns = new ArrayList<>();
             for (long j = 0; j < viewPort.getWidth(); j++) {
-                long pixelFrom = from + (j * pixelColumnInterval);
-                long pixelTo = pixelFrom + pixelColumnInterval;
+                long pixelFrom = from + (j * pixelColumnInterval.toDuration().toMillis());
+                long pixelTo = pixelFrom + pixelColumnInterval.toDuration().toMillis();
                 PixelColumn pixelColumn = new PixelColumn(pixelFrom, pixelTo, viewPort);
                 pixelColumns.add(pixelColumn);
             }
@@ -128,10 +128,10 @@ public class QueryExecutor {
             double coveragePercentages = 0.0;
             double totalAggFactors = 0.0;
             for (TimeSeriesSpan overlappingSpan : overlappingSpans) {
-                long size = overlappingSpan.getAggregateInterval(); // ms
+                long size = overlappingSpan.getAggregateInterval().toDuration().toMillis(); // ms
                 if(size <= dataset.getSamplingInterval()) continue; // if raw data continue
                 double coveragePercentage = overlappingSpan.percentage(query); // coverage
-                int spanAggFactor = (int) ((double) (pixelColumnInterval) / size);
+                int spanAggFactor = (int) ((double) (pixelColumnInterval.toDuration().toMillis()) / size);
                 totalAggFactors += coveragePercentage * spanAggFactor;
                 coveragePercentages += coveragePercentage;
             }
@@ -155,6 +155,7 @@ public class QueryExecutor {
                 missingIntervalsPerMeasure.put(measure, missingIntervalsForMeasure);
             }
         }
+        
         LOG.debug("Errors: {}", errorPerMeasure);
         LOG.info("Agg factors: {}", aggFactors);
 
@@ -213,7 +214,6 @@ public class QueryExecutor {
             List<PixelColumn> pixelColumns = pixelColumnsPerMeasure.get(measure);
 
             List<DataPoint> dataPoints = new ArrayList<>();
-            int i = 0;
             for (PixelColumn pixelColumn : pixelColumns) {
                 Stats pixelColumnStats = pixelColumn.getStats();
                 if (pixelColumnStats.getCount() <= 0) {
@@ -267,7 +267,6 @@ public class QueryExecutor {
         long endPixelColumn = query.getFrom() + interval * (query.getViewPort().getWidth());
 
         for (Integer measure : query.getMeasures()) {
-            String measureName = dataset.getHeader()[measure];
             List<TimeInterval> timeIntervalsForMeasure = new ArrayList<>();
             timeIntervalsForMeasure.add(new TimeRange(query.getFrom(), query.getFrom() + interval * (query.getViewPort().getWidth())));
             missingΙntervalsPerMeasure.put(measure, timeIntervalsForMeasure);

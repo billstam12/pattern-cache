@@ -160,13 +160,15 @@ public class DataProcessor {
             for(int measure : aggFactors.keySet()) {
                 int noOfGroups = aggFactors.get(measure) * viewPort.getWidth();
                 long interval = (to - from) / noOfGroups;
-                AggregateInterval aggInterval = new AggregateInterval(interval, ChronoUnit.MILLIS);
+                AggregateInterval aggInterval = DateTimeUtil.roundDownToCalendarBasedInterval(interval);
                 aggregateIntervals.put(measure, aggInterval);
             }
             AggregatedDataPoints missingDataPoints = null;
             Set<String> aggregateFunctions = new HashSet<>();
             aggregateFunctions.add("min");
             aggregateFunctions.add("max");
+            aggregateFunctions.add("first");
+            aggregateFunctions.add("last");
 
             LOG.info("Fetching missing data from data source");
             missingDataPoints = dataSource.getAggregatedDataPoints(from, to, missingIntervalsPerMeasure, aggregateIntervals, aggregateFunctions);

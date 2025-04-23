@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.middleware.datasource.config.InfluxDBConfiguration;
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.manager.QueryManager;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
@@ -49,8 +50,8 @@ public class Main {
         DataSource influxDataSource = DataSourceFactory.createDataSource(influxDBConfiguration);
 
         // Query properties
-        long from = DateTimeUtil.parseDateTimeString("2006-01-01 00:05:00", "yyyy-MM-dd HH:mm:ss");
-        long to = DateTimeUtil.parseDateTimeString("2011-01-01 00:10:00", "yyyy-MM-dd HH:mm:ss");
+        long from = DateTimeUtil.parseDateTimeString("2006-01-01 00:14:39", "yyyy-MM-dd HH:mm:ss");
+        long to = DateTimeUtil.parseDateTimeString("2011-01-01 00:01:24", "yyyy-MM-dd HH:mm:ss");
         int measure = 1;
         ChronoUnit chronoUnit = ChronoUnit.DAYS;
         List<PatternNode> segmentSpecs = new ArrayList<>();
@@ -59,24 +60,29 @@ public class Main {
         ValueFilter smallSlopeUpValueFilter = new ValueFilter(false, 0.01, 0.1);
         ValueFilter smallSlopeDownValueFilter = new ValueFilter(false, -0.1, -0.01);
         ValueFilter largeSlopeDownValueFilter = new ValueFilter(false, -0.5, -0.2);
+        ValueFilter largeSlopeUpValueFilter = new ValueFilter(false, 0.2, 0.5);
 
         SegmentSpecification upSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeUpValueFilter);
         SegmentSpecification downSpec = new SegmentSpecification(singleUnitTimeFilter, smallSlopeDownValueFilter);
         SegmentSpecification largeDownSpec = new SegmentSpecification(singleUnitTimeFilter, largeSlopeDownValueFilter);
+        SegmentSpecification largeUpSpec = new SegmentSpecification(singleUnitTimeFilter, largeSlopeUpValueFilter);
 
         SingleNode upNode = new SingleNode(upSpec, RepetitionFactor.exactly(1));
         SingleNode downNode = new SingleNode(downSpec,  RepetitionFactor.exactly(1));
         SingleNode largeDownNode = new SingleNode(largeDownSpec,  RepetitionFactor.exactly(1));
+        SingleNode largeUpNode = new SingleNode(largeUpSpec,  RepetitionFactor.exactly(1));
+
         List<PatternNode> upDownNode = new ArrayList<>();
 
-        upDownNode.add(upNode);
-        upDownNode.add(downNode);
+        upDownNode.add(largeUpNode);
+        upDownNode.add(largeDownNode);
         GroupNode groupNode0 = new GroupNode(upDownNode, RepetitionFactor.oneOrMore());
 
         segmentSpecs.add(groupNode0);
-        segmentSpecs.add(largeDownNode);
+        // segmentSpecs.add(largeDownNode);
 
-        PatternQuery patternQuery = new PatternQuery(from, to, measure, chronoUnit, segmentSpecs);
+        AggregateInterval timeUnit = new AggregateInterval(1, chronoUnit);
+        PatternQuery patternQuery = new PatternQuery(from, to, measure, timeUnit, segmentSpecs);
         QueryManager queryManager = QueryManager.createDefault(influxDataSource);
         queryManager.executeQuery(patternQuery);
         influxDataSource.closeConnection();

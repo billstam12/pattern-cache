@@ -3,6 +3,8 @@ package gr.imsi.athenarc.middleware.cache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.IntervalTree;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
@@ -105,6 +107,36 @@ public class TimeSeriesCache {
     }
     
     /**
+     * Gets all time series spans that overlap with a given time interval for a specific measure
+     * and have compatible aggregation intervals that can be used to compute the target interval.
+     * 
+     * @param measure The measure ID
+     * @param interval The time interval to check for overlap
+     * @param targetInterval The target aggregation interval
+     * @return A list of time series spans that overlap with the interval and have compatible aggregation
+     */
+    public List<TimeSeriesSpan> getCompatibleSpans(int measure, TimeInterval interval, AggregateInterval targetInterval) {
+        try {
+            cacheLock.readLock().lock();
+            IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
+            if (tree == null) {
+                return new ArrayList<>();
+            }
+            
+            // Filter spans by compatible intervals
+            return StreamSupport.stream(
+                    Spliterators.spliteratorUnknownSize(tree.overlappers(interval), 0), false)
+                    .filter(span -> {
+                        // Check if the span's aggregate interval is in our list of compatible intervals
+                        return DateTimeUtil.isCompatibleWithTarget(span.getAggregateInterval(), targetInterval);     
+                    })
+                    .collect(Collectors.toList());
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+    
+    /**
      * Gets all time series spans that overlap with a given time interval for a specific measure,
      * filtered by a maximum aggregation interval relative to the pixel column interval.
      * 
@@ -113,7 +145,7 @@ public class TimeSeriesCache {
      * @param pixelColumnInterval The width of a pixel column in time units
      * @return A list of time series spans that overlap with the interval and satisfy the aggregation constraint
      */
-    public List<TimeSeriesSpan> getOverlappingSpansForVisualization(int measure, TimeInterval interval, long pixelColumnInterval) {
+    public List<TimeSeriesSpan> getOverlappingSpansForVisualization(int measure, TimeInterval interval, AggregateInterval pixelColumnInterval) {
         try {
             cacheLock.readLock().lock();
             IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
@@ -124,7 +156,7 @@ public class TimeSeriesCache {
                     Spliterators.spliteratorUnknownSize(tree.overlappers(interval), 0), false)
                     // Keep only spans with an aggregate interval that is half or less than the pixel column interval
                     // to ensure at least one fully contained in every pixel column that the span fully overlaps
-                    .filter(span -> pixelColumnInterval >= 2 * span.getAggregateInterval())
+                    .filter(span -> pixelColumnInterval.toDuration().toMillis() >= 2 * span.getAggregateInterval().toDuration().toMillis())
                     .collect(Collectors.toList());
         } finally {
             cacheLock.readLock().unlock();
@@ -138,7 +170,7 @@ public class TimeSeriesCache {
      * @param pixelColumnInterval The width of a pixel column in time units
      * @return A map of measure IDs to lists of time series spans
      */
-    public Map<Integer, List<TimeSeriesSpan>> getFromCacheForVisualization(VisualQuery query, long pixelColumnInterval) {
+    public Map<Integer, List<TimeSeriesSpan>> getFromCacheForVisualization(VisualQuery query, AggregateInterval pixelColumnInterval) {
         return query.getMeasures().stream().collect(Collectors.toMap(
                 m -> m,
                 m -> getOverlappingSpansForVisualization(m, query, pixelColumnInterval)

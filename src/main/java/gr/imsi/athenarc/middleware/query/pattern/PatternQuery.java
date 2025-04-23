@@ -1,8 +1,8 @@
 package gr.imsi.athenarc.middleware.query.pattern;
 
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.query.Query;
 import gr.imsi.athenarc.middleware.query.QueryType;
 
@@ -10,14 +10,14 @@ public class PatternQuery implements Query {
     private final long from;
     private final long to;
     private final int measure;
-    private final ChronoUnit chronoUnit;
+    private final AggregateInterval timeUnit;
     private final List<PatternNode> patternNodes;
 
-    public PatternQuery(long from, long to, int measure, ChronoUnit chronoUnit, List<PatternNode> patternNodes) {
+    public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit, List<PatternNode> patternNodes) {
         this.from = from;
         this.to = to;
         this.measure = measure;
-        this.chronoUnit = chronoUnit;
+        this.timeUnit = timeUnit;
         this.patternNodes = patternNodes;
     }
 
@@ -41,8 +41,8 @@ public class PatternQuery implements Query {
         return QueryType.PATTERN;
     }
 
-    public ChronoUnit getChronoUnit() {
-        return chronoUnit;
+    public AggregateInterval getTimeUnit() {
+        return timeUnit;
     }
 
     public List<PatternNode> getPatternNodes() {

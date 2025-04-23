@@ -8,7 +8,9 @@ import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.manager.pattern.QueryExecutor;
 import gr.imsi.athenarc.middleware.manager.visual.VisualQueryManager;
 import gr.imsi.athenarc.middleware.query.Query;
+import gr.imsi.athenarc.middleware.query.QueryResults;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
+import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
 
@@ -38,7 +40,7 @@ public class QueryManager {
      * @param query the query to execute
      * @return the result of the query execution
      */
-    public Object executeQuery(Query query) {
+    public QueryResults executeQuery(Query query) {
         LOG.info("Executing {} query from {} to {}", 
                 query.getType(), query.getFrom(), query.getTo());
         
@@ -58,7 +60,7 @@ public class QueryManager {
      * @param query the pattern query
      * @return the result of pattern matching
      */
-    private Object executePatternQuery(PatternQuery query) {
+    private PatternQueryResults executePatternQuery(PatternQuery query) {
         LOG.debug("Handling pattern query for measure {}", query.getMeasures());
         return patternQueryManager.executeQuery(query);
     }
