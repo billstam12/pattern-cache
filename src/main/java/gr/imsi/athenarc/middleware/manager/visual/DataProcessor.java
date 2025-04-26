@@ -14,7 +14,6 @@ import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.*;
 
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class DataProcessor {
@@ -106,6 +105,7 @@ public class DataProcessor {
         missingIntervalsPerMeasure.putAll(sortedMap);
         return sortedMap;
     }
+    
     /**
      * Get missing data between the range from-to. THe data are fetched for each measure and each measure has a list of missingIntervals as well as
      * an aggregationFactor.
@@ -164,14 +164,16 @@ public class DataProcessor {
                 aggregateIntervals.put(measure, aggInterval);
             }
             AggregatedDataPoints missingDataPoints = null;
-            Set<String> aggregateFunctions = new HashSet<>();
-            aggregateFunctions.add("min");
-            aggregateFunctions.add("max");
-            aggregateFunctions.add("first");
-            aggregateFunctions.add("last");
+            // Align the intervals to the aggregate intervals
+            // This is done to ensure that the intervals are aligned to calendar based intervals
+            LOG.info("Missing intervals per measure: {}", missingIntervalsPerMeasure);    
 
+            missingIntervalsPerMeasure.entrySet()
+                .forEach((entry) -> entry.getValue().forEach(interval -> DateTimeUtil.alignIntervalToTimeUnitBoundary(interval, aggregateIntervals.get(entry.getKey()))));
+            
+            LOG.info("Aligned missing intervals per measure: {}", missingIntervalsPerMeasure);    
             LOG.info("Fetching missing data from data source");
-            missingDataPoints = dataSource.getAggregatedDataPoints(from, to, missingIntervalsPerMeasure, aggregateIntervals, aggregateFunctions);
+            missingDataPoints = dataSource.getAggregatedDataPoints(from, to, missingIntervalsPerMeasure, aggregateIntervals);
             LOG.info("Fetched missing data from data source");
             timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
         }

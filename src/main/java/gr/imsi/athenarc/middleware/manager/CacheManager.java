@@ -4,8 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
+import gr.imsi.athenarc.middleware.cache.initialization.CacheInitializationPolicy;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
-import gr.imsi.athenarc.middleware.manager.pattern.QueryExecutor;
+import gr.imsi.athenarc.middleware.manager.pattern.PatternQueryManager;
 import gr.imsi.athenarc.middleware.manager.visual.VisualQueryManager;
 import gr.imsi.athenarc.middleware.query.Query;
 import gr.imsi.athenarc.middleware.query.QueryResults;
@@ -16,18 +17,18 @@ import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
 
 
 /**
- * Query manager that handles different types of queries and uses a unified cache.
+ * Cache manager that handles different types of queries and uses a unified cache.
  */
-public class QueryManager {
-    private static final Logger LOG = LoggerFactory.getLogger(QueryManager.class);
+public class CacheManager {
+    private static final Logger LOG = LoggerFactory.getLogger(CacheManager.class);
     
     private final TimeSeriesCache cache;
-    private final QueryExecutor patternQueryManager;
+    private final PatternQueryManager patternQueryManager;
     private final VisualQueryManager visualQueryManager;
     
     // Private constructor used by builder
-    private QueryManager(TimeSeriesCache cache, 
-                        QueryExecutor patternQueryManager, 
+    private CacheManager(TimeSeriesCache cache, 
+                        PatternQueryManager patternQueryManager, 
                         VisualQueryManager visualQueryManager) {
         this.cache = cache;
         this.patternQueryManager = patternQueryManager;
@@ -78,6 +79,17 @@ public class QueryManager {
     }
     
     /**
+     * Manually run cache initialization using the provided policy.
+     * This allows explicit cache warming after the CacheManager has been created.
+     * 
+     * @param policy The initialization policy to apply
+     */
+    public void initializeCache(CacheInitializationPolicy policy) {
+        LOG.info("Initializing cache using policy: {}", policy.getDescription());
+        policy.initialize(cache, visualQueryManager);
+    }
+    
+    /**
      * Creates a new builder for QueryManager
      * @param dataSource The data source to use
      * @return A new builder instance
@@ -91,7 +103,7 @@ public class QueryManager {
      * @param dataSource The data source to use
      * @return A new QueryManager instance
      */
-    public static QueryManager createDefault(DataSource dataSource) {
+    public static CacheManager createDefault(DataSource dataSource) {
         return builder(dataSource).build();
     }
     
@@ -112,10 +124,11 @@ public class QueryManager {
         private int dataReductionFactor = 6;
         private int initialAggregationFactor = 4;
         private int prefetchingFactor = 0;
+        private CacheInitializationPolicy initializationPolicy = null;
 
         public Builder(DataSource dataSource) {
             this.dataSource = dataSource;
-            // Initialize cache for all measures
+            // Initialize cache structure for all measures
             cache.initializeForMeasures(dataSource.getDataset().getMeasures());
         }
         
@@ -139,16 +152,35 @@ public class QueryManager {
             return this;
         }
         
-        public QueryManager build() {
+        /**
+         * Sets a cache initialization policy that will be applied during build.
+         * 
+         * @param policy The initialization policy to use
+         * @return The builder instance
+         */
+        public Builder withInitializationPolicy(CacheInitializationPolicy policy) {
+            this.initializationPolicy = policy;
+            return this;
+        }
+        
+        public CacheManager build() {
             // Create a CacheManager that uses our unified cache
             
-            QueryExecutor patternQueryManager = 
-                new QueryExecutor(dataSource, cache);
+            PatternQueryManager patternQueryManager = 
+                new PatternQueryManager(dataSource, cache);
                 
             VisualQueryManager visualQueryManager = 
                 new VisualQueryManager(dataSource, cache, dataReductionFactor, initialAggregationFactor, prefetchingFactor);
                 
-            return new QueryManager(cache, patternQueryManager, visualQueryManager);
+            CacheManager manager = new CacheManager(cache, patternQueryManager, visualQueryManager);
+            
+            // Apply initialization policy if one was specified
+            if (initializationPolicy != null) {
+                LOG.info("Applying cache initialization policy: {}", initializationPolicy.getDescription());
+                initializationPolicy.initialize(cache, visualQueryManager);
+            }
+            
+            return manager;
         }
     }
 }

@@ -44,7 +44,6 @@ public class QueryExecutor {
     private final AbstractDataset dataset;
     private final Map<Integer, Integer> aggFactors;
 
-
     private final int initialAggFactor;
 
     protected QueryExecutor(DataSource dataSource, int aggFactor) {
@@ -63,6 +62,13 @@ public class QueryExecutor {
     protected VisualQueryResults executeQuery(VisualQuery query, TimeSeriesCache cache,
                                      DataProcessor dataProcessor, PrefetchManager prefetchManager){
         LOG.info("Executing Visual Query {}", query);
+        
+        // If this is a query with measure-specific aggregate intervals, use that path
+        if (query.hasMeasureAggregateIntervals()) {
+            LOG.info("Using measure-specific aggregate intervals");
+            return executeQueryWithMeasureIntervals(query, cache);
+        }
+        
         if(query.getAccuracy() == 1) return executeM4Query(query);
 
         // Bound from and to to dataset range
@@ -73,7 +79,7 @@ public class QueryExecutor {
         ViewPort viewPort = query.getViewPort();
 
         long pixelColumnIntervalInMillis = (to - from) / viewPort.getWidth();
-        AggregateInterval pixelColumnInterval = DateTimeUtil.roundDownToCalendarBasedInterval(pixelColumnIntervalInMillis);
+        AggregateInterval pixelColumnInterval = AggregateInterval.of(pixelColumnIntervalInMillis, ChronoUnit.MILLIS);
         double queryTime = 0;
         long ioCount = 0;
         Stopwatch stopwatch = Stopwatch.createUnstarted();
@@ -251,6 +257,84 @@ public class QueryExecutor {
         queryResults.setIoCount(ioCount);
         return queryResults;
     }
+    
+    /**
+     * Execute a query with measure-specific aggregate intervals, typically used for cache initialization.
+     */
+    private VisualQueryResults executeQueryWithMeasureIntervals(VisualQuery query, TimeSeriesCache cache) {
+        long from = query.getFrom();
+        long to = query.getTo();
+        VisualQueryResults queryResults = new VisualQueryResults();
+        Stopwatch stopwatch = Stopwatch.createStarted();
+        Map<Integer, AggregateInterval> measureIntervals = query.getMeasureAggregateIntervals();
+        
+        // Prepare intervals for each measure
+        Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
+        
+        for (Integer measure : query.getMeasures()) {
+            if (!measureIntervals.containsKey(measure)) {
+                LOG.warn("No interval specified for measure {}, skipping", measure);
+                continue;
+            }
+            
+            List<TimeInterval> intervals = new ArrayList<>();
+            intervals.add(new TimeRange(from, to));
+            intervalsPerMeasure.put(measure, intervals);
+        }
+        
+        // Fetch data 
+        AggregatedDataPoints dataPoints = dataSource.getAggregatedDataPoints(
+            from, to, intervalsPerMeasure, measureIntervals);
+        
+        // Convert to time series spans and add to cache
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
+            TimeSeriesSpanFactory.createAggregate(dataPoints, intervalsPerMeasure, measureIntervals);
+        
+        for (Integer measure : query.getMeasures()) {
+            if (timeSeriesSpans.containsKey(measure)) {
+                List<TimeSeriesSpan> spans = timeSeriesSpans.get(measure);
+                cache.addToCache(spans);
+                LOG.info("Added {} spans for measure {} with interval {}", 
+                    spans.size(), measure, measureIntervals.get(measure));
+            }
+        }
+        
+        // For completeness, return the data
+        Map<Integer, List<DataPoint>> resultData = new HashMap<>();
+        for (Integer measure : query.getMeasures()) {
+            if (!timeSeriesSpans.containsKey(measure)) continue;
+            
+            List<TimeSeriesSpan> spans = timeSeriesSpans.get(measure);
+            List<DataPoint> dataPointList = new ArrayList<>();
+            
+            for (TimeSeriesSpan span : spans) {
+                if (span instanceof AggregateTimeSeriesSpan) {
+                    Iterator<AggregatedDataPoint> it = ((AggregateTimeSeriesSpan) span).iterator();
+                    while (it.hasNext()) {
+                        AggregatedDataPoint point = it.next();
+                        Stats stats = point.getStats();
+                        
+                        // Add key points (first, min, max, last)
+                        dataPointList.add(new ImmutableDataPoint(stats.getFirstTimestamp(), stats.getFirstValue(), measure));
+                        dataPointList.add(new ImmutableDataPoint(stats.getMinTimestamp(), stats.getMinValue(), measure));
+                        dataPointList.add(new ImmutableDataPoint(stats.getMaxTimestamp(), stats.getMaxValue(), measure));
+                        dataPointList.add(new ImmutableDataPoint(stats.getLastTimestamp(), stats.getLastValue(), measure));
+                    }
+                }
+            }
+            resultData.put(measure, dataPointList);
+        }
+        
+        double queryTime = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
+        stopwatch.stop();
+        
+        queryResults.setData(resultData);
+        queryResults.setTimeRange(new TimeRange(from, to));
+        queryResults.setQueryTime(queryTime);
+        
+        LOG.info("Completed measure-specific interval query execution in {} seconds", queryTime);
+        return queryResults;
+    }
 
     private VisualQueryResults executeM4Query(VisualQuery query) {
         VisualQueryResults queryResults = new VisualQueryResults();
@@ -262,7 +346,7 @@ public class QueryExecutor {
         Map<Integer, AggregateInterval> aggregateIntervals = new HashMap<>(query.getMeasures().size());
 
         long interval = (query.getTo() - query.getFrom()) / query.getViewPort().getWidth();
-        AggregateInterval aggInterval = new AggregateInterval(interval, ChronoUnit.MILLIS);
+        AggregateInterval aggInterval = AggregateInterval.of(interval, ChronoUnit.MILLIS);
         long startPixelColumn = query.getFrom();
         long endPixelColumn = query.getFrom() + interval * (query.getViewPort().getWidth());
 
@@ -272,14 +356,9 @@ public class QueryExecutor {
             missingΙntervalsPerMeasure.put(measure, timeIntervalsForMeasure);
             aggregateIntervals.put(measure, aggInterval);
         }
-        Set<String> aggregateFunctions = new HashSet<>();
-        aggregateFunctions.add("first");
-        aggregateFunctions.add("last");
-        aggregateFunctions.add("min");
-        aggregateFunctions.add("max");
-        
+
         AggregatedDataPoints missingDataPoints = 
-            dataSource.getAggregatedDataPoints(startPixelColumn, endPixelColumn, missingΙntervalsPerMeasure, aggregateIntervals, aggregateFunctions);
+            dataSource.getAggregatedDataPoints(startPixelColumn, endPixelColumn, missingΙntervalsPerMeasure, aggregateIntervals);
         
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingΙntervalsPerMeasure, aggregateIntervals);
         for (Integer measure : query.getMeasures()) {

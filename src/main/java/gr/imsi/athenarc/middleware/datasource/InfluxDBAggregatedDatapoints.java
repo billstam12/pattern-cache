@@ -30,26 +30,19 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
 
     private long from;
     private long to;
-    private Set<String> aggregateFunctions;
     private Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure; 
     private Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure;
 
     public InfluxDBAggregatedDatapoints(InfluxDBQueryExecutor influxDBQueryExecutor, AbstractDataset dataset, 
                                      long from, long to,  Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
-                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, 
-                                     Set<String> aggregateFunctions) {
+                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure
+                                    ) {
        this.from = from;
        this.to = to; 
        this.missingIntervalsPerMeasure = missingIntervalsPerMeasure;
        this.aggregateIntervalsPerMeasure = aggregateIntervalsPerMeasure;
        this.dataset = dataset;
        this.influxDBQueryExecutor = influxDBQueryExecutor;
-       this.aggregateFunctions = aggregateFunctions != null ? aggregateFunctions : new HashSet<>();
-       
-       // If no aggregate functions are specified, throw error
-       if (this.aggregateFunctions.isEmpty()) {
-           throw new IllegalArgumentException("No aggregate functions specified");
-       }
        
        // If no measures are specified, throw error
        if (this.missingIntervalsPerMeasure == null || this.missingIntervalsPerMeasure.size() == 0 
@@ -62,6 +55,8 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
         ChronoUnit chronoUnit = aggregateInterval.getChronoUnit();
         long multiplier = aggregateInterval.getMultiplier();
         switch (chronoUnit) {
+            case MILLIS:
+                return multiplier + "ms";
             case SECONDS:
                 return multiplier + "s";
             case MINUTES:
@@ -88,7 +83,11 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
         String bucket = dataset.getSchema();
         String measurement = dataset.getTableName();
         String[] headers = dataset.getHeader();
-        
+        Set<String> aggregateFunctions = new HashSet<>();
+        aggregateFunctions.add("min");
+        aggregateFunctions.add("max");
+        aggregateFunctions.add("first");
+        aggregateFunctions.add("last");
         StringBuilder fluxQuery = new StringBuilder();
         fluxQuery.append("customAggregateWindow = (every, fn, column=\"_value\", timeSrc=\"_time\", timeDst=\"_time\", offset, tables=<-) =>\n" +
             "  tables\n" +
@@ -303,6 +302,8 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
      */
     private long getChronoUnitMillis(ChronoUnit unit) {
         switch (unit) {
+            case MILLIS:
+                return 1;
             case SECONDS:
                 return 1000;
             case MINUTES:

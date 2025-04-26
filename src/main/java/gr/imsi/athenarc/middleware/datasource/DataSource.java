@@ -24,12 +24,12 @@ public interface DataSource {
      * each with its own missing intervals and aggregate interval.
      * @param from global start timestamp
      * @param to global end timestamp
-     * @param measureRequests list of measure-specific aggregation requests
+     * @param missingIntervalsPerMeasure list of measure-specific aggregation requests
      * @param aggregateFunctions the set of aggregate functions to apply (same for all measures)
      * @return aggregated data points
      */
     AggregatedDataPoints getAggregatedDataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
-                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, Set<String> aggregateFunctions);
+                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure);
 
     public AbstractDataset getDataset();
 

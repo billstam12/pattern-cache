@@ -7,7 +7,7 @@ public class AggregateInterval implements Comparable<AggregateInterval> {
     private long multiplier;
     private ChronoUnit chronoUnit;
 
-    public AggregateInterval(long multiplier, ChronoUnit chronoUnit) {
+    private AggregateInterval(long multiplier, ChronoUnit chronoUnit) {
         this.multiplier = multiplier;
         this.chronoUnit = chronoUnit;
     }
@@ -36,6 +36,15 @@ public class AggregateInterval implements Comparable<AggregateInterval> {
     @Override
     public int compareTo(AggregateInterval o) {
         return Long.compare(this.toDuration().toMillis(), o.toDuration().toMillis());
+    }
+
+
+    public static AggregateInterval of(long multiplier, ChronoUnit chronoUnit) {
+        return new AggregateInterval(multiplier, chronoUnit);
+    }
+
+    public static AggregateInterval fromMillis(long milliseconds) {
+        return new AggregateInterval(milliseconds, ChronoUnit.MILLIS);
     }
 
 }

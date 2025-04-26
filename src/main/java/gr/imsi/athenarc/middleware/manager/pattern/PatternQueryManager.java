@@ -3,13 +3,9 @@ package gr.imsi.athenarc.middleware.manager.pattern;
 import java.util.List;
 import java.util.Map;
 import java.util.Iterator;
-import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
+
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +18,7 @@ import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -32,14 +29,14 @@ import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
 
 
-public class QueryExecutor {
+public class PatternQueryManager {
 
-    private static final Logger LOG = LoggerFactory.getLogger(QueryExecutor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PatternQueryManager.class);
 
     private final DataSource dataSource;
     private final TimeSeriesCache cache;
 
-    public QueryExecutor(DataSource dataSource, TimeSeriesCache cache) {
+    public PatternQueryManager(DataSource dataSource, TimeSeriesCache cache) {
         this.dataSource = dataSource;
         this.cache = cache;
     }
@@ -47,20 +44,15 @@ public class QueryExecutor {
     public PatternQueryResults executeQuery(PatternQuery query) {
         long from = query.getFrom();
         long to = query.getTo();
-        int measure = query.getMeasures()[0]; // for now pattern querys have only one measure
+        int measure = query.getMeasures().get(0); // for now pattern querys have only one measure
         AggregateInterval timeUnit = query.getTimeUnit();
+        AggregationType aggregationType = query.getAggregationType();
         
         List<PatternNode> patternNodes = query.getPatternNodes();
         
-        Set<String> aggregateFunctions = new HashSet<>();
-        aggregateFunctions.add("first");
-        aggregateFunctions.add("last");
-        aggregateFunctions.add("min");
-        aggregateFunctions.add("max");
-        
         // Align start and end times to the time unit boundaries for proper alignment
-        long alignedFrom = alignToTimeUnitBoundary(from, timeUnit, true);  // floor
-        long alignedTo = alignToTimeUnitBoundary(to, timeUnit, false);     // ceiling
+        long alignedFrom = DateTimeUtil.alignToTimeUnitBoundary(from, timeUnit, true);  // floor
+        long alignedTo = DateTimeUtil.alignToTimeUnitBoundary(to, timeUnit, false);     // ceiling
         
         LOG.info("Original time range: {} to {}", from, to);
         LOG.info("Aligned time range: {} to {} with time unit {}", alignedFrom, alignedTo, timeUnit);
@@ -68,13 +60,12 @@ public class QueryExecutor {
         TimeRange alignedTimeRange = new TimeRange(alignedFrom, alignedTo);
         
         // 1. Create sketches based on the query's timeUnit first, properly aligned
-        List<Sketch> sketches = Util.generateAlignedSketches(alignedFrom, alignedTo, timeUnit);
+        List<Sketch> sketches = Util.generateAlignedSketches(alignedFrom, alignedTo, timeUnit, aggregationType);
         LOG.info("Created {} sketches for aligned time range with time unit {}", 
                 sketches.size(), timeUnit);
         
         // 2. Check cache for existing data - use compatible spans
         List<TimeSeriesSpan> existingSpans = cache.getCompatibleSpans(measure, alignedTimeRange, timeUnit);
-        
         if (!existingSpans.isEmpty()) {
             LOG.info("Found {} existing compatible spans in cache for measure {}", existingSpans.size(), measure);
             
@@ -82,7 +73,7 @@ public class QueryExecutor {
             for (TimeSeriesSpan span : existingSpans) {
                 if(span instanceof AggregateTimeSeriesSpan) {
                     AggregateTimeSeriesSpan aggregateSpan = (AggregateTimeSeriesSpan) span;
-                    Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator();
+                    Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
                     while (dataPoints.hasNext()) {
                         AggregatedDataPoint point = dataPoints.next();
                         addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point);
@@ -110,7 +101,7 @@ public class QueryExecutor {
             
             // Fetch missing data, ensuring we use the same time unit for alignment
             AggregatedDataPoints newDataPoints = dataSource.getAggregatedDataPoints(
-                alignedFrom, alignedTo, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
+                alignedFrom, alignedTo, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
                         
             // Create spans and add to cache
             Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
@@ -122,7 +113,7 @@ public class QueryExecutor {
                 for (TimeSeriesSpan span : spans) {
                     if(span instanceof AggregateTimeSeriesSpan) {
                         AggregateTimeSeriesSpan aggregateSpan = (AggregateTimeSeriesSpan) span;
-                        Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator();
+                        Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
                         while (dataPoints.hasNext()) {
                             AggregatedDataPoint point = dataPoints.next();
                             addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point);
@@ -136,10 +127,17 @@ public class QueryExecutor {
             LOG.info("All required data available in cache, no need for additional fetching");
         }
   
+        // for(Sketch sketch : sketches){
+        //     LOG.info("Sketch size: {}", sketch.getStatsAggregator().getCount());
+        //     if(sketch.getStatsAggregator().getCount() == 0){
+        //         continue;
+        //     }
+        // }
         // Continue with pattern search on the appropriately filled sketches
         long startTime = System.currentTimeMillis();
         LOG.info("Starting search, over {} aggregate data.", sketches.size());
         NFASketchSearch sketchSearch = new NFASketchSearch(sketches, patternNodes);
+        // SketchSearch sketchSearch = new SketchSearch(sketches, patternNodes);
 
         List<List<List<Sketch>>> matches = sketchSearch.findAllMatches();
         long endTime = System.currentTimeMillis();
@@ -148,94 +146,20 @@ public class QueryExecutor {
 
         if (!matches.isEmpty()) {
             for (List<List<Sketch>> firstMatch : matches) {
-                LOG.info("Match:");
+                LOG.debug("Match:");
                 for (int i = 0; i < firstMatch.size(); i++) {
                     List<Sketch> segment = firstMatch.get(i);
                     Sketch combinedSketch = Util.combineSketches(segment);
-                    LOG.info("Segment {}: {}", i, combinedSketch);
+                    LOG.debug("Segment {}: {}", i, combinedSketch);
                 }
-                LOG.info("");
+                LOG.debug("");
             }
         }
         
-        // For example:
-        LOG.info("Executing pattern query ");
         PatternQueryResults patternQueryResults = new PatternQueryResults();
         return patternQueryResults;
     }
 
-    /**
-     * Aligns a timestamp to the nearest time unit boundary.
-     * 
-     * @param timestamp The timestamp to align
-     * @param timeUnit The time unit to align to
-     * @param floor If true, align to floor (start of unit), otherwise ceiling (end of unit)
-     * @return The aligned timestamp
-     */
-    private long alignToTimeUnitBoundary(long timestamp, AggregateInterval timeUnit, boolean floor) {
-        ZoneId zone = ZoneId.systemDefault();
-        Instant instant = Instant.ofEpochMilli(timestamp);
-        
-        // For chronological units like DAYS, HOURS, etc., use Java's truncatedTo
-        ChronoUnit chronoUnit = timeUnit.getChronoUnit();
-        long multiplier = timeUnit.getMultiplier();
-        
-        if (multiplier == 1) {
-            // Simple case - just truncate to the unit boundary
-            if (floor) {
-                return instant.atZone(zone).truncatedTo(chronoUnit).toInstant().toEpochMilli();
-            } else {
-                // For ceiling, go to next unit and subtract 1ms
-                return instant.atZone(zone)
-                        .truncatedTo(chronoUnit)
-                        .plus(1, chronoUnit)
-                        .toInstant().toEpochMilli();
-            }
-        } else {
-            // For multiples (e.g., 15 minutes), need special handling
-            switch (chronoUnit) {
-                case MINUTES:
-                    return alignToMultipleOf(timestamp, 60 * 1000, multiplier, floor);
-                case HOURS:
-                    return alignToMultipleOf(timestamp, 3600 * 1000, multiplier, floor);
-                case DAYS:
-                    return alignToMultipleOf(timestamp, 24 * 3600 * 1000, multiplier, floor);
-                // Add more cases as needed
-                default:
-                    LOG.warn("Unsupported chrono unit for alignment: {}", chronoUnit);
-                    return timestamp;
-            }
-        }
-    }
-    
-    /**
-     * Aligns a timestamp to a multiple of a base unit.
-     * 
-     * @param timestamp The timestamp to align
-     * @param baseUnitMs The base unit in milliseconds (e.g., 60*1000 for minutes)
-     * @param multiplier The multiplier (e.g., 15 for 15 minutes)
-     * @param floor If true, round down, otherwise round up
-     * @return The aligned timestamp
-     */
-    private long alignToMultipleOf(long timestamp, long baseUnitMs, long multiplier, boolean floor) {
-        // Get the epoch second of the day
-        long msOfDay = timestamp % (24 * 3600 * 1000);
-        long dayStart = timestamp - msOfDay;
-        
-        // Calculate how many complete units fit
-        long unitsElapsed = msOfDay / (baseUnitMs * multiplier);
-        
-        if (floor) {
-            // For floor, just multiply by complete units
-            return dayStart + (unitsElapsed * baseUnitMs * multiplier);
-        } else {
-            // For ceiling, add one more unit if there's a remainder
-            if (msOfDay % (baseUnitMs * multiplier) > 0) {
-                unitsElapsed++;
-            }
-            return dayStart + (unitsElapsed * baseUnitMs * multiplier);
-        }
-    }
 
     /**
      * Identifies missing intervals in the sketches that need to be fetched from the data source.
@@ -257,7 +181,7 @@ public class QueryExecutor {
             Sketch sketch = sketches.get(i);
             
             // If sketch has no data points at all, we need to check if data exists
-            if (!sketch.hasZeroCountPoint()) {
+            if (sketch.isEmpty()) {
                 // Calculate interval boundaries to maintain alignment
                 long sketchStart = from + (i * unitDurationMs);
                 long sketchEnd = Math.min(sketchStart + unitDurationMs, to);
@@ -266,7 +190,7 @@ public class QueryExecutor {
                 missingIntervals.add(new TimeRange(sketchStart, sketchEnd));
             }
         }
-        
+        LOG.info("Identified {} missing intervals", missingIntervals.size());
         return missingIntervals;
     }
 
@@ -293,17 +217,9 @@ public class QueryExecutor {
             sketches.get(sketches.size() - 1).addAggregatedDataPoint(aggregatedDataPoint);
             return;
         }
-
         // Get the appropriate sketch and add the data point
         if (index >= 0 && index < sketches.size()) {
-            // If the data point has count=0, it means there's no data for this interval
-            // in the underlying database, so we mark the sketch accordingly
             sketches.get(index).addAggregatedDataPoint(aggregatedDataPoint);
-            
-            // If count is 0, mark this sketch as having a zero-count point
-            if (aggregatedDataPoint.getCount() == 0) {
-                sketches.get(index).markAsZeroCount();
-            }
         } else {
             LOG.error("Index calculation error: Computed index {} for timestamp {} is out of bounds (sketches size: {})", 
                     index, timestamp, sketches.size());

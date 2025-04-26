@@ -30,7 +30,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
     private int count;
 
     /**
-     * The aggregate values for every window interval and for every measure.
+     * The aggregate values for every window interval 
      */
     private long[] aggregates;
 
@@ -51,7 +51,6 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
      */
     private AggregateInterval aggregateInterval;
 
-
     private int AGG_SIZE = 8;
 
     private void initialize(long from, long to, AggregateInterval aggregateInterval, int measure) {
@@ -64,7 +63,6 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         LOG.debug("Initializing time series span ({},{}) measure = {} with size {}, aggregate interval {}", getFromDate(), getToDate(), measure, size, aggregateInterval);
     }
 
-
     protected AggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
         initialize(from, to, aggregateInterval, measure);
     }
@@ -75,9 +73,20 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         if (stats.getCount() == 0) {
             return;
         }
+        
         count += stats.getCount();
-
         int aggregateCount = stats.getCount();
+        
+        // Add detailed logging
+        LOG.debug("Adding data point at index {} with count {}, timestamp: {}", 
+                 i, aggregateCount, aggregatedDataPoint.getTimestamp());
+        
+        // Check if index is valid
+        if (i < 0 || i >= size) {
+            LOG.error("Invalid index {} for aggregates array of size {}", i, size);
+            return;
+        }
+        
         long minTimestamp = stats.getMinTimestamp();
         long maxTimestamp = stats.getMaxTimestamp();
         double minValue = stats.getMinValue();
@@ -85,24 +94,22 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         double firstValue = stats.getFirstValue();
         double lastValue = stats.getLastValue();
         
-        aggregates[5 * i] = Double.doubleToRawLongBits(stats.getSum());
-        aggregates[5 * i + 1] = Double.doubleToRawLongBits(minValue);
-        aggregates[5 * i + 2] = minTimestamp;
-        aggregates[5 * i + 3] = Double.doubleToRawLongBits(maxValue);
+        aggregates[i * AGG_SIZE] = Double.doubleToRawLongBits(stats.getSum());
+        aggregates[i * AGG_SIZE + 1] = Double.doubleToRawLongBits(minValue);
+        aggregates[i * AGG_SIZE + 2] = minTimestamp;
+        aggregates[i * AGG_SIZE + 3] = Double.doubleToRawLongBits(maxValue);
          
         // not sure if this helps. we do it to keep the last timestamp in case of same values in the interval
         if (maxValue == lastValue){
-            aggregates[5 * i + 4] = stats.getLastTimestamp();
+            aggregates[i * AGG_SIZE + 4] = stats.getLastTimestamp();
         } else {
-            aggregates[5 * i + 4] = maxTimestamp;
+            aggregates[i * AGG_SIZE + 4] = maxTimestamp;
         }
 
         // first and last values for the interval
-        
-        aggregates[5 * i + 5] = Double.doubleToRawLongBits(firstValue);
-        aggregates[5 * i + 6] = Double.doubleToRawLongBits(lastValue);
-        aggregates[5 * i + 7] = aggregateCount;
-
+        aggregates[i * AGG_SIZE + 5] = Double.doubleToRawLongBits(firstValue);
+        aggregates[i * AGG_SIZE + 6] = Double.doubleToRawLongBits(lastValue);
+        aggregates[i * AGG_SIZE + 7] = aggregateCount;
     }
 
     /**
@@ -222,7 +229,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
     }*/
 
     private class TimeSeriesSpanIterator implements Iterator<AggregatedDataPoint>, AggregatedDataPoint {
-
+        
         private Iterator<Integer> internalIt;
 
         private long timestamp;
@@ -248,7 +255,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
 
         @Override
         public int getCount() {
-            return count;
+            return (int) aggregates[currentIndex * AGG_SIZE + 7];
         }
 
         @Override
@@ -259,43 +266,48 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public int getCount() {
-                    return (int) aggregates[index * 5 + 7];
+                    // Debug log to see what we're actually getting
+                    int count = (int) aggregates[index * AGG_SIZE + 7];
+                    LOG.debug("Getting count for index {}: {} (raw value: {})", 
+                        index, count, aggregates[index * AGG_SIZE + 7]);
+                    return count;
                 }
 
                 @Override
                 public double getSum() {
-                    return Double.longBitsToDouble(aggregates[index * 5]);
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE]);
                 }
 
                 @Override
                 public double getMinValue() {
-                    return Double.longBitsToDouble(aggregates[index * 5 + 1]);
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 1]);
                 }
 
                 @Override
                 public double getMaxValue() {
-                    return Double.longBitsToDouble(aggregates[index * 5 + 3]);
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 3]);
                 }
 
                 @Override
                 public double getAverageValue() {
-                    return Double.longBitsToDouble(aggregates[index * 5]) / count;
+                    int pointCount = getCount();
+                    return pointCount > 0 ? Double.longBitsToDouble(aggregates[index * AGG_SIZE]) / pointCount : 0;
                 }
 
                 @Override
                 public long getMinTimestamp() {
-                    return aggregates[index * 5 + 2];
+                    return aggregates[index * AGG_SIZE + 2];
                 }
 
                 @Override
                 public long getMaxTimestamp() {
-                    return aggregates[index * 5 + 4];
+                    return aggregates[index * AGG_SIZE + 4];
                 }
 
                 @Override
                 public double getFirstValue() {
                     // return (getMinValue() + getMaxValue()) / 2;
-                    return Double.longBitsToDouble(aggregates[index * 5 + 5]);
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 5]);
                 }
 
                 @Override
@@ -306,7 +318,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
                 @Override
                 public double getLastValue() {
                     // return (getMinValue() + getMaxValue()) / 2;
-                    return Double.longBitsToDouble(aggregates[index * 5 + 6]);
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 6]);
                 }
 
                 @Override

@@ -119,7 +119,6 @@ public class DateTimeUtil {
         return groupedRanges;
     }
 
-
     /**
      * Rounds down a millisecond interval to the closest calendar-based interval.
      * Supports standard calendar units and their common multiples (e.g., 5min, 15min, 30min).
@@ -133,35 +132,35 @@ public class DateTimeUtil {
         List<AggregateInterval> calendarIntervals = new ArrayList<>();
         
         // Seconds
-        calendarIntervals.add(new AggregateInterval(1, ChronoUnit.SECONDS));
-        calendarIntervals.add(new AggregateInterval(5, ChronoUnit.SECONDS));
-        calendarIntervals.add(new AggregateInterval(10, ChronoUnit.SECONDS));
-        calendarIntervals.add(new AggregateInterval(15, ChronoUnit.SECONDS));
-        calendarIntervals.add(new AggregateInterval(30, ChronoUnit.SECONDS));
+        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.SECONDS));
+        calendarIntervals.add(AggregateInterval.of(5, ChronoUnit.SECONDS));
+        calendarIntervals.add(AggregateInterval.of(10, ChronoUnit.SECONDS));
+        calendarIntervals.add(AggregateInterval.of(15, ChronoUnit.SECONDS));
+        calendarIntervals.add(AggregateInterval.of(30, ChronoUnit.SECONDS));
         
         // Minutes
-        calendarIntervals.add(new AggregateInterval(1, ChronoUnit.MINUTES));
-        calendarIntervals.add(new AggregateInterval(5, ChronoUnit.MINUTES));
-        calendarIntervals.add(new AggregateInterval(10, ChronoUnit.MINUTES));
-        calendarIntervals.add(new AggregateInterval(15, ChronoUnit.MINUTES));
-        calendarIntervals.add(new AggregateInterval(20, ChronoUnit.MINUTES));
-        calendarIntervals.add(new AggregateInterval(30, ChronoUnit.MINUTES));
+        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.MINUTES));
+        calendarIntervals.add(AggregateInterval.of(5, ChronoUnit.MINUTES));
+        calendarIntervals.add(AggregateInterval.of(10, ChronoUnit.MINUTES));
+        calendarIntervals.add(AggregateInterval.of(15, ChronoUnit.MINUTES));
+        calendarIntervals.add(AggregateInterval.of(20, ChronoUnit.MINUTES));
+        calendarIntervals.add(AggregateInterval.of(30, ChronoUnit.MINUTES));
         
         // Hours
-        calendarIntervals.add(new AggregateInterval(1, ChronoUnit.HOURS));
-        calendarIntervals.add(new AggregateInterval(2, ChronoUnit.HOURS));
-        calendarIntervals.add(new AggregateInterval(3, ChronoUnit.HOURS));
-        calendarIntervals.add(new AggregateInterval(4, ChronoUnit.HOURS));
-        calendarIntervals.add(new AggregateInterval(6, ChronoUnit.HOURS));
-        calendarIntervals.add(new AggregateInterval(12, ChronoUnit.HOURS));
+        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.HOURS));
+        calendarIntervals.add(AggregateInterval.of(2, ChronoUnit.HOURS));
+        calendarIntervals.add(AggregateInterval.of(3, ChronoUnit.HOURS));
+        calendarIntervals.add(AggregateInterval.of(4, ChronoUnit.HOURS));
+        calendarIntervals.add(AggregateInterval.of(6, ChronoUnit.HOURS));
+        calendarIntervals.add(AggregateInterval.of(12, ChronoUnit.HOURS));
         
         // Days and above
-        calendarIntervals.add(new AggregateInterval(1, ChronoUnit.DAYS));
-        // calendarIntervals.add(new AggregateInterval(1, ChronoUnit.WEEKS));
-        calendarIntervals.add(new AggregateInterval(1, ChronoUnit.MONTHS));
-        calendarIntervals.add(new AggregateInterval(3, ChronoUnit.MONTHS));
-        calendarIntervals.add(new AggregateInterval(6, ChronoUnit.MONTHS));
-        calendarIntervals.add(new AggregateInterval(1, ChronoUnit.YEARS));
+        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.DAYS));
+        // calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.WEEKS));
+        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.MONTHS));
+        calendarIntervals.add(AggregateInterval.of(3, ChronoUnit.MONTHS));
+        calendarIntervals.add(AggregateInterval.of(6, ChronoUnit.MONTHS));
+        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.YEARS));
 
         // Find closest calendar interval
         AggregateInterval result = calendarIntervals.get(0);  // Default to smallest interval
@@ -176,73 +175,8 @@ public class DateTimeUtil {
             }
         }
         
-        return new AggregateInterval(result.getMultiplier(), result.getChronoUnit());
+        return AggregateInterval.of(result.getMultiplier(), result.getChronoUnit());
     }
-
-    /**
-     * Finds all calendar-based intervals that can be aggregated to match the target interval.
-     * For example, if the target interval is 1 day, then 1 hour intervals can be aggregated into days.
-     *
-     * @param targetInterval The target interval to match
-     * @return List of AggregateIntervals that can be aggregated to the target interval
-     */
-    // public static List<AggregateInterval> findCompatibleIntervals(AggregateInterval targetInterval) {
-    //     List<AggregateInterval> compatibleIntervals = new ArrayList<>();
-        
-    //     // Define common calendar-based intervals
-    //     List<AggregateInterval> calendarIntervals = new ArrayList<>();
-        
-    //     // Seconds
-    //     calendarIntervals.add(new AggregateInterval(1, ChronoUnit.SECONDS));
-    //     calendarIntervals.add(new AggregateInterval(5, ChronoUnit.SECONDS));
-    //     calendarIntervals.add(new AggregateInterval(10, ChronoUnit.SECONDS));
-    //     calendarIntervals.add(new AggregateInterval(15, ChronoUnit.SECONDS));
-    //     calendarIntervals.add(new AggregateInterval(30, ChronoUnit.SECONDS));
-        
-    //     // Minutes
-    //     calendarIntervals.add(new AggregateInterval(1, ChronoUnit.MINUTES));
-    //     calendarIntervals.add(new AggregateInterval(5, ChronoUnit.MINUTES));
-    //     calendarIntervals.add(new AggregateInterval(10, ChronoUnit.MINUTES));
-    //     calendarIntervals.add(new AggregateInterval(15, ChronoUnit.MINUTES));
-    //     calendarIntervals.add(new AggregateInterval(20, ChronoUnit.MINUTES));
-    //     calendarIntervals.add(new AggregateInterval(30, ChronoUnit.MINUTES));
-        
-    //     // Hours
-    //     calendarIntervals.add(new AggregateInterval(1, ChronoUnit.HOURS));
-    //     calendarIntervals.add(new AggregateInterval(2, ChronoUnit.HOURS));
-    //     calendarIntervals.add(new AggregateInterval(3, ChronoUnit.HOURS));
-    //     calendarIntervals.add(new AggregateInterval(4, ChronoUnit.HOURS));
-    //     calendarIntervals.add(new AggregateInterval(6, ChronoUnit.HOURS));
-    //     calendarIntervals.add(new AggregateInterval(12, ChronoUnit.HOURS));
-        
-    //     // Days and above
-    //     calendarIntervals.add(new AggregateInterval(1, ChronoUnit.DAYS));
-    //     calendarIntervals.add(new AggregateInterval(1, ChronoUnit.WEEKS));
-    //     calendarIntervals.add(new AggregateInterval(1, ChronoUnit.MONTHS));
-    //     calendarIntervals.add(new AggregateInterval(3, ChronoUnit.MONTHS));
-    //     calendarIntervals.add(new AggregateInterval(6, ChronoUnit.MONTHS));
-    //     calendarIntervals.add(new AggregateInterval(1, ChronoUnit.YEARS));
-
-    //     long targetDurationMs = targetInterval.toDuration().toMillis();
-        
-    //     // Add all intervals that are smaller than or equal to the target interval
-    //     // and are evenly divisible into the target interval
-    //     for (AggregateInterval interval : calendarIntervals) {
-    //         long intervalDurationMs = interval.toDuration().toMillis();
-            
-    //         if (intervalDurationMs <= targetDurationMs) {
-    //             // For calendar-based intervals, we need special handling
-    //             if (isCompatibleWithTarget(interval, targetInterval)) {
-    //                 compatibleIntervals.add(interval);
-    //             }
-    //         } else {
-    //             // Stop once we find an interval that exceeds targetIntervalMs
-    //             break;
-    //         }
-    //     }
-        
-    //     return compatibleIntervals;
-    // }
     
     /**
      * Determines if a smaller interval can be aggregated into a larger target interval.
@@ -265,62 +199,186 @@ public class DateTimeUtil {
         
         // Different units - check compatibility based on hierarchy
         switch (targetUnit) {
+            case MILLIS:
+                // Nothing is smaller than milliseconds in our system
+                return false;
+                
+            case SECONDS:
+                // Check if milliseconds can aggregate into seconds
+                if (smallerUnit == ChronoUnit.MILLIS) {
+                    return (1000 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
+                }
+                return false;
+                
             case MINUTES:
-                return smallerUnit == ChronoUnit.SECONDS && 
-                       (60 % smallerMultiplier == 0) && 
-                       (targetMultiplier % 1 == 0);
+                // Check if seconds or milliseconds can aggregate into minutes
+                if (smallerUnit == ChronoUnit.SECONDS) {
+                    return (60 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
+                }
+                if (smallerUnit == ChronoUnit.MILLIS) {
+                    return (60000 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
+                }
+                return false;
                        
             case HOURS:
+                // Check if minutes, seconds, or milliseconds can aggregate into hours
                 if (smallerUnit == ChronoUnit.MINUTES) {
-                    return (60 % smallerMultiplier == 0) && 
-                           (targetMultiplier % 1 == 0);
+                    return (60 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
                 }
                 if (smallerUnit == ChronoUnit.SECONDS) {
-                    return (3600 % smallerMultiplier == 0) && 
-                           (targetMultiplier % 1 == 0);
+                    return (3600 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
+                }
+                if (smallerUnit == ChronoUnit.MILLIS) {
+                    return (3600000 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
                 }
                 return false;
                 
             case DAYS:
+                // Check if hours, minutes, seconds, or milliseconds can aggregate into days
                 if (smallerUnit == ChronoUnit.HOURS) {
-                    return (24 % smallerMultiplier == 0) && 
-                           (targetMultiplier % 1 == 0);
+                    return (24 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
                 }
                 if (smallerUnit == ChronoUnit.MINUTES) {
-                    return (1440 % smallerMultiplier == 0) && 
-                           (targetMultiplier % 1 == 0);
+                    return (1440 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
+                }
+                if (smallerUnit == ChronoUnit.SECONDS) {
+                    return (86400 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
+                }
+                if (smallerUnit == ChronoUnit.MILLIS) {
+                    return (86400000 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
                 }
                 return false;
                 
             case WEEKS:
+                // Check if days, hours, etc. can aggregate into weeks
                 if (smallerUnit == ChronoUnit.DAYS) {
-                    return (7 % smallerMultiplier == 0) && 
-                           (targetMultiplier % 1 == 0);
+                    return (7 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
+                }
+                if (smallerUnit == ChronoUnit.HOURS) {
+                    return (168 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0); // 7*24 hours
+                }
+                if (smallerUnit == ChronoUnit.MINUTES) {
+                    return (10080 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0); // 7*24*60 minutes
                 }
                 return false;
                 
             case MONTHS:
-                // This is approximate - months have varying lengths
+                // Months have varying lengths, so we're more restrictive
                 if (smallerUnit == ChronoUnit.DAYS) {
+                    // For months, we only accept 1 day as compatible since month lengths vary
                     return smallerMultiplier == 1 && targetMultiplier % 1 == 0;
                 }
                 if (smallerUnit == ChronoUnit.WEEKS) {
+                    // For months, we only accept 1 week as compatible since month lengths vary
                     return smallerMultiplier == 1 && targetMultiplier % 1 == 0;
                 }
                 return false;
                 
             case YEARS:
                 if (smallerUnit == ChronoUnit.MONTHS) {
-                    return (12 % smallerMultiplier == 0) && 
-                           (targetMultiplier % 1 == 0);
+                    return (12 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
                 }
                 if (smallerUnit == ChronoUnit.DAYS) {
+                    // For years, we only accept 1 day as compatible due to leap years
+                    return smallerMultiplier == 1 && targetMultiplier % 1 == 0;
+                }
+                if (smallerUnit == ChronoUnit.WEEKS) {
+                    // For years, we only accept 1 week as compatible due to leap years
                     return smallerMultiplier == 1 && targetMultiplier % 1 == 0;
                 }
                 return false;
                 
             default:
                 return false;
+        }
+    }
+
+    /**
+     * Aligns a timestamp to the nearest time unit boundary.
+     * 
+     * @param timestamp The timestamp to align
+     * @param timeUnit The time unit to align to
+     * @param floor If true, align to floor (start of unit), otherwise ceiling (end of unit)
+     * @return The aligned timestamp
+     */
+    public static TimeInterval alignIntervalToTimeUnitBoundary(TimeInterval interval, AggregateInterval timeUnit) {
+        long from = interval.getFrom();
+        long to = interval.getTo();
+        long alignFrom = alignToTimeUnitBoundary(from, timeUnit, true);
+        long alignTo = alignToTimeUnitBoundary(to, timeUnit, false);
+        return new TimeRange(alignFrom, alignTo);
+    }
+
+    /**
+     * Aligns a timestamp to the nearest time unit boundary.
+     * 
+     * @param timestamp The timestamp to align
+     * @param timeUnit The time unit to align to
+     * @param floor If true, align to floor (start of unit), otherwise ceiling (end of unit)
+     * @return The aligned timestamp
+     */
+    public static long alignToTimeUnitBoundary(long timestamp, AggregateInterval timeUnit, boolean floor) {
+        ZoneId zone = ZoneId.systemDefault();
+        Instant instant = Instant.ofEpochMilli(timestamp);
+        
+        // For chronological units like DAYS, HOURS, etc., use Java's truncatedTo
+        ChronoUnit chronoUnit = timeUnit.getChronoUnit();
+        long multiplier = timeUnit.getMultiplier();
+        
+        if (multiplier == 1) {
+            // Simple case - just truncate to the unit boundary
+            if (floor) {
+                return instant.atZone(zone).truncatedTo(chronoUnit).toInstant().toEpochMilli();
+            } else {
+                // For ceiling, go to next unit and subtract 1ms
+                return instant.atZone(zone)
+                        .truncatedTo(chronoUnit)
+                        .plus(1, chronoUnit)
+                        .toInstant().toEpochMilli();
+            }
+        } else {
+            // For multiples (e.g., 15 minutes), need special handling
+            switch (chronoUnit) {
+                case MINUTES:
+                    return alignToMultipleOf(timestamp, 60 * 1000, multiplier, floor);
+                case HOURS:
+                    return alignToMultipleOf(timestamp, 3600 * 1000, multiplier, floor);
+                case DAYS:
+                    return alignToMultipleOf(timestamp, 24 * 3600 * 1000, multiplier, floor);
+                // Add more cases as needed
+                default:
+                    LOG.warn("Unsupported chrono unit for alignment: {}", chronoUnit);
+                    return timestamp;
+            }
+        }
+    }
+
+    /**
+     * Aligns a timestamp to a multiple of a base unit.
+     * 
+     * @param timestamp The timestamp to align
+     * @param baseUnitMs The base unit in milliseconds (e.g., 60*1000 for minutes)
+     * @param multiplier The multiplier (e.g., 15 for 15 minutes)
+     * @param floor If true, round down, otherwise round up
+     * @return The aligned timestamp
+     */
+    private static long alignToMultipleOf(long timestamp, long baseUnitMs, long multiplier, boolean floor) {
+        // Get the epoch second of the day
+        long msOfDay = timestamp % (24 * 3600 * 1000);
+        long dayStart = timestamp - msOfDay;
+        
+        // Calculate how many complete units fit
+        long unitsElapsed = msOfDay / (baseUnitMs * multiplier);
+        
+        if (floor) {
+            // For floor, just multiply by complete units
+            return dayStart + (unitsElapsed * baseUnitMs * multiplier);
+        } else {
+            // For ceiling, add one more unit if there's a remainder
+            if (msOfDay % (baseUnitMs * multiplier) > 0) {
+                unitsElapsed++;
+            }
+            return dayStart + (unitsElapsed * baseUnitMs * multiplier);
         }
     }
 }

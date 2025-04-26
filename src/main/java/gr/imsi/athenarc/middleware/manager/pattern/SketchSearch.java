@@ -230,6 +230,12 @@ public class SketchSearch {
         
         int minSketches = Math.max(2, timeFilter.getTimeLow()); // Ensure at least 2 sketches for slope
         int maxSketches = timeFilter.getTimeHigh() + 1; 
+        
+        // First, check if the starting sketch has data
+        if (startIndex < sketches.size() && sketches.get(startIndex).isEmpty()) {
+            LOG.debug("Skipping match at index {} because sketch has no data", startIndex);
+            return possibleMatches; // Return empty list, can't match segments starting with empty sketches
+        }
                 
         // We'll iterate from [minSketches..maxSketches], as long as we stay in range
         for (int count = minSketches; 
@@ -241,19 +247,29 @@ public class SketchSearch {
             List<Sketch> segmentSketches = new ArrayList<>();
             segmentSketches.add(sketches.get(startIndex));
             
+            boolean hasEmptySketch = false;
+            
             for (int i = 1; i < count; i++) {
                 Sketch nextSketch = sketches.get(startIndex + i);
+                
+                // Skip this composite if we encounter a sketch with no data
+                if (nextSketch.isEmpty()) {
+                    hasEmptySketch = true;
+                    break;
+                }
+                
                 try {
                     composite.combine(nextSketch);
                     segmentSketches.add(nextSketch);
                 } catch (Exception e) {
                     LOG.error("Failed to combine sketches at index {}: {}", startIndex + i, e.getMessage());
+                    hasEmptySketch = true; // Consider combination failure as having an "empty" segment
                     break;
                 }
             }
             
-            // Now check slope / value constraints
-            if (matchesComposite(composite, valueFilter)) {
+            // Only consider this match if there were no empty sketches and it meets value constraints
+            if (!hasEmptySketch && matchesComposite(composite, valueFilter)) {
                 possibleMatches.add(segmentSketches);
             }
         }
@@ -269,7 +285,7 @@ public class SketchSearch {
         if (filter.isValueAny()) {
             return true;
         }
-        double slope = sketch.computeSlope();
+        double slope = sketch.getSlope();
         double low = filter.getValueLow();
         double high = filter.getValueHigh();
         boolean match = (slope >= low && slope <= high);

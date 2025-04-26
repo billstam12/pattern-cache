@@ -1,5 +1,6 @@
 package gr.imsi.athenarc.middleware.query;
 
+import java.util.List;
 
 /**
  * Base interface for all query types in the system.
@@ -21,7 +22,7 @@ public interface Query {
      * Get the measure/metric identifier(s) for this query.
      * @return measure identifier(s)
      */
-    int[] getMeasures();
+    List<Integer> getMeasures();
     
     /**
      * Get the type of this query.

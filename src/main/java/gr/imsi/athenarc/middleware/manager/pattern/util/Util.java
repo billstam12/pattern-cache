@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
-import gr.imsi.athenarc.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.manager.pattern.Sketch;
 
 public class Util {
@@ -18,7 +18,7 @@ public class Util {
      * @param timeUnit Aggregate interval for sketches
      * @return List of sketches spanning the time range
      */
-    public static List<Sketch> generateAlignedSketches(long from, long to, AggregateInterval timeUnit) {
+    public static List<Sketch> generateAlignedSketches(long from, long to, AggregateInterval timeUnit, AggregationType aggregationType) {
         List<Sketch> sketches = new ArrayList<>();
         
         // Calculate the number of complete intervals
@@ -29,7 +29,7 @@ public class Util {
         for (int i = 0; i < numIntervals; i++) {
             long sketchStart = from + (i * unitDurationMs);
             long sketchEnd = Math.min(sketchStart + unitDurationMs, to);
-            sketches.add(new Sketch(sketchStart, sketchEnd));
+            sketches.add(new Sketch(sketchStart, sketchEnd, aggregationType));
         }
         
         return sketches;

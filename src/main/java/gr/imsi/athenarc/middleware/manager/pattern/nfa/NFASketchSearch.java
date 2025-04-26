@@ -8,7 +8,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.manager.pattern.QueryExecutor;
+import gr.imsi.athenarc.middleware.manager.pattern.PatternQueryManager;
 import gr.imsi.athenarc.middleware.manager.pattern.Sketch;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
@@ -19,7 +19,7 @@ import gr.imsi.athenarc.middleware.query.pattern.TimeFilter;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 public class NFASketchSearch {
-    private static final Logger LOG = LoggerFactory.getLogger(QueryExecutor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PatternQueryManager.class);
 
     private final List<Sketch> sketches;
     private final List<PatternNode> patternNodes;
@@ -173,89 +173,120 @@ public class NFASketchSearch {
      * Uses loop transitions for Kleene-style repetitions.
      */
     private NFAFragment buildSubNfaForGroup(GroupNode group) {
-        // Build an NFA for the group's children
-        NFA childNfa = buildNfaFromPattern(group.getChildren());
-        NFAState childStart = childNfa.getStartState();
+        // Create our result fragment
+        NFAFragment frag = new NFAFragment();
+        List<NFAState> states = new ArrayList<>();
         
-        List<NFAState> childAccepts = new ArrayList<>();
-        for (NFAState s : childNfa.getStates()) {
-            if (s.isAccept()) {
-                childAccepts.add(s);
-                s.setAccept(false); // Clear accept flag for now
-            }
-        }
+        // Create a new start state for the group fragment
+        NFAState groupStart = new NFAState();
+        states.add(groupStart);
         
         RepetitionFactor rep = group.getRepetitionFactor();
         int minReps = rep.getMinRepetitions();
         int maxReps = rep.getMaxRepetitions();
         boolean isUnbounded = (maxReps == Integer.MAX_VALUE);
         
-        NFAFragment frag = new NFAFragment();
-        List<NFAState> states = new ArrayList<>(childNfa.getStates());
-        
-        // Create a new start state for the group fragment
-        NFAState groupStart = new NFAState();
-        states.add(groupStart);
-        
         // If no repetitions required (minReps=0), start is an accept state
         if (minReps == 0) {
             frag.acceptStates.add(groupStart);
         }
         
-        // Connect to first repetition
-        groupStart.getTransitions().add(new Transition(childStart, epsilonMatcher(), "ε"));
+        // Build a chain for minimum required repetitions
+        NFAState current = groupStart;
+        NFAState lastAccept = null;
         
-        if (isUnbounded) {
-            // For Kleene-style repetitions, add loop-back transitions
-            for (NFAState acceptState : childAccepts) {
-                // Add loop-back to start for repeating
-                acceptState.getTransitions().add(new Transition(childStart, epsilonMatcher(), "ε"));
-                
-                // If we've met minimum repetitions, these are accept states
-                if (minReps <= 1) {
-                    frag.acceptStates.add(acceptState);
+        // For each required repetition, build a sub-NFA and chain them together
+        for (int i = 0; i < minReps; i++) {
+            // Build an NFA for the group's children
+            NFA childNfa = buildNfaFromPattern(group.getChildren());
+            NFAState childStart = childNfa.getStartState();
+            
+            // Add all child NFA states to our fragment
+            states.addAll(childNfa.getStates());
+            
+            // Connect current state to this repetition
+            current.getTransitions().add(new Transition(childStart, epsilonMatcher(), "ε"));
+            
+            // Find accept states for this repetition
+            List<NFAState> childAccepts = new ArrayList<>();
+            for (NFAState s : childNfa.getStates()) {
+                if (s.isAccept()) {
+                    childAccepts.add(s);
+                    s.setAccept(false); // Clear accept flag as we'll manage it
                 }
             }
             
-            // For minReps > 1, we need to track paths through multiple repetitions
-            if (minReps > 1) {
-                // Need to track more complex accepting states - would require state tracking
-                // This is a simplification that will mark all states as accepting after min repetitions
+            // If this is the last required repetition, remember these states
+            if (i == minReps - 1) {
+                // These states are acceptable after meeting min requirement
                 for (NFAState acceptState : childAccepts) {
                     frag.acceptStates.add(acceptState);
                 }
+                lastAccept = childAccepts.isEmpty() ? null : childAccepts.get(0);
             }
-        } else {
-            // For finite repetitions
-            if (minReps == maxReps) {
-                // For exact repetitions, only the final states are accept states
-                if (minReps == 1) {
-                    frag.acceptStates.addAll(childAccepts);
-                } else {
-                    // For exact repetitions > 1, would need path tracking 
-                    // This is a simplification
+            
+            // Update current to the end of this repetition for next iteration
+            if (!childAccepts.isEmpty()) {
+                // If there are multiple accept states, we need to create a new state to merge them
+                if (childAccepts.size() > 1) {
+                    NFAState mergeState = new NFAState();
+                    states.add(mergeState);
                     for (NFAState acceptState : childAccepts) {
-                        frag.acceptStates.add(acceptState);
+                        acceptState.getTransitions().add(new Transition(mergeState, epsilonMatcher(), "ε"));
                     }
-                }
-            } else {
-                // For range repetitions (min..max)
-                // Mark states as accepting after min repetitions
-                if (minReps <= 1) {
-                    frag.acceptStates.addAll(childAccepts);
+                    current = mergeState;
                 } else {
-                    // For min > 1, would need path tracking
-                    // This is a simplification
-                    for (NFAState acceptState : childAccepts) {
-                        frag.acceptStates.add(acceptState);
-                    }
+                    current = childAccepts.get(0);
                 }
+            }
+        }
+        
+        // Now handle optional repetitions (for minReps < maxReps)
+        if (isUnbounded && minReps > 0 && lastAccept != null) {
+            // For Kleene-style repetitions (one-or-more, etc.)
+            // Build one more child NFA for the optional repetition
+            NFA optionalNfa = buildNfaFromPattern(group.getChildren());
+            NFAState optionalStart = optionalNfa.getStartState();
+            
+            // Add all states to our fragment
+            states.addAll(optionalNfa.getStates());
+            
+            // Connect from the last accept state to the optional repetition
+            lastAccept.getTransitions().add(new Transition(optionalStart, epsilonMatcher(), "ε"));
+            
+            // Find accept states for the optional repetition
+            List<NFAState> optionalAccepts = new ArrayList<>();
+            for (NFAState s : optionalNfa.getStates()) {
+                if (s.isAccept()) {
+                    optionalAccepts.add(s);
+                    // These are also accept states
+                    frag.acceptStates.add(s);
+                }
+            }
+            
+            // Add loop-back transitions from optional accept states to optional start
+            for (NFAState acceptState : optionalAccepts) {
+                acceptState.getTransitions().add(new Transition(optionalStart, epsilonMatcher(), "ε"));
+            }
+        } else if (!isUnbounded && maxReps > minReps && lastAccept != null) {
+            // For finite range (min..max), add optional repetitions up to max-min times
+            for (int i = 0; i < maxReps - minReps; i++) {
+                // Build an NFA for one more optional repetition
+                NFA optionalNfa = buildNfaFromPattern(group.getChildren());
+                NFAState optionalStart = optionalNfa.getStartState();
                 
-                // Add transitions for optional repetitions up to max
-                // This is a simplification as tracking exact counts would require additional states
-                for (NFAState acceptState : childAccepts) {
-                    if (maxReps > 1) {
-                        acceptState.getTransitions().add(new Transition(childStart, epsilonMatcher(), "ε"));
+                // Add all states to our fragment
+                states.addAll(optionalNfa.getStates());
+                
+                // Connect from current accept states to this optional repetition
+                lastAccept.getTransitions().add(new Transition(optionalStart, epsilonMatcher(), "ε"));
+                
+                // Find and mark new accept states
+                for (NFAState s : optionalNfa.getStates()) {
+                    if (s.isAccept()) {
+                        frag.acceptStates.add(s);
+                        // Update lastAccept for possible next optional repetition
+                        lastAccept = s;
                     }
                 }
             }
@@ -376,6 +407,13 @@ public class NFASketchSearch {
         int minSketches = Math.max(2, timeFilter.getTimeLow());
         int maxSketches = timeFilter.getTimeHigh() + 1;
         LOG.debug("Trying to match segment at index {}: minSketches={}, maxSketches={}", startIndex, minSketches, maxSketches);
+        
+        // First, check if the starting sketch has data
+        if (startIndex < allSketches.size() && allSketches.get(startIndex).isEmpty()) {
+            LOG.debug("Skipping match at index {} because sketch has no data", startIndex);
+            return results; // Return empty list, can't match segments starting with empty sketches
+        }
+        
         for (int count = minSketches; 
              count <= maxSketches && (startIndex + count) <= allSketches.size();
              count++) {
@@ -384,18 +422,29 @@ public class NFASketchSearch {
             List<Sketch> segmentSketches = new ArrayList<>();
             segmentSketches.add(allSketches.get(startIndex));
             
+            boolean hasEmptySketch = false;
+            
             for (int i = 1; i < count; i++) {
                 Sketch next = allSketches.get(startIndex + i);
+                
+                // Skip this composite if we encounter a sketch with no data
+                if (next.isEmpty()) {
+                    hasEmptySketch = true;
+                    break;
+                }
+                
                 try {
                     composite.combine(next);
                     segmentSketches.add(next);
                 } catch (Exception e) {
                     LOG.error("Failed to combine sketch at index {}: {}", startIndex + i, e.getMessage());
+                    hasEmptySketch = true; // Consider combination failure as having an "empty" segment
                     break;
                 }
             }
     
-            if (matchesComposite(composite, valueFilter)) {
+            // Only consider this match if there were no empty sketches and it meets value constraints
+            if (!hasEmptySketch && matchesComposite(composite, valueFilter)) {
                 results.add(new MatchResult(count, segmentSketches));
             }
         }
@@ -408,7 +457,7 @@ public class NFASketchSearch {
             return true;
         }
     
-        double slope = sketch.computeSlope();
+        double slope = sketch.getSlope();
         LOG.debug("Composite sketch duration: {} time units, slope computed: {} (expected between {} and {})", 
             sketch.getTo() - sketch.getFrom(), 
             slope, valueFilter.getValueLow(), valueFilter.getValueHigh());

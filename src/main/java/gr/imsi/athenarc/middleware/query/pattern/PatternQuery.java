@@ -1,8 +1,11 @@
 package gr.imsi.athenarc.middleware.query.pattern;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.query.Query;
 import gr.imsi.athenarc.middleware.query.QueryType;
 
@@ -11,13 +14,15 @@ public class PatternQuery implements Query {
     private final long to;
     private final int measure;
     private final AggregateInterval timeUnit;
+    private final AggregationType aggregationType;
     private final List<PatternNode> patternNodes;
 
-    public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit, List<PatternNode> patternNodes) {
+    public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit, AggregationType aggregationType, List<PatternNode> patternNodes) {
         this.from = from;
         this.to = to;
         this.measure = measure;
         this.timeUnit = timeUnit;
+        this.aggregationType = aggregationType;
         this.patternNodes = patternNodes;
     }
 
@@ -32,8 +37,8 @@ public class PatternQuery implements Query {
     }
 
     @Override
-    public int[] getMeasures() {
-        return new int[]{measure};
+    public List<Integer> getMeasures() {
+        return Arrays.asList(measure);
     }
 
     @Override
@@ -49,6 +54,10 @@ public class PatternQuery implements Query {
         return patternNodes;
     }
 
+    public AggregationType getAggregationType() {
+        return aggregationType;
+    }
+    
     // For backward compatibility during transition
     public List<PatternNode> getSegmentSpecifications() {
         return patternNodes;

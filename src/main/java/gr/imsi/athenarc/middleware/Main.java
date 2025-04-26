@@ -8,12 +8,14 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.initialization.MemoryBoundedInitializationPolicy;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.middleware.datasource.config.InfluxDBConfiguration;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
-import gr.imsi.athenarc.middleware.manager.QueryManager;
+import gr.imsi.athenarc.middleware.manager.CacheManager;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
@@ -76,14 +78,19 @@ public class Main {
 
         upDownNode.add(largeUpNode);
         upDownNode.add(largeDownNode);
-        GroupNode groupNode0 = new GroupNode(upDownNode, RepetitionFactor.oneOrMore());
+        GroupNode groupNode0 = new GroupNode(upDownNode, RepetitionFactor.exactly(1));
 
         segmentSpecs.add(groupNode0);
         // segmentSpecs.add(largeDownNode);
 
-        AggregateInterval timeUnit = new AggregateInterval(1, chronoUnit);
-        PatternQuery patternQuery = new PatternQuery(from, to, measure, timeUnit, segmentSpecs);
-        QueryManager queryManager = QueryManager.createDefault(influxDataSource);
+        AggregateInterval timeUnit = AggregateInterval.of(1, chronoUnit);
+        AggregationType aggregationType = AggregationType.LAST_VALUE;
+        PatternQuery patternQuery = new PatternQuery(from, to, measure, timeUnit,aggregationType, segmentSpecs);
+        CacheManager queryManager = CacheManager.createDefault(influxDataSource);
+        // queryManager.initializeCache(new MemoryBoundedInitializationPolicy(
+        //     512 * 1024 * 1024, // 512MB memory limit
+        //     0.1));
+        
         queryManager.executeQuery(patternQuery);
         influxDataSource.closeConnection();
     }

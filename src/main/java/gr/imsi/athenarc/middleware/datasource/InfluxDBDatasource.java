@@ -10,7 +10,6 @@ import gr.imsi.athenarc.middleware.domain.*;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class InfluxDBDatasource implements DataSource {
 
@@ -31,8 +30,8 @@ public class InfluxDBDatasource implements DataSource {
     @Override
     public AggregatedDataPoints getAggregatedDataPoints(long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, Set<String> aggregateFunctions) {
-        return new InfluxDBAggregatedDatapoints(influxDBQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
+            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
+        return new InfluxDBAggregatedDatapoints(influxDBQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
     }
 
     @Override
