@@ -14,8 +14,8 @@ public abstract class InfluxDBIterator<T> implements Iterator<T> {
     protected static final Logger LOG = LoggerFactory.getLogger(InfluxDBIterator.class);
 
     protected int current;
-    protected long groupTimestamp;
-    protected long currentGroupTimestamp;
+    protected long startGroupTimestamp;
+    protected long endGroupTimestamp;
     protected final Integer numberOfTables;
     protected int currentTable;
     protected int currentSize;
@@ -40,8 +40,8 @@ public abstract class InfluxDBIterator<T> implements Iterator<T> {
     protected void initializeTimestamps() {
         if (!currentRecords.isEmpty()) {
             FluxRecord record = currentRecords.get(current);
-            groupTimestamp = getTimestampFromRecord(record, "_start");
-            currentGroupTimestamp = getTimestampFromRecord(record, "_stop");
+            startGroupTimestamp = getTimestampFromRecord(record, "_start");
+            endGroupTimestamp = getTimestampFromRecord(record, "_stop");
         }
     }
 

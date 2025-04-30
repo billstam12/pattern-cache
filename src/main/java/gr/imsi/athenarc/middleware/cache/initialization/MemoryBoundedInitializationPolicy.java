@@ -3,13 +3,16 @@ package gr.imsi.athenarc.middleware.cache.initialization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.AggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.manager.visual.VisualQueryManager;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,6 +28,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
     private final long maxMemoryBytes;
     private final double memoryUtilizationTarget; // between 0.0 and 1.0
     
+
     /**
      * Creates a memory-bounded initialization policy.
      * 
@@ -63,7 +67,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
                 
         AbstractDataset dataset = visualQueryManager.getDataSource().getDataset();
         long datasetTimeRange = dataset.getTimeRange().getTo() - dataset.getTimeRange().getFrom();
-        int measureCount = dataset.getMeasures().size();
+        int measureCount = dataset.getHeader().length;
         
         // Calculate per-measure memory budget
         long targetMemoryBytes = (long)(maxMemoryBytes * memoryUtilizationTarget);
@@ -72,16 +76,17 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         LOG.info("Dataset spans {} ms with {} measures", datasetTimeRange, measureCount);
         LOG.info("Memory budget per measure: {} bytes", perMeasureBytes);
         
-        // Determine appropriate aggregation intervals
+        List<Integer> datasetMeasures = dataset.getMeasures();
+         // Determine appropriate aggregation intervals
         Map<Integer, AggregateInterval> aggregateIntervals = calculateOptimalAggregationIntervals(
-                dataset, perMeasureBytes, datasetTimeRange);
-        
+            datasetMeasures, perMeasureBytes, datasetTimeRange);
+    
         // Create a single query with the calculated intervals for all measures
         VisualQuery query = VisualQuery.builder()
-            .withMeasures(dataset.getMeasures())
+            .withMeasures(datasetMeasures)
             .withTimeRange(dataset.getTimeRange().getFrom(), dataset.getTimeRange().getTo())
             .withViewPort(1000, 500)  // Default viewport
-            .withAccuracy(1.0)        // Use highest accuracy
+            .withAccuracy(0.95)        // Use default accuracy
             .withMeasureAggregateIntervals(aggregateIntervals)
             .build();
         
@@ -100,14 +105,14 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
      * Calculate optimal aggregation intervals for each measure based on memory constraints.
      */
     private Map<Integer, AggregateInterval> calculateOptimalAggregationIntervals(
-        AbstractDataset dataset, long bytesPerMeasure, long datasetTimeRange) {
+        List<Integer> measures, long bytesPerMeasure, long datasetTimeRange) {
         
         Map<Integer, AggregateInterval> intervals = new HashMap<>();
         
         // Estimate bytes per data point (this is an approximation)
-        long bytesPerPoint = 40; // Adjust based on actual memory profile
+        long bytesPerPoint = calculateDeepMemorySize(); // Adjust based on actual memory profile
         
-        for (Integer measureId : dataset.getMeasures()) {
+        for (Integer measureId : measures) {
             // Calculate how many points we can store with our memory budget
             long maxDataPoints = bytesPerMeasure / bytesPerPoint;
             
@@ -129,27 +134,25 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
      * Select an appropriate standard interval based on a minimum millisecond value.
      */
     private AggregateInterval selectAppropriateInterval(long minIntervalMs) {
-        // Standard intervals in milliseconds
-        long[] standardIntervals = {
-            60_000,         // 1 minute
-            300_000,        // 5 minutes
-            900_000,        // 15 minutes
-            3_600_000,      // 1 hour
-            21_600_000,     // 6 hours
-            86_400_000,     // 1 day
-            604_800_000     // 1 week
+        AggregateInterval[] standardIntervals = {
+            AggregateInterval.of(1, ChronoUnit.MINUTES),
+            AggregateInterval.of(5, ChronoUnit.MINUTES),
+            AggregateInterval.of(15, ChronoUnit.MINUTES),
+            AggregateInterval.of(1, ChronoUnit.HOURS),
+            AggregateInterval.of(6, ChronoUnit.HOURS),
+            AggregateInterval.of(1, ChronoUnit.DAYS),
+            AggregateInterval.of(1, ChronoUnit.WEEKS)
         };
         
         // Find smallest standard interval that's larger than our minimum
-        for (long intervalMs : standardIntervals) {
-            if (intervalMs >= minIntervalMs) {
-                return AggregateInterval.fromMillis(intervalMs);
+        for (AggregateInterval interval : standardIntervals) {
+            if (interval.toDuration().toMillis() >= minIntervalMs) {
+                return interval;
             }
         }
-        
-        // If we need an even larger interval, use weeks
-        long weeks = (minIntervalMs + 604_800_000 - 1) / 604_800_000; // ceiling division
-        return AggregateInterval.fromMillis(weeks * 604_800_000);
+
+        // By default return the largest interval (1 week)
+        return AggregateInterval.of(1, ChronoUnit.WEEKS);
     }
     
     @Override
@@ -157,4 +160,32 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         return String.format("Memory-bounded initialization (limit: %d bytes, target: %.0f%%)", 
                 maxMemoryBytes, memoryUtilizationTarget * 100);
     }
+
+
+    private long calculateDeepMemorySize() {
+        // Memory overhead for an object in a 64-bit JVM
+        final int OBJECT_OVERHEAD = 16;
+        // Memory overhead for an array in a 64-bit JVM
+        final int ARRAY_OVERHEAD = 20;
+        // Memory usage of int in a 64-bit JVM
+        final int INT_SIZE = 4;
+        // Memory usage of long in a 64-bit JVM
+        final int LONG_SIZE = 8;
+        // Memory usage of a reference in a 64-bit JVM with a heap size less than 32 GB
+        final int REF_SIZE = 4;
+
+
+        long aggregatesMemory = REF_SIZE + ARRAY_OVERHEAD + AggregateTimeSeriesSpan.getAggSize() * (REF_SIZE + ARRAY_OVERHEAD + ((long)  AggregateTimeSeriesSpan.getAggSize() * LONG_SIZE));
+
+        long countsMemory = REF_SIZE + ARRAY_OVERHEAD + ((long) INT_SIZE);
+
+        long aggregateIntervalMemory = 2 * REF_SIZE + OBJECT_OVERHEAD + LONG_SIZE;
+
+        long deepMemorySize = REF_SIZE + OBJECT_OVERHEAD +
+                aggregatesMemory + countsMemory + LONG_SIZE + INT_SIZE + aggregateIntervalMemory;
+
+
+        return deepMemorySize;
+    }
+
 }

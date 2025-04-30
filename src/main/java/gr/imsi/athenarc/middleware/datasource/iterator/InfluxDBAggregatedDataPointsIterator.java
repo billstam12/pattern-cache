@@ -21,6 +21,7 @@ public class InfluxDBAggregatedDataPointsIterator extends InfluxDBIterator<Aggre
         super(tables);
         this.pointsPerAggregate = pointsPerAggregate;
         this.measuresMap = measuresMap;
+        LOG.info("Measures map: {}", measuresMap);
     }
 
     @Override
@@ -41,6 +42,7 @@ public class InfluxDBAggregatedDataPointsIterator extends InfluxDBIterator<Aggre
                     doubleValue,
                     measuresMap.get(measureName)
                 ));
+               
             }
             current++;
         }
@@ -52,31 +54,34 @@ public class InfluxDBAggregatedDataPointsIterator extends InfluxDBIterator<Aggre
         }
 
         AggregatedDataPoint point = new ImmutableAggregatedDataPoint(
-            groupTimestamp, 
-            currentGroupTimestamp, 
+            startGroupTimestamp, 
+            endGroupTimestamp, 
             measuresMap.get(measureName),
             statsAggregator
         );
 
         logAggregatedPoint(point, statsAggregator);
-        groupTimestamp = currentGroupTimestamp;
+        startGroupTimestamp = endGroupTimestamp;
         
         return point;
     }
 
     private void updateGroupTimestamps() {
         if (current == currentSize) {
-            currentGroupTimestamp = getTimestampFromRecord(currentRecords.get(currentSize - 1), "_stop");
+            endGroupTimestamp = getTimestampFromRecord(currentRecords.get(currentSize - 1), "_stop");
         } else {
-            currentGroupTimestamp = getTimestampFromRecord(currentRecords.get(current), "_time");
+            endGroupTimestamp = getTimestampFromRecord(currentRecords.get(current), "_time");
         }
     }
 
     private void logAggregatedPoint(AggregatedDataPoint point, StatsAggregator stats) {
-        LOG.debug("Created aggregate Datapoint {} - {} first: {} and last {}",
+        LOG.debug("Created aggregate Datapoint {} - {} first: {}, last {}, min: {}, max: {}, for measure: {}",
             DateTimeUtil.format(point.getFrom()),
             DateTimeUtil.format(point.getTo()),
             stats.getFirstValue(),
-            stats.getLastValue());
+            stats.getLastValue(),
+            stats.getMinValue(),
+            stats.getMaxValue(),
+            point.getMeasure());
     }
 }

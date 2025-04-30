@@ -83,15 +83,14 @@ public class TimeSeriesSpanFactory {
         Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
         Iterator<AggregatedDataPoint> it = aggregatedDataPoints.iterator();
         AggregatedDataPoint aggregatedDataPoint = null;
-        
         for (Integer measure : missingIntervalsPerMeasure.keySet()) {
-            AggregateInterval aggregateInterval = aggregateIntervalsPerMeasure.get(measure);
+            AggregateInterval  aggregateInterval = aggregateIntervalsPerMeasure.get(measure);
             List<TimeSeriesSpan> timeSeriesSpansForMeasure = new ArrayList<>();
             boolean changed = false; 
             
             for (TimeInterval range : missingIntervalsPerMeasure.get(measure)) {
                 AggregateTimeSeriesSpan timeSeriesSpan = new AggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
-                
+                int addedCount = 0; 
                 while (true) {
                     // Get next point if needed
                     if (!changed && aggregatedDataPoint == null && it.hasNext()) {
@@ -114,15 +113,15 @@ public class TimeSeriesSpanFactory {
                         LOG.debug("Adding {} between {}-{} with aggregate interval {} for measure {}",
                                 aggregatedDataPoint.getTimestamp(), range.getFrom(), range.getTo(), aggregateInterval, measure);
                         timeSeriesSpan.addAggregatedDataPoint(aggregatedDataPoint);
+                        addedCount++;
                         // Clear current point and get next one in next iteration
                         aggregatedDataPoint = null;
                     }
                 }
-                LOG.info("Created aggregate time series span: {}", timeSeriesSpan.getSize());
+                LOG.debug("Created aggregate time series span for measure {} : {}", measure, timeSeriesSpan.getSize());
 
                 timeSeriesSpansForMeasure.add(timeSeriesSpan);
             }
-            
             spans.put(measure, timeSeriesSpansForMeasure);
         }
         

@@ -87,9 +87,9 @@ public class Main {
         AggregationType aggregationType = AggregationType.LAST_VALUE;
         PatternQuery patternQuery = new PatternQuery(from, to, measure, timeUnit,aggregationType, segmentSpecs);
         CacheManager queryManager = CacheManager.createDefault(influxDataSource);
-        // queryManager.initializeCache(new MemoryBoundedInitializationPolicy(
-        //     512 * 1024 * 1024, // 512MB memory limit
-        //     0.1));
+        queryManager.initializeCache(new MemoryBoundedInitializationPolicy(
+            512 * 1024 * 1024, // 512MB memory limit
+            0.1));
         
         queryManager.executeQuery(patternQuery);
         influxDataSource.closeConnection();

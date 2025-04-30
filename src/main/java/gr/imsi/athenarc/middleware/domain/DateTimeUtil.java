@@ -247,8 +247,7 @@ public class DateTimeUtil {
                 if (smallerUnit == ChronoUnit.MILLIS) {
                     return (86400000 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
                 }
-                return false;
-                
+                return false;   
             case WEEKS:
                 // Check if days, hours, etc. can aggregate into weeks
                 if (smallerUnit == ChronoUnit.DAYS) {
@@ -273,7 +272,6 @@ public class DateTimeUtil {
                     return smallerMultiplier == 1 && targetMultiplier % 1 == 0;
                 }
                 return false;
-                
             case YEARS:
                 if (smallerUnit == ChronoUnit.MONTHS) {
                     return (12 % smallerMultiplier == 0) && (targetMultiplier % 1 == 0);
@@ -286,8 +284,7 @@ public class DateTimeUtil {
                     // For years, we only accept 1 week as compatible due to leap years
                     return smallerMultiplier == 1 && targetMultiplier % 1 == 0;
                 }
-                return false;
-                
+                return false;   
             default:
                 return false;
         }

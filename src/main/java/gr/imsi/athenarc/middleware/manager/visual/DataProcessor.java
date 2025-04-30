@@ -21,7 +21,7 @@ public class DataProcessor {
     private final DataSource dataSource;
     private final int dataReductionRatio;
 
-    protected DataProcessor(DataSource dataSource, int dataReductionRatio){
+    public DataProcessor(DataSource dataSource, int dataReductionRatio){
         this.dataSource = dataSource;
         this.dataReductionRatio = dataReductionRatio;
     }
@@ -43,7 +43,6 @@ public class DataProcessor {
         return rangeSet;
     }
     
-
     /**
      * Add a list of timeseriesspans to their respective pixel columns.
      * Each span and pixel column list represents a specific measure.
@@ -53,7 +52,7 @@ public class DataProcessor {
      * @param pixelColumns pixel columns of measure
      * @param timeSeriesSpans time series spans for measure
      */
-    protected void processDatapoints(long from, long to, ViewPort viewPort,
+    public void processDatapoints(long from, long to, ViewPort viewPort,
                                    List<PixelColumn> pixelColumns, List<TimeSeriesSpan> timeSeriesSpans) {
 
 
@@ -89,7 +88,7 @@ public class DataProcessor {
         }
     }
 
-    protected Map<Integer, List<TimeInterval>> sortMeasuresAndIntervals(Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure) {
+    public Map<Integer, List<TimeInterval>> sortMeasuresAndIntervals(Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure) {
         // Sort the map by measure alphabetically
         Map<Integer, List<TimeInterval>> sortedMap = new TreeMap<>(Comparator.comparing(Object::toString));
         sortedMap.putAll(missingIntervalsPerMeasure);
@@ -115,7 +114,7 @@ public class DataProcessor {
      * @param aggFactors aggregation factors per measure
      * @return A list of TimeSeriesSpan for each measure.
      **/
-    protected Map<Integer, List<TimeSeriesSpan>> getMissing(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
+    public Map<Integer, List<TimeSeriesSpan>> getMissing(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
                                                  Map<Integer, Integer> aggFactors, ViewPort viewPort) {
         missingIntervalsPerMeasure = sortMeasuresAndIntervals(missingIntervalsPerMeasure); // This helps with parsing the query results
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = new HashMap<>(missingIntervalsPerMeasure.size());

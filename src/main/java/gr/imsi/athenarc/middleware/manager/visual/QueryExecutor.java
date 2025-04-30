@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -64,7 +65,7 @@ public class QueryExecutor {
         LOG.info("Executing Visual Query {}", query);
         
         // If this is a query with measure-specific aggregate intervals, use that path
-        if (query.hasMeasureAggregateIntervals()) {
+        if (query.hasAggregateIntervalsPerMeasure()) {
             LOG.info("Using measure-specific aggregate intervals");
             return executeQueryWithMeasureIntervals(query, cache);
         }
@@ -266,7 +267,7 @@ public class QueryExecutor {
         long to = query.getTo();
         VisualQueryResults queryResults = new VisualQueryResults();
         Stopwatch stopwatch = Stopwatch.createStarted();
-        Map<Integer, AggregateInterval> measureIntervals = query.getMeasureAggregateIntervals();
+        Map<Integer, AggregateInterval> measureIntervals = query.getAggregateIntervalsPerMeasure();
         
         // Prepare intervals for each measure
         Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
@@ -278,10 +279,9 @@ public class QueryExecutor {
             }
             
             List<TimeInterval> intervals = new ArrayList<>();
-            intervals.add(new TimeRange(from, to));
+            intervals.add(DateTimeUtil.alignIntervalToTimeUnitBoundary(query, measureIntervals.get(measure)));
             intervalsPerMeasure.put(measure, intervals);
         }
-        
         // Fetch data 
         AggregatedDataPoints dataPoints = dataSource.getAggregatedDataPoints(
             from, to, intervalsPerMeasure, measureIntervals);
@@ -313,12 +313,13 @@ public class QueryExecutor {
                     while (it.hasNext()) {
                         AggregatedDataPoint point = it.next();
                         Stats stats = point.getStats();
-                        
                         // Add key points (first, min, max, last)
                         dataPointList.add(new ImmutableDataPoint(stats.getFirstTimestamp(), stats.getFirstValue(), measure));
                         dataPointList.add(new ImmutableDataPoint(stats.getMinTimestamp(), stats.getMinValue(), measure));
                         dataPointList.add(new ImmutableDataPoint(stats.getMaxTimestamp(), stats.getMaxValue(), measure));
                         dataPointList.add(new ImmutableDataPoint(stats.getLastTimestamp(), stats.getLastValue(), measure));
+                        // LOG.info("Added first point: {}-{}, last point: {}-{}, or measure {}",
+                        //     stats.getFirstTimestamp(), stats.getFirstValue(), stats.getLastTimestamp(), stats.getLastValue(), measure);
                     }
                 }
             }

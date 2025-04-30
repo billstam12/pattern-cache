@@ -41,7 +41,7 @@ public class FullDatasetInitializationPolicy implements CacheInitializationPolic
             .withMeasureAggregateIntervals(aggregateIntervalsByMeasure)
             .withTimeRange(dataset.getTimeRange().getFrom(), dataset.getTimeRange().getTo())
             .withViewPort(1000, 500)  // Default viewport
-            .withAccuracy(1.0)        // Use highest accuracy
+            .withAccuracy(0.95)        // Use default accuracy
             .build();
         
         try {

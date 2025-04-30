@@ -25,6 +25,9 @@ public class Sketch implements TimeInterval {
 
     private int duration = 1;
 
+    // used for fetching data from the db
+    // There is a difference between count = 0 and no underlying data at all
+    private boolean hasInitialized = false;
     /**
      * Creates a new sketch with the specified aggregation type.
      *
@@ -44,6 +47,7 @@ public class Sketch implements TimeInterval {
      * @param dp The aggregated data point to add
      */
     public void addAggregatedDataPoint(AggregatedDataPoint dp) {
+        hasInitialized = true; // Mark as having underlying data
         Stats stats = dp.getStats();
         if (stats.getCount() > 0) {
             statsAggregator.accept(dp);
@@ -141,6 +145,7 @@ public class Sketch implements TimeInterval {
     public Sketch clone(){
         Sketch sketch = new Sketch(this.from, this.to, this.aggregationType);
         sketch.statsAggregator = this.statsAggregator.clone();
+        sketch.hasInitialized = this.hasInitialized;
         return sketch;
     }
 
@@ -150,5 +155,9 @@ public class Sketch implements TimeInterval {
 
     public boolean isEmpty(){
         return statsAggregator.getCount() == 0;
+    }
+
+    public boolean hasInitialized() {
+        return hasInitialized;
     }
 }

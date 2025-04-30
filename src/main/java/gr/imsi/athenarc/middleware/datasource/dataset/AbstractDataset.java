@@ -50,7 +50,11 @@ public abstract class AbstractDataset {
         this.timeRange = timeRange;
     }
 
-    public String[] getHeader() { return header; }
+    public String[] getHeader() {
+        String[] sortedHeader = Arrays.copyOf(header, header.length);
+        Arrays.sort(sortedHeader);
+        return sortedHeader;
+    }
 
     public void setHeader(String[] header) { this.header = header; }
 

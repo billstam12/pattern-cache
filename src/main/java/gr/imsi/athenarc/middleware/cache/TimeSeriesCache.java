@@ -127,7 +127,7 @@ public class TimeSeriesCache {
             return StreamSupport.stream(
                     Spliterators.spliteratorUnknownSize(tree.overlappers(interval), 0), false)
                     .filter(span -> {
-                        // Check if the span's aggregate interval is in our list of compatible intervals
+                        // Check if the span's aggregate interval is compatible
                         return DateTimeUtil.isCompatibleWithTarget(span.getAggregateInterval(), targetInterval);     
                     })
                     .collect(Collectors.toList());
@@ -145,7 +145,7 @@ public class TimeSeriesCache {
      * @param pixelColumnInterval The width of a pixel column in time units
      * @return A list of time series spans that overlap with the interval and satisfy the aggregation constraint
      */
-    public List<TimeSeriesSpan> getOverlappingSpansForVisualization(int measure, TimeInterval interval, AggregateInterval pixelColumnInterval) {
+    private List<TimeSeriesSpan> getOverlappingSpansForVisualization(int measure, TimeInterval interval, AggregateInterval pixelColumnInterval) {
         try {
             cacheLock.readLock().lock();
             IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);

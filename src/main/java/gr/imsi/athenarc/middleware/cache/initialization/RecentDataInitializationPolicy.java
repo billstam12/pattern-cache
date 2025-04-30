@@ -52,7 +52,7 @@ public class RecentDataInitializationPolicy implements CacheInitializationPolicy
             .withMeasures(dataset.getMeasures())
             .withTimeRange(startTimestamp, endTimestamp)
             .withViewPort(1000, 500)  // Default viewport
-            .withAccuracy(1.0)        // Use highest accuracy
+            .withAccuracy(0.95)        // Use default accuracy
             .withMeasureAggregateIntervals(aggregateIntervalsByMeasure)
             .build();
         

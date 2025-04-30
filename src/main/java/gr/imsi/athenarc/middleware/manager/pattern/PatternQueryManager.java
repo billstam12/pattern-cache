@@ -180,8 +180,8 @@ public class PatternQueryManager {
         for (int i = 0; i < sketches.size(); i++) {
             Sketch sketch = sketches.get(i);
             
-            // If sketch has no data points at all, we need to check if data exists
-            if (sketch.isEmpty()) {
+            // If sketch has not initialized, it means we dont have its data in the cache
+            if (!sketch.hasInitialized()) {
                 // Calculate interval boundaries to maintain alignment
                 long sketchStart = from + (i * unitDurationMs);
                 long sketchEnd = Math.min(sketchStart + unitDurationMs, to);

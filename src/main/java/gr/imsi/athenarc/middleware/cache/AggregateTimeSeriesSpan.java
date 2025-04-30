@@ -51,7 +51,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
      */
     private AggregateInterval aggregateInterval;
 
-    private int AGG_SIZE = 8;
+    private static int AGG_SIZE = 8;
 
     private void initialize(long from, long to, AggregateInterval aggregateInterval, int measure) {
         this.size = DateTimeUtil.numberOfIntervals(from, to, aggregateInterval);
@@ -211,6 +211,10 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         return deepMemorySize;
     }
 
+    public static int getAggSize(){
+        return AGG_SIZE;
+
+    }
     @Override
     public int getCount() {
         return count;

@@ -22,7 +22,7 @@ public class VisualQuery implements TimeInterval, Query {
     private final List<Integer> measures;
     private final ViewPort viewPort;
     private final double accuracy;
-    private final Map<Integer, AggregateInterval> measureAggregateIntervals; // New field for per-measure intervals
+    private final Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure; // New field for per-measure intervals
 
     /**
      * Creates a new visual query.
@@ -50,13 +50,13 @@ public class VisualQuery implements TimeInterval, Query {
      * @param accuracy The accuracy level (0.0-1.0)
      * @param measureAggregateIntervals Optional map of measure-specific aggregation intervals
      */
-    public VisualQuery(long from, long to, List<Integer> measures, int width, int height, double accuracy,  Map<Integer, AggregateInterval> measureAggregateIntervals) {
+    public VisualQuery(long from, long to, List<Integer> measures, int width, int height, double accuracy,  Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
         this.from = from;
         this.to = to;
         this.measures = measures;
         this.accuracy = accuracy;
         this.viewPort = new ViewPort(width, height);
-        this.measureAggregateIntervals = measureAggregateIntervals;
+        this.aggregateIntervalsPerMeasure = aggregateIntervalsPerMeasure;
     }
 
     /**
@@ -73,8 +73,8 @@ public class VisualQuery implements TimeInterval, Query {
      * 
      * @return Map of measure IDs to aggregation intervals, or null if not specified
      */
-    public Map<Integer, AggregateInterval> getMeasureAggregateIntervals() {
-        return measureAggregateIntervals;
+    public Map<Integer, AggregateInterval> getAggregateIntervalsPerMeasure() {
+        return aggregateIntervalsPerMeasure;
     }
     
     /**
@@ -82,8 +82,8 @@ public class VisualQuery implements TimeInterval, Query {
      * 
      * @return true if measure-specific intervals are specified
      */
-    public boolean hasMeasureAggregateIntervals() {
-        return measureAggregateIntervals != null && !measureAggregateIntervals.isEmpty();
+    public boolean hasAggregateIntervalsPerMeasure() {
+        return aggregateIntervalsPerMeasure != null && !aggregateIntervalsPerMeasure.isEmpty();
     }
 
     @Override
@@ -141,7 +141,7 @@ public class VisualQuery implements TimeInterval, Query {
                 ", measures=" + measures +
                 ", viewPort=" + viewPort +
                 ", accuracy=" + accuracy +
-                (measureAggregateIntervals != null ? ", measureIntervals=" + measureAggregateIntervals : "") +
+                (aggregateIntervalsPerMeasure != null ? ", measureIntervals=" + aggregateIntervalsPerMeasure : "") +
                 '}';
     }
 }
