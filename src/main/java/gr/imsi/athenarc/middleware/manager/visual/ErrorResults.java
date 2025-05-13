@@ -62,7 +62,9 @@ public class ErrorResults {
 
     @Override
     public String toString() {
-        return "ErrorResults [error=" + error + ", missingPixels=" + missingPixels + ", falsePixels=" + falsePixels
+        return "ErrorResults [error=" + String.format("%.2f", error * 100) + "%"
+        //  + ", missingPixels=" + missingPixels 
+        //  + ", falsePixels=" + falsePixels
                 + "]";
     }
     

@@ -286,8 +286,8 @@ public class SketchSearch {
             return true;
         }
         double slope = sketch.getSlope();
-        double low = filter.getValueLow();
-        double high = filter.getValueHigh();
+        double low = filter.getMinSlope();
+        double high = filter.getMaxSlope();
         boolean match = (slope >= low && slope <= high);
         return match;
     }

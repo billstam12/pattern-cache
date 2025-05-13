@@ -21,7 +21,6 @@ public class InfluxDBAggregatedDataPointsIterator extends InfluxDBIterator<Aggre
         super(tables);
         this.pointsPerAggregate = pointsPerAggregate;
         this.measuresMap = measuresMap;
-        LOG.info("Measures map: {}", measuresMap);
     }
 
     @Override

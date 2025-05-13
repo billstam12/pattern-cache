@@ -126,13 +126,7 @@ public class PatternQueryManager {
         } else {
             LOG.info("All required data available in cache, no need for additional fetching");
         }
-  
-        // for(Sketch sketch : sketches){
-        //     LOG.info("Sketch size: {}", sketch.getStatsAggregator().getCount());
-        //     if(sketch.getStatsAggregator().getCount() == 0){
-        //         continue;
-        //     }
-        // }
+
         // Continue with pattern search on the appropriately filled sketches
         long startTime = System.currentTimeMillis();
         LOG.info("Starting search, over {} aggregate data.", sketches.size());

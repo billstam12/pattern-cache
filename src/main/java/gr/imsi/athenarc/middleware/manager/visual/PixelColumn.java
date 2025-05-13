@@ -79,7 +79,6 @@ public class PixelColumn implements TimeInterval {
         if (dp.getTo() >= to) {
             right.add(ImmutableAggregatedDataPoint.fromAggregatedDataPoint(dp));
         }
-
         Stats stats = dp.getStats();
         if (this.encloses(dp)) {
             Range<Long> guavaRange = Range.closedOpen(dp.getFrom(), dp.getTo());

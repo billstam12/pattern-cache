@@ -58,8 +58,7 @@ public class DataProcessor {
 
         // Get the ranges from raw time series spans
         RangeSet<Long> rawSpanRanges = getRawTimeSeriesSpanRanges(timeSeriesSpans);
-        LOG.info("Raw span ranges: {}", rawSpanRanges);
-
+        
         // Mark pixel columns that fall completely within any of the raw span ranges
         for (PixelColumn pixelColumn : pixelColumns) {
             Range<Long> pixelColumnRange = Range.closed(pixelColumn.getFrom(), pixelColumn.getTo());
@@ -152,14 +151,15 @@ public class DataProcessor {
             DataPoints missingDataPoints = null;
             LOG.info("Fetching missing raw data from data source");
             missingDataPoints = dataSource.getDataPoints(from, to, missingIntervalsPerMeasure);
-            LOG.info("Fetched missing raw data from data source");
             timeSeriesSpans = TimeSeriesSpanFactory.createRaw(missingDataPoints, missingIntervalsPerMeasure);
+            LOG.info("Fetched missing raw data from data source");
         }
         else {
             for(int measure : aggFactors.keySet()) {
                 int noOfGroups = aggFactors.get(measure) * viewPort.getWidth();
                 long interval = (to - from) / noOfGroups;
                 AggregateInterval aggInterval = DateTimeUtil.roundDownToCalendarBasedInterval(interval);
+                LOG.info("Rounded {} down to calendar based interval: {}", interval + "ms", aggInterval);
                 aggregateIntervals.put(measure, aggInterval);
             }
             AggregatedDataPoints missingDataPoints = null;
@@ -167,14 +167,31 @@ public class DataProcessor {
             // This is done to ensure that the intervals are aligned to calendar based intervals
             LOG.info("Missing intervals per measure: {}", missingIntervalsPerMeasure);    
 
-            missingIntervalsPerMeasure.entrySet()
-                .forEach((entry) -> entry.getValue().forEach(interval -> DateTimeUtil.alignIntervalToTimeUnitBoundary(interval, aggregateIntervals.get(entry.getKey()))));
+            // Create a new map to store aligned intervals
+            Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = new HashMap<>();
+            
+            // For each measure and its intervals, create aligned copies and store them in the new map
+            for (Map.Entry<Integer, List<TimeInterval>> entry : missingIntervalsPerMeasure.entrySet()) {
+                int measure = entry.getKey();
+                List<TimeInterval> originalIntervals = entry.getValue();
+                List<TimeInterval> alignedIntervals = new ArrayList<>();
+                
+                for (TimeInterval interval : originalIntervals) {
+                    TimeInterval alignedInterval = DateTimeUtil.alignIntervalToTimeUnitBoundary(interval, aggregateIntervals.get(measure));
+                    alignedIntervals.add(alignedInterval);
+                }
+                
+                alignedIntervalsPerMeasure.put(measure, alignedIntervals);
+            }
+            
+            // Replace the original map with the aligned intervals
+            missingIntervalsPerMeasure = alignedIntervalsPerMeasure;
             
             LOG.info("Aligned missing intervals per measure: {}", missingIntervalsPerMeasure);    
             LOG.info("Fetching missing data from data source");
             missingDataPoints = dataSource.getAggregatedDataPoints(from, to, missingIntervalsPerMeasure, aggregateIntervals);
-            LOG.info("Fetched missing data from data source");
             timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
+            LOG.info("Fetched missing data from data source");
         }
         return timeSeriesSpans;
     }

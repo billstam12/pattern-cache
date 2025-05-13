@@ -183,4 +183,14 @@ public class CacheManager {
             return manager;
         }
     }
+
+    public PatternQueryManager getPatternQueryManager() {
+        return patternQueryManager;
+    }
+
+    public VisualQueryManager getVisualQueryManager() {
+        return visualQueryManager;
+    }
+
+    
 }

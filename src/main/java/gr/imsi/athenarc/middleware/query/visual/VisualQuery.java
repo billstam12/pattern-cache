@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
 import gr.imsi.athenarc.middleware.query.QueryType;
@@ -136,8 +137,8 @@ public class VisualQuery implements TimeInterval, Query {
     @Override
     public String toString() {
         return "VisualQuery{" +
-                "from=" + from +
-                ", to=" + to +
+                "from=" + DateTimeUtil.format(from) +
+                ", to=" + DateTimeUtil.format(to) +
                 ", measures=" + measures +
                 ", viewPort=" + viewPort +
                 ", accuracy=" + accuracy +

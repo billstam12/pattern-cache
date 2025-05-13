@@ -1,11 +1,11 @@
 package gr.imsi.athenarc.middleware.query.pattern;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
+import gr.imsi.athenarc.middleware.domain.ViewPort;
 import gr.imsi.athenarc.middleware.query.Query;
 import gr.imsi.athenarc.middleware.query.QueryType;
 
@@ -17,13 +17,32 @@ public class PatternQuery implements Query {
     private final AggregationType aggregationType;
     private final List<PatternNode> patternNodes;
 
-    public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit, AggregationType aggregationType, List<PatternNode> patternNodes) {
+    private final ViewPort viewPort;
+    private final double accuracy;
+    
+    // Optional ID for predefined patterns
+    private Integer patternId;
+
+    public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit,
+     AggregationType aggregationType, List<PatternNode> patternNodes, ViewPort viewPort, double accuracy) {
         this.from = from;
         this.to = to;
         this.measure = measure;
         this.timeUnit = timeUnit;
         this.aggregationType = aggregationType;
         this.patternNodes = patternNodes;
+        this.viewPort = viewPort;
+        this.accuracy = accuracy;
+        this.patternId = null; // Not a predefined pattern by default
+    }
+    
+    /**
+     * Constructor that includes a pattern ID
+     */
+    public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit,
+     AggregationType aggregationType, List<PatternNode> patternNodes, ViewPort viewPort, double accuracy, Integer patternId) {
+        this(from, to, measure, timeUnit, aggregationType, patternNodes, viewPort, accuracy);
+        this.patternId = patternId;
     }
 
     @Override
@@ -61,5 +80,28 @@ public class PatternQuery implements Query {
     // For backward compatibility during transition
     public List<PatternNode> getSegmentSpecifications() {
         return patternNodes;
+    }
+
+    public ViewPort getViewPort(){
+        return viewPort;
+    }
+
+    public double getAccuracy(){
+        return accuracy;
+    }
+    
+    /**
+     * @return The ID of the predefined pattern if this is based on one, null otherwise
+     */
+    public Integer getPatternId() {
+        return patternId;
+    }
+    
+    /**
+     * Set the pattern ID
+     * @param patternId The ID of the predefined pattern
+     */
+    public void setPatternId(Integer patternId) {
+        this.patternId = patternId;
     }
 }

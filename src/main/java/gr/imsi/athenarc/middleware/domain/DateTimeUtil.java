@@ -18,6 +18,46 @@ public class DateTimeUtil {
     public final static DateTimeFormatter DEFAULT_FORMATTER = DateTimeFormatter.ofPattern(DEFAULT_FORMAT);
     private static final Logger LOG = LoggerFactory.getLogger(DateTimeUtil.class);
 
+    // Pre-defined calendar intervals for rounding operations
+    private static final List<AggregateInterval> CALENDAR_INTERVALS = initializeCalendarIntervals();
+
+    // Initialize the calendar intervals
+    private static List<AggregateInterval> initializeCalendarIntervals() {
+        List<AggregateInterval> intervals = new ArrayList<>();
+        
+        // Seconds
+        intervals.add(AggregateInterval.of(1, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(5, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(10, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(15, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(30, ChronoUnit.SECONDS));
+        
+        // Minutes
+        intervals.add(AggregateInterval.of(1, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(5, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(10, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(15, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(20, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(30, ChronoUnit.MINUTES));
+        
+        // Hours
+        intervals.add(AggregateInterval.of(1, ChronoUnit.HOURS));
+        intervals.add(AggregateInterval.of(2, ChronoUnit.HOURS));
+        intervals.add(AggregateInterval.of(3, ChronoUnit.HOURS));
+        intervals.add(AggregateInterval.of(4, ChronoUnit.HOURS));
+        intervals.add(AggregateInterval.of(6, ChronoUnit.HOURS));
+        intervals.add(AggregateInterval.of(12, ChronoUnit.HOURS));
+        
+        // Days and above
+        intervals.add(AggregateInterval.of(1, ChronoUnit.DAYS));
+        // intervals.add(AggregateInterval.of(1, ChronoUnit.WEEKS));
+        // intervals.add(AggregateInterval.of(1, ChronoUnit.MONTHS));
+        // intervals.add(AggregateInterval.of(3, ChronoUnit.MONTHS));
+        // intervals.add(AggregateInterval.of(6, ChronoUnit.MONTHS));
+        // intervals.add(AggregateInterval.of(1, ChronoUnit.YEARS));
+        
+        return intervals;
+    }
 
      public static long parseDateTimeString(String s, String timeFormat) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(timeFormat);
@@ -128,44 +168,10 @@ public class DateTimeUtil {
      * @return AggregateInterval rounded to the closest calendar-based interval
      */
     public static AggregateInterval roundDownToCalendarBasedInterval(long intervalMs) { 
-        // Define common calendar-based intervals
-        List<AggregateInterval> calendarIntervals = new ArrayList<>();
-        
-        // Seconds
-        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.SECONDS));
-        calendarIntervals.add(AggregateInterval.of(5, ChronoUnit.SECONDS));
-        calendarIntervals.add(AggregateInterval.of(10, ChronoUnit.SECONDS));
-        calendarIntervals.add(AggregateInterval.of(15, ChronoUnit.SECONDS));
-        calendarIntervals.add(AggregateInterval.of(30, ChronoUnit.SECONDS));
-        
-        // Minutes
-        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.MINUTES));
-        calendarIntervals.add(AggregateInterval.of(5, ChronoUnit.MINUTES));
-        calendarIntervals.add(AggregateInterval.of(10, ChronoUnit.MINUTES));
-        calendarIntervals.add(AggregateInterval.of(15, ChronoUnit.MINUTES));
-        calendarIntervals.add(AggregateInterval.of(20, ChronoUnit.MINUTES));
-        calendarIntervals.add(AggregateInterval.of(30, ChronoUnit.MINUTES));
-        
-        // Hours
-        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.HOURS));
-        calendarIntervals.add(AggregateInterval.of(2, ChronoUnit.HOURS));
-        calendarIntervals.add(AggregateInterval.of(3, ChronoUnit.HOURS));
-        calendarIntervals.add(AggregateInterval.of(4, ChronoUnit.HOURS));
-        calendarIntervals.add(AggregateInterval.of(6, ChronoUnit.HOURS));
-        calendarIntervals.add(AggregateInterval.of(12, ChronoUnit.HOURS));
-        
-        // Days and above
-        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.DAYS));
-        // calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.WEEKS));
-        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.MONTHS));
-        calendarIntervals.add(AggregateInterval.of(3, ChronoUnit.MONTHS));
-        calendarIntervals.add(AggregateInterval.of(6, ChronoUnit.MONTHS));
-        calendarIntervals.add(AggregateInterval.of(1, ChronoUnit.YEARS));
-
         // Find closest calendar interval
-        AggregateInterval result = calendarIntervals.get(0);  // Default to smallest interval
+        AggregateInterval result = CALENDAR_INTERVALS.get(0);  // Default to smallest interval
         
-        for (AggregateInterval interval : calendarIntervals) {
+        for (AggregateInterval interval : CALENDAR_INTERVALS) {
             long intervalDuration = interval.toDuration().toMillis();
             if (intervalDuration <= intervalMs) {
                 result = interval;

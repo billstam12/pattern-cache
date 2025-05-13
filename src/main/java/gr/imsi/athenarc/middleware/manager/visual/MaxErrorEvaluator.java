@@ -53,6 +53,8 @@ public class MaxErrorEvaluator {
             RangeSet<Integer> pixelColumnFalsePixels = TreeRangeSet.create();
             RangeSet<Integer> pixelColumnMissingPixels = TreeRangeSet.create();
             
+            Range<Integer> maxInnerColumnPixelRanges = currentPixelColumn.computeMaxInnerPixelRange(viewPortStatsAggregator);
+
             if(currentPixelColumn.hasNoError()){
                 maxPixelErrorsPerColumn.add(0.0);
                 missingPixels.add(pixelColumnMissingPixels);
@@ -60,7 +62,6 @@ public class MaxErrorEvaluator {
                 continue;
             }
             
-            Range<Integer> maxInnerColumnPixelRanges = currentPixelColumn.computeMaxInnerPixelRange(viewPortStatsAggregator);
             PixelColumn previousPixelColumn = null, nextPixelColumn = null;
             Range<Integer> leftMaxFalsePixels = null, rightMaxFalsePixels = null;
             if (maxInnerColumnPixelRanges == null) {

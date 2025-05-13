@@ -5,13 +5,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
+
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -61,9 +59,7 @@ public class QueryExecutor {
     }
 
     protected VisualQueryResults executeQuery(VisualQuery query, TimeSeriesCache cache,
-                                     DataProcessor dataProcessor, PrefetchManager prefetchManager){
-        LOG.info("Executing Visual Query {}", query);
-        
+                                     DataProcessor dataProcessor, PrefetchManager prefetchManager){        
         // If this is a query with measure-specific aggregate intervals, use that path
         if (query.hasAggregateIntervalsPerMeasure()) {
             LOG.info("Using measure-specific aggregate intervals");
@@ -163,7 +159,7 @@ public class QueryExecutor {
             }
         }
         
-        LOG.debug("Errors: {}", errorPerMeasure);
+        LOG.info("Errors: {}", errorPerMeasure);
         LOG.info("Agg factors: {}", aggFactors);
 
         // Fetch the missing data from the data source.
@@ -197,6 +193,7 @@ public class QueryExecutor {
         }
         // Fetch errored measures with M4
         if(!measuresWithError.isEmpty()) {
+            LOG.info("Error cannot be satisfied for measures {}, using M4", measuresWithError);
             VisualQuery m4Query = new VisualQuery(from, to, measuresWithError, viewPort.getWidth(), viewPort.getHeight(), 1.0f);
             VisualQueryResults m4QueryResults = executeM4Query(m4Query);
             long timeStart = System.currentTimeMillis();

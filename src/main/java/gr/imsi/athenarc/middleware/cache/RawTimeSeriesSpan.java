@@ -11,6 +11,7 @@ import gr.imsi.athenarc.middleware.domain.TimeRange;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 /**
@@ -88,7 +89,7 @@ public class RawTimeSeriesSpan implements TimeSeriesSpan {
 
     @Override
     public AggregateInterval getAggregateInterval() {
-        return null;
+        return AggregateInterval.of(1, ChronoUnit.MILLIS);
     }
 
     public Iterator<DataPoint> iterator(long queryStartTimestamp, long queryEndTimestamp) {

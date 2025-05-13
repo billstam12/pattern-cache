@@ -460,9 +460,9 @@ public class NFASketchSearch {
         double slope = sketch.getSlope();
         LOG.debug("Composite sketch duration: {} time units, slope computed: {} (expected between {} and {})", 
             sketch.getTo() - sketch.getFrom(), 
-            slope, valueFilter.getValueLow(), valueFilter.getValueHigh());
+            slope, valueFilter.getMinSlope(), valueFilter.getMaxSlope());
     
-        return (slope >= valueFilter.getValueLow() && slope <= valueFilter.getValueHigh());
+        return (slope >= valueFilter.getMinSlope() && slope <= valueFilter.getMaxSlope());
     }
     
     // ---------------------------
