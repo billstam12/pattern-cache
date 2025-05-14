@@ -50,7 +50,6 @@ public class NonTimestampedStatsAggregator implements Stats, Serializable {
      */
     public void combine(Stats other) {
         if(other.getCount() != 0) {
-            sum += other.getSum();
             minValue = Math.min(minValue, other.getMinValue());
             maxValue = Math.max(maxValue, other.getMaxValue());
             count += other.getCount();
@@ -101,11 +100,6 @@ public class NonTimestampedStatsAggregator implements Stats, Serializable {
     @Override
     public long getLastTimestamp() {
         return to - 1;
-    }
-
-    @Override
-    public double getAverageValue() {
-        return getSum() / getCount();
     }
 
     public void setFrom(long from) {

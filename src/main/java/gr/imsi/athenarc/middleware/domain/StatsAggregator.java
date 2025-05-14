@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An object for computing aggregate statistics for multi-variate time series data points.
+ * An object for computing aggregate statistics for time series data points.
  *
  * @implNote This implementation is not thread safe. However, it is safe to use
  * {@link Collectors#summarizingDouble(java.util.function.ToDoubleFunction)
@@ -57,7 +57,6 @@ public class StatsAggregator implements Consumer<DataPoint>, Stats, Serializable
         
         Stats stats = dataPoint.getStats();
         if (dataPoint.getCount() > 0) {
-            sum += stats.getSum();
             minValue = Math.min(minValue, stats.getMinValue());
             if (minValue == stats.getMinValue()) {
                 minTimestamp = stats.getMinTimestamp();
@@ -130,7 +129,6 @@ public class StatsAggregator implements Consumer<DataPoint>, Stats, Serializable
         }
         
         if(other.getCount() > 0) {
-            sum += other.getSum();
             minValue = Math.min(minValue, other.getMinValue());
             if (minValue == other.getMinValue()) {
                 minTimestamp = other.getMinTimestamp();
@@ -158,14 +156,6 @@ public class StatsAggregator implements Consumer<DataPoint>, Stats, Serializable
     }
 
     @Override
-    public double getSum() {
-        if (count == 0) {
-            throw new IllegalStateException("No data points added to this stats aggregator yet.");
-        }
-        return sum;
-    }
-
-    @Override
     public double getMinValue() {
         if (count == 0) {
             throw new IllegalStateException("No data points added to this stats aggregator yet.");
@@ -179,14 +169,6 @@ public class StatsAggregator implements Consumer<DataPoint>, Stats, Serializable
             throw new IllegalStateException("No data points added to this stats aggregator yet.");
         }
         return maxValue;
-    }
-
-    @Override
-    public double getAverageValue() {
-        if (count == 0) {
-            throw new IllegalStateException("No data points added to this stats aggregator yet.");
-        }
-        return sum / count;
     }
 
     @Override
@@ -253,7 +235,6 @@ public class StatsAggregator implements Consumer<DataPoint>, Stats, Serializable
             return "No data points";
         }
         return "Stats{count=" + count + 
-               ", avg=" + getAverageValue() + 
                ", min=" + minValue + 
                ", max=" + maxValue + "}";
     }

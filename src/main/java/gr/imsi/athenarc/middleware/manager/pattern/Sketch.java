@@ -28,12 +28,13 @@ public class Sketch implements TimeInterval {
     // used for fetching data from the db
     // There is a difference between count = 0 and no underlying data at all
     private boolean hasInitialized = false;
+
     /**
      * Creates a new sketch with the specified aggregation type.
      *
      * @param from The start timestamp of this sketch
      * @param to The end timestamp of this sketch
-     * @param aggregationType The type of aggregation to use when adding data points
+     * @param aggregationType The function that gets the representative data point
      */
     public Sketch(long from, long to, AggregationType aggregationType) {
         this.from = from;
@@ -55,45 +56,77 @@ public class Sketch implements TimeInterval {
     }
     
     /**
-     * Gets the appropriate value from stats based on the configured aggregation type.
+     * Gets the representative value of this sketch based on the configured aggregation type.
      *
-     * @param stats The stats to get the value from
-     * @return The value according to the configured aggregation type
+     * @return The representative value of this sketch
      */
-    private double getValueByAggregationType(Stats stats) {
+    public double getRepresentativeValue() {
         switch (aggregationType) {
             case FIRST_VALUE:
-                return stats.getFirstValue();
+                return statsAggregator.getFirstValue();
             case MIN_VALUE:
-                return stats.getMinValue();
+                return statsAggregator.getMinValue();
             case MAX_VALUE:
-                return stats.getMaxValue();
+                return statsAggregator.getMaxValue();
             case LAST_VALUE:
             default:
-                return stats.getLastValue();
+                return statsAggregator.getLastValue();
         }
     }
     
-    public void combine(Sketch sketch) {
-        if(sketch.getStatsAggregator().getCount() == 0) {
-            return; // No data to combine
+    /**
+     * Combines this sketch with another one, extending the time interval and updating stats.
+     * The sketches must be consecutive (this.to == other.from).
+     * 
+     * @param other The sketch to combine with this one
+     * @return This sketch after combination (for method chaining)
+     * @throws IllegalArgumentException if the sketches are not consecutive
+     */
+    public Sketch combine(Sketch other) {
+        if(other == null || other.getStatsAggregator().getCount() == 0) {
+            return this; // No data to combine
         }
         
-        if (this.getTo() != sketch.getFrom()) {
+        if (this.getTo() != other.getFrom()) {
             throw new IllegalArgumentException("Cannot combine sketches that are not consecutive. " +
-                "Current sketch ends at " + this.getTo() + " but next sketch starts at " + sketch.getFrom());
+                "Current sketch ends at " + this.getTo() + " but next sketch starts at " + other.getFrom());
         }
         
         // Ensure both sketches use the same aggregation type
-        if (this.aggregationType != sketch.getAggregationType()) {
+        if (this.aggregationType != other.getAggregationType()) {
             LOG.warn("Combining sketches with different aggregation types: {} and {}", 
-                this.aggregationType, sketch.getAggregationType());
+                this.aggregationType, other.getAggregationType());
         }
         
-        this.to = sketch.getTo();
-        this.duration += 1;
-        computeSlope(sketch.getStatsAggregator()); // compute the slope before combining
-        this.statsAggregator.combine(sketch.getStatsAggregator());
+        // Calculate slope before combining stats
+        calculateSlope(this.getRepresentativeValue(), other.getRepresentativeValue());
+        
+        // Update time interval and duration
+        this.to = other.getTo();
+        this.duration += other.getDuration();
+        
+        // Combine stats
+        this.statsAggregator.combine(other.getStatsAggregator());
+        
+        return this; // Enable method chaining
+    }
+    
+    /**
+     * Calculate the slope between this sketch and another value
+     * 
+     * @param startValue The start value (typically from this sketch)
+     * @param endValue The end value (typically from the next sketch)
+     */
+    private void calculateSlope(double startValue, double endValue) {
+        // Calculate slope over the actual time duration
+        double valueChange = endValue - startValue;
+        double timeDifference = getDuration();
+        
+        if (timeDifference > 0) {
+            double rawSlope = valueChange / timeDifference;
+            // Normalize to range [-0.5, 0.5] using arctangent
+            this.slope = Math.atan(rawSlope) / Math.PI;
+        }
     }
     
     /**
@@ -103,26 +136,6 @@ public class Sketch implements TimeInterval {
      */
     public AggregationType getAggregationType() {
         return aggregationType;
-    }
-
-    private void computeSlope(Stats otherStats) {        
-        // Check if there are enough sketches to calculate slope
-        if (this.getDuration() < 1) {
-            return;
-        }
-                 
-        // Calculate slope using first and last data points in the composite sketch
-        double firstValue = getValueByAggregationType(statsAggregator);
-        double lastValue = getValueByAggregationType(otherStats);
-        double valueChange = lastValue - firstValue;
-        
-        // Calculate slope over the actual time duration, not just the number of values
-        double slope = valueChange / getDuration();
-        
-        // Normalize the slope using arctangent
-        double normalizedSlope = Math.atan(slope) / Math.PI; // Maps to range [-0.5,0.5]
-
-        this.slope = normalizedSlope;
     }
 
     public int getDuration(){

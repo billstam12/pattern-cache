@@ -87,8 +87,6 @@ public class PatternQueryManager {
         
         // 5. Fetch data for missing intervals
         if (!missingIntervals.isEmpty()) {
-            LOG.info("Identified {} missing intervals that need to be fetched", missingIntervals.size());
-            
             // For better performance, merge adjacent intervals while preserving alignment
             List<TimeInterval> mergedMissingIntervals = DateTimeUtil.groupIntervals(timeUnit, missingIntervals);
             LOG.info("Merged into {} intervals for fetching", mergedMissingIntervals.size());
@@ -99,13 +97,15 @@ public class PatternQueryManager {
             Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
             aggregateIntervalsPerMeasure.put(measure, timeUnit);
             
+            Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = DateTimeUtil.alignIntervalsToTimeUnitBoundary(missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+
             // Fetch missing data, ensuring we use the same time unit for alignment
             AggregatedDataPoints newDataPoints = dataSource.getAggregatedDataPoints(
-                alignedFrom, alignedTo, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+                alignedFrom, alignedTo, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
                         
             // Create spans and add to cache
             Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
-                TimeSeriesSpanFactory.createAggregate(newDataPoints, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+                TimeSeriesSpanFactory.createAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
 
             for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
                 cache.addToCache(spans);

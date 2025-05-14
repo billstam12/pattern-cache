@@ -17,13 +17,14 @@ import com.influxdb.query.FluxTable;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.InfluxDBQueryExecutor;
-import gr.imsi.athenarc.middleware.datasource.iterator.InfluxDBAggregatedDataPointsIterator;
+import gr.imsi.athenarc.middleware.datasource.iterator.InfluxDBMinMaxDataPointsIterator;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 
-final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
+final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
 
     private AbstractDataset dataset;
     private InfluxDBQueryExecutor influxDBQueryExecutor;
@@ -33,7 +34,7 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
     private Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure; 
     private Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure;
 
-    public InfluxDBAggregatedDatapoints(InfluxDBQueryExecutor influxDBQueryExecutor, AbstractDataset dataset, 
+    public InfluxDBMinMaxDatapoints(InfluxDBQueryExecutor influxDBQueryExecutor, AbstractDataset dataset, 
                                      long from, long to,  Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
                                      Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure
                                     ) {
@@ -86,18 +87,12 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
         Set<String> aggregateFunctions = new HashSet<>();
         aggregateFunctions.add("min");
         aggregateFunctions.add("max");
-        aggregateFunctions.add("first");
-        aggregateFunctions.add("last");
+
         StringBuilder fluxQuery = new StringBuilder();
-        fluxQuery.append("customAggregateWindow = (every, fn, column=\"_value\", timeSrc=\"_time\", timeDst=\"_time\", offset, tables=<-) =>\n" +
-            "  tables\n" +
-            "    |> window(every:every, offset: offset)\n" +
-            "    |> fn(column:column)\n" +
-            "    |> group()" +
-            "\n" +
+        fluxQuery.append(
             "aggregate = (tables=<-, agg, name, aggregateInterval, offset) => tables" +
             "\n" +
-            "|> customAggregateWindow(every: aggregateInterval, fn: agg, offset: offset)" +
+            "|> aggregateWindow(every: aggregateInterval, fn: agg, offset: offset)" +
             "\n");
 
         // Create a query for each measure
@@ -125,34 +120,25 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
                 long offset = from % (aggregateInterval.getMultiplier() * 
                                      getChronoUnitMillis(aggregateInterval.getChronoUnit()));
                 
-                if (aggregateFunctions.size() > 1) {
-                    StringBuilder unionPart = new StringBuilder();
-                    unionPart.append("union_").append(i).append(" = union(\n")
-                           .append("    tables: [\n");
-                    
-                    for (String aggregateFunction : aggregateFunctions) {
-                        unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
-                                .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
-                                .append("aggregateInterval:").append(measureFluxTimeInterval)
-                                .append(", offset: ").append(offset).append("ms")
-                                .append("),\n");
-                    }
-                    
-                    String unionQueries = unionPart.substring(0, unionPart.length() - 2);
-                    unionPart = new StringBuilder(unionQueries);
-                    unionPart.append("\n    ]\n)\n");
-                    
-                    fluxQuery.append(unionPart);
-                    queryParts.add("union_" + i);
-                } else {
-                    String aggregateFunction = aggregateFunctions.iterator().next();
-                    String singleAggregatePart = "single_" + i + " = data_" + i + "() |> aggregate(agg: " + aggregateFunction + 
-                            ", name: \"data_" + i + "\", aggregateInterval:" + measureFluxTimeInterval + 
-                            ", offset: " + offset + "ms" + ")\n";
-                    
-                    fluxQuery.append(singleAggregatePart);
-                    queryParts.add("single_" + i);
+                StringBuilder unionPart = new StringBuilder();
+                unionPart.append("union_").append(i).append(" = union(\n")
+                       .append("    tables: [\n");
+                
+                for (String aggregateFunction : aggregateFunctions) {
+                    unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
+                            .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
+                            .append("aggregateInterval:").append(measureFluxTimeInterval)
+                            .append(", offset: ").append(offset).append("ms")
+                            .append("),\n");
                 }
+                
+                String unionQueries = unionPart.substring(0, unionPart.length() - 2);
+                unionPart = new StringBuilder(unionQueries);
+                unionPart.append("\n    ]\n)\n");
+                
+                fluxQuery.append(unionPart);
+                queryParts.add("union_" + i);
+                
             } else if (missingIntervals.size() == 1) {
                 // Special case for a single missing interval
                 TimeInterval interval = missingIntervals.get(0);
@@ -174,34 +160,25 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
                 long offset = interval.getFrom() % (aggregateInterval.getMultiplier() * 
                                                   getChronoUnitMillis(aggregateInterval.getChronoUnit()));
                 
-                if (aggregateFunctions.size() > 1) {
-                    StringBuilder unionPart = new StringBuilder();
-                    unionPart.append("union_").append(i).append(" = union(\n")
-                           .append("    tables: [\n");
-                    
-                    for (String aggregateFunction : aggregateFunctions) {
-                        unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
-                                .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
-                                .append("aggregateInterval:").append(measureFluxTimeInterval)
-                                .append(", offset: ").append(offset).append("ms")
-                                .append("),\n");
-                    }
-                    
-                    String unionQueries = unionPart.substring(0, unionPart.length() - 2);
-                    unionPart = new StringBuilder(unionQueries);
-                    unionPart.append("\n    ]\n)\n");
-                    
-                    fluxQuery.append(unionPart);
-                    queryParts.add("union_" + i);
-                } else {
-                    String aggregateFunction = aggregateFunctions.iterator().next();
-                    String singleAggregatePart = "single_" + i + " = data_" + i + "() |> aggregate(agg: " + aggregateFunction + 
-                            ", name: \"data_" + i + "\", aggregateInterval:" + measureFluxTimeInterval + 
-                            ", offset: " + offset + "ms" + ")\n";
-                    
-                    fluxQuery.append(singleAggregatePart);
-                    queryParts.add("single_" + i);
+                StringBuilder unionPart = new StringBuilder();
+                unionPart.append("union_").append(i).append(" = union(\n")
+                       .append("    tables: [\n");
+                
+                for (String aggregateFunction : aggregateFunctions) {
+                    unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
+                            .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
+                            .append("aggregateInterval:").append(measureFluxTimeInterval)
+                            .append(", offset: ").append(offset).append("ms")
+                            .append("),\n");
                 }
+                
+                String unionQueries = unionPart.substring(0, unionPart.length() - 2);
+                unionPart = new StringBuilder(unionQueries);
+                unionPart.append("\n    ]\n)\n");
+                
+                fluxQuery.append(unionPart);
+                queryParts.add("union_" + i);
+                
             } else {
                 // Generate a union of queries for multiple missing intervals
                 fluxQuery.append("data_").append(i).append(" = () => union(\n")
@@ -230,42 +207,28 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
                 
                 fluxQuery.append("    ]\n)\n");
                 
-                if (aggregateFunctions.size() > 1) {
-                    StringBuilder unionPart = new StringBuilder();
-                    unionPart.append("union_").append(i).append(" = union(\n")
-                           .append("    tables: [\n");
-                    
-                    for (String aggregateFunction : aggregateFunctions) {
-                        // Get the first interval's start time for offset calculation
-                        long offset = missingIntervals.get(0).getFrom() % (aggregateInterval.getMultiplier() * 
-                                                                         getChronoUnitMillis(aggregateInterval.getChronoUnit()));
-                        
-                        unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
-                                .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
-                                .append("aggregateInterval:").append(measureFluxTimeInterval)
-                                .append(", offset: ").append(offset).append("ms")
-                                .append("),\n");
-                    }
-                    
-                    String unionQueries = unionPart.substring(0, unionPart.length() - 2);
-                    unionPart = new StringBuilder(unionQueries);
-                    unionPart.append("\n    ]\n)\n");
-                    
-                    fluxQuery.append(unionPart);
-                    queryParts.add("union_" + i);
-                } else {
-                    String aggregateFunction = aggregateFunctions.iterator().next();
+                StringBuilder unionPart = new StringBuilder();
+                unionPart.append("union_").append(i).append(" = union(\n")
+                       .append("    tables: [\n");
+                
+                for (String aggregateFunction : aggregateFunctions) {
                     // Get the first interval's start time for offset calculation
                     long offset = missingIntervals.get(0).getFrom() % (aggregateInterval.getMultiplier() * 
                                                                      getChronoUnitMillis(aggregateInterval.getChronoUnit()));
                     
-                    String singleAggregatePart = "single_" + i + " = data_" + i + "() |> aggregate(agg: " + aggregateFunction + 
-                            ", name: \"data_" + i + "\", aggregateInterval:" + measureFluxTimeInterval + 
-                            ", offset: " + offset + "ms" + ")\n";
-                    
-                    fluxQuery.append(singleAggregatePart);
-                    queryParts.add("single_" + i);
+                    unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
+                            .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
+                            .append("aggregateInterval:").append(measureFluxTimeInterval)
+                            .append(", offset: ").append(offset).append("ms")
+                            .append("),\n");
                 }
+                
+                String unionQueries = unionPart.substring(0, unionPart.length() - 2);
+                unionPart = new StringBuilder(unionQueries);
+                unionPart.append("\n    ]\n)\n");
+                
+                fluxQuery.append(unionPart);
+                queryParts.add("union_" + i);
             }
             i ++;
         }
@@ -294,7 +257,7 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
         
         // Execute the query
         List<FluxTable> fluxTables = influxDBQueryExecutor.executeDbQuery(fluxQuery.toString());
-        return new InfluxDBAggregatedDataPointsIterator(fluxTables, measuresMap, aggregateFunctions.size());
+        return new InfluxDBMinMaxDataPointsIterator(fluxTables, measuresMap);
     }
 
     /**
@@ -345,11 +308,11 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
 
     @Override
     public String getFromDate(String format) {
-        return Instant.ofEpochMilli(from).atZone(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern(format));
+        return DateTimeUtil.format(from, format);
     }
 
     @Override
     public String getToDate(String format) {
-        return Instant.ofEpochMilli(to).atZone(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern(format));
+        return DateTimeUtil.format(to, format);
     }
 }

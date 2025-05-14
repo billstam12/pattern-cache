@@ -90,7 +90,6 @@ public class TimeSeriesSpanFactory {
             
             for (TimeInterval range : missingIntervalsPerMeasure.get(measure)) {
                 AggregateTimeSeriesSpan timeSeriesSpan = new AggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
-                int addedCount = 0; 
                 while (true) {
                     // Get next point if needed
                     if (!changed && aggregatedDataPoint == null && it.hasNext()) {
@@ -113,7 +112,6 @@ public class TimeSeriesSpanFactory {
                         LOG.debug("Adding {} between {}-{} with aggregate interval {} for measure {}",
                                 aggregatedDataPoint.getTimestamp(), range.getFrom(), range.getTo(), aggregateInterval, measure);
                         timeSeriesSpan.addAggregatedDataPoint(aggregatedDataPoint);
-                        addedCount++;
                         // Clear current point and get next one in next iteration
                         aggregatedDataPoint = null;
                     }

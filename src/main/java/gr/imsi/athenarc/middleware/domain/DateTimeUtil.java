@@ -8,7 +8,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 public class DateTimeUtil {
@@ -27,15 +29,26 @@ public class DateTimeUtil {
         
         // Seconds
         intervals.add(AggregateInterval.of(1, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(2, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(3, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(4, ChronoUnit.SECONDS));
         intervals.add(AggregateInterval.of(5, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(6, ChronoUnit.SECONDS));
         intervals.add(AggregateInterval.of(10, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(12, ChronoUnit.SECONDS));
         intervals.add(AggregateInterval.of(15, ChronoUnit.SECONDS));
+        intervals.add(AggregateInterval.of(20, ChronoUnit.SECONDS));
         intervals.add(AggregateInterval.of(30, ChronoUnit.SECONDS));
         
         // Minutes
         intervals.add(AggregateInterval.of(1, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(2, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(3, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(4, ChronoUnit.MINUTES));
         intervals.add(AggregateInterval.of(5, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(6, ChronoUnit.MINUTES));
         intervals.add(AggregateInterval.of(10, ChronoUnit.MINUTES));
+        intervals.add(AggregateInterval.of(12, ChronoUnit.MINUTES));
         intervals.add(AggregateInterval.of(15, ChronoUnit.MINUTES));
         intervals.add(AggregateInterval.of(20, ChronoUnit.MINUTES));
         intervals.add(AggregateInterval.of(30, ChronoUnit.MINUTES));
@@ -46,6 +59,7 @@ public class DateTimeUtil {
         intervals.add(AggregateInterval.of(3, ChronoUnit.HOURS));
         intervals.add(AggregateInterval.of(4, ChronoUnit.HOURS));
         intervals.add(AggregateInterval.of(6, ChronoUnit.HOURS));
+        intervals.add(AggregateInterval.of(8, ChronoUnit.HOURS));
         intervals.add(AggregateInterval.of(12, ChronoUnit.HOURS));
         
         // Days and above
@@ -321,7 +335,6 @@ public class DateTimeUtil {
      * @return The aligned timestamp
      */
     public static long alignToTimeUnitBoundary(long timestamp, AggregateInterval timeUnit, boolean floor) {
-        ZoneId zone = ZoneId.systemDefault();
         Instant instant = Instant.ofEpochMilli(timestamp);
         
         // For chronological units like DAYS, HOURS, etc., use Java's truncatedTo
@@ -331,10 +344,10 @@ public class DateTimeUtil {
         if (multiplier == 1) {
             // Simple case - just truncate to the unit boundary
             if (floor) {
-                return instant.atZone(zone).truncatedTo(chronoUnit).toInstant().toEpochMilli();
+                return instant.atZone(UTC).truncatedTo(chronoUnit).toInstant().toEpochMilli();
             } else {
                 // For ceiling, go to next unit and subtract 1ms
-                return instant.atZone(zone)
+                return instant.atZone(UTC)
                         .truncatedTo(chronoUnit)
                         .plus(1, chronoUnit)
                         .toInstant().toEpochMilli();
@@ -383,5 +396,26 @@ public class DateTimeUtil {
             }
             return dayStart + (unitsElapsed * baseUnitMs * multiplier);
         }
+    }
+
+    public static Map<Integer, List<TimeInterval>> alignIntervalsToTimeUnitBoundary(Map<Integer, List<TimeInterval>> intervals, Map<Integer, AggregateInterval> aggregateIntervals) {
+        // Create a new map to store aligned intervals
+        Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = new HashMap<>();
+        
+        // For each measure and its intervals, create aligned copies and store them in the new map
+        for (Map.Entry<Integer, List<TimeInterval>> entry : intervals.entrySet()) {
+            int measure = entry.getKey();
+            List<TimeInterval> originalIntervals = entry.getValue();
+            List<TimeInterval> alignedIntervals = new ArrayList<>();
+            
+            for (TimeInterval interval : originalIntervals) {
+                TimeInterval alignedInterval = DateTimeUtil.alignIntervalToTimeUnitBoundary(interval, aggregateIntervals.get(measure));
+                alignedIntervals.add(alignedInterval);
+            }
+            
+            alignedIntervalsPerMeasure.put(measure, alignedIntervals);
+        }
+        LOG.info("Aligned missing intervals per measure: {}", alignedIntervalsPerMeasure);    
+        return alignedIntervalsPerMeasure;
     }
 }

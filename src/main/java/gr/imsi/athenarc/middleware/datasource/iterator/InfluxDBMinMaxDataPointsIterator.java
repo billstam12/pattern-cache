@@ -6,41 +6,32 @@ import com.influxdb.query.FluxTable;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ImmutableAggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.ImmutableDataPoint;
-import gr.imsi.athenarc.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.middleware.domain.NonTimestampedStatsAggregator;
 
 import java.util.List;
 import java.util.Map;
 
-public class InfluxDBAggregatedDataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
+public class InfluxDBMinMaxDataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
 
-    private final int pointsPerAggregate;
     private final Map<String, Integer> measuresMap;
 
-    public InfluxDBAggregatedDataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap, int pointsPerAggregate) {
+    public InfluxDBMinMaxDataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap) {
         super(tables);
-        this.pointsPerAggregate = pointsPerAggregate;
         this.measuresMap = measuresMap;
     }
 
     @Override
     protected AggregatedDataPoint getNext() {
-        StatsAggregator statsAggregator = new StatsAggregator();
+        NonTimestampedStatsAggregator statsAggregator = new NonTimestampedStatsAggregator();
         String measureName = "";
 
-        for (int i = 0; i < pointsPerAggregate && current < currentSize; i++) {
+        for (int i = 0; i < 2 && current < currentSize; i++) {
             FluxRecord record = currentRecords.get(current);
             measureName = record.getField();
             Object value = record.getValue();
             if (value instanceof Number) {
-                double doubleValue = ((Number) value).doubleValue();
-                long timestamp = getTimestampFromRecord(record, "_time");
-                
-                statsAggregator.accept(new ImmutableDataPoint(
-                    timestamp, 
-                    doubleValue,
-                    measuresMap.get(measureName)
-                ));
+                double doubleValue = ((Number) value).doubleValue();                
+                statsAggregator.accept(doubleValue);
                
             }
             current++;
@@ -73,7 +64,7 @@ public class InfluxDBAggregatedDataPointsIterator extends InfluxDBIterator<Aggre
         }
     }
 
-    private void logAggregatedPoint(AggregatedDataPoint point, StatsAggregator stats) {
+    private void logAggregatedPoint(AggregatedDataPoint point, NonTimestampedStatsAggregator stats) {
         LOG.debug("Created aggregate Datapoint {} - {} first: {}, last {}, min: {}, max: {}, for measure: {}",
             DateTimeUtil.format(point.getFrom()),
             DateTimeUtil.format(point.getTo()),

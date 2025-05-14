@@ -168,29 +168,11 @@ public class DataProcessor {
             LOG.info("Missing intervals per measure: {}", missingIntervalsPerMeasure);    
 
             // Create a new map to store aligned intervals
-            Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = new HashMap<>();
-            
-            // For each measure and its intervals, create aligned copies and store them in the new map
-            for (Map.Entry<Integer, List<TimeInterval>> entry : missingIntervalsPerMeasure.entrySet()) {
-                int measure = entry.getKey();
-                List<TimeInterval> originalIntervals = entry.getValue();
-                List<TimeInterval> alignedIntervals = new ArrayList<>();
-                
-                for (TimeInterval interval : originalIntervals) {
-                    TimeInterval alignedInterval = DateTimeUtil.alignIntervalToTimeUnitBoundary(interval, aggregateIntervals.get(measure));
-                    alignedIntervals.add(alignedInterval);
-                }
-                
-                alignedIntervalsPerMeasure.put(measure, alignedIntervals);
-            }
-            
-            // Replace the original map with the aligned intervals
-            missingIntervalsPerMeasure = alignedIntervalsPerMeasure;
-            
-            LOG.info("Aligned missing intervals per measure: {}", missingIntervalsPerMeasure);    
+            Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = DateTimeUtil.alignIntervalsToTimeUnitBoundary(missingIntervalsPerMeasure, aggregateIntervals);
+
             LOG.info("Fetching missing data from data source");
-            missingDataPoints = dataSource.getAggregatedDataPoints(from, to, missingIntervalsPerMeasure, aggregateIntervals);
-            timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
+            missingDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervals);
+            timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, alignedIntervalsPerMeasure, aggregateIntervals);
             LOG.info("Fetched missing data from data source");
         }
         return timeSeriesSpans;

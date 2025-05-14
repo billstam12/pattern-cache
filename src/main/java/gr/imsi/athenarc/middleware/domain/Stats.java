@@ -7,8 +7,6 @@ public interface Stats {
     
     public int getCount();
 
-    public double getSum();
-
     public double getMinValue();
 
     public long getMinTimestamp();
@@ -24,8 +22,6 @@ public interface Stats {
     public double getLastValue();
 
     public long getLastTimestamp();
-
-    public double getAverageValue();
 
     default DataPoint getMinDataPoint() {
         return new ImmutableDataPoint(getMinTimestamp(), getMinValue(), -1);
@@ -47,7 +43,6 @@ public interface Stats {
         return "{" +
                 "measure=" + measure +
                 ", count=" + getCount() +
-                ", sum=" + getSum() +
                 ", min=" + getMinValue() +
                 ", minTimestamp=" + getMinTimestamp() +
                 ", max=" + getMaxValue() +
@@ -56,7 +51,6 @@ public interface Stats {
                 ", firstTimestamp=" + getFirstTimestamp() +
                 ", last=" + getLastValue() +
                 ", lastTimestamp=" + getLastTimestamp() +
-                ", average=" + getAverageValue() +
                 '}';
     }
 

@@ -70,7 +70,7 @@ public class Experiments<T> {
     private String outFolder = "output";
 
     @Parameter(names = "-seqCount", description = "Number of queries in the sequence")
-    private Integer seqCount = 50;
+    private Integer seqCount = 20;
 
     @Parameter(names = "-schema", description = "PostgreSQL/InfluxDB schema name where data lay")
     private String schema = "more";
@@ -88,7 +88,7 @@ public class Experiments<T> {
     public String queryConfigFile = "/Users/vasilisstamatopoulos/Documents/Works/ATHENA/PhD/Code/pattern-cache/config/state-transitions.properties";
 
     @Parameter(names = "-mode", description = "Mode: 'run' (default) or 'generate' to only create query sequence")
-    private String mode = "generate";
+    private String mode = "run";
 
     @Parameter(names = "--help", help = true, description = "Displays help")
     private boolean help;
@@ -203,25 +203,28 @@ public class Experiments<T> {
     }
 
     private List<TypedQuery> generateQuerySequence(Query q0, AbstractDataset dataset) {
-        QuerySequenceGenerator sequenceGenerator = new QuerySequenceGenerator(dataset);
         List<TypedQuery> querySequence = null;
-        // If a query configuration file is provided, load and apply the settings
-        if (queryConfigFile != null) {
-            Properties queryProperties = readPropertiesFromFile(queryConfigFile);
-            if (queryProperties != null) {
-                sequenceGenerator.setProbabilitiesFromProperties(queryProperties);
-            }
-        }
+
+        // QuerySequenceGenerator sequenceGenerator = new QuerySequenceGenerator(dataset);
+        // // If a query configuration file is provided, load and apply the settings
+        // if (queryConfigFile != null) {
+        //     Properties queryProperties = readPropertiesFromFile(queryConfigFile);
+        //     if (queryProperties != null) {
+        //         sequenceGenerator.setProbabilitiesFromProperties(queryProperties);
+        //     }
+        // }
         
-        if(queries != null) {
-            Preconditions.checkNotNull(queries, "No given queries.txt file");
-            // querySequence = sequenceGenerator.generateQuerySequence(q0, queries);
-        }
-        else {
-            Preconditions.checkNotNull(seqCount, "No sequence count specified.");
-            querySequence = sequenceGenerator.generateQuerySequence(q0, seqCount);
-            sequenceGenerator.saveQueriesToFile(querySequence, Paths.get(outFolder, "queries.txt").toString());
-        }
+        // if(queries != null) {
+        //     Preconditions.checkNotNull(queries, "No given queries.txt file");
+        //     // querySequence = sequenceGenerator.generateQuerySequence(q0, queries);
+        // }
+        // else {
+        //     Preconditions.checkNotNull(seqCount, "No sequence count specified.");
+        //     querySequence = sequenceGenerator.generateQuerySequence(q0, seqCount);
+        //     sequenceGenerator.saveQueriesToFile(querySequence, Paths.get(outFolder, "queries.txt").toString());
+        // }
+        querySequence = ExplorationPatternGenerator.generatePatternedQuerySequence(
+            dataset, "PATTERN HUNTER", q0, seqCount);
         return querySequence;
     }
 
