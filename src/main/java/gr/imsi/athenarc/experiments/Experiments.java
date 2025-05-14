@@ -224,7 +224,7 @@ public class Experiments<T> {
         //     sequenceGenerator.saveQueriesToFile(querySequence, Paths.get(outFolder, "queries.txt").toString());
         // }
         querySequence = ExplorationPatternGenerator.generatePatternedQuerySequence(
-            dataset, "PATTERN HUNTER", q0, seqCount);
+            dataset, "DRILL-DOWN EXPLORER", q0, seqCount);
         return querySequence;
     }
 

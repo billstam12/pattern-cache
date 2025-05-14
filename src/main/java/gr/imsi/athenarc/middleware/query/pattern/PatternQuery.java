@@ -20,9 +20,6 @@ public class PatternQuery implements Query {
     private final ViewPort viewPort;
     private final double accuracy;
     
-    // Optional ID for predefined patterns
-    private Integer patternId;
-
     public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit,
      AggregationType aggregationType, List<PatternNode> patternNodes, ViewPort viewPort, double accuracy) {
         this.from = from;
@@ -33,18 +30,8 @@ public class PatternQuery implements Query {
         this.patternNodes = patternNodes;
         this.viewPort = viewPort;
         this.accuracy = accuracy;
-        this.patternId = null; // Not a predefined pattern by default
     }
     
-    /**
-     * Constructor that includes a pattern ID
-     */
-    public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit,
-     AggregationType aggregationType, List<PatternNode> patternNodes, ViewPort viewPort, double accuracy, Integer patternId) {
-        this(from, to, measure, timeUnit, aggregationType, patternNodes, viewPort, accuracy);
-        this.patternId = patternId;
-    }
-
     @Override
     public long getFrom() {
         return from;
@@ -88,20 +75,5 @@ public class PatternQuery implements Query {
 
     public double getAccuracy(){
         return accuracy;
-    }
-    
-    /**
-     * @return The ID of the predefined pattern if this is based on one, null otherwise
-     */
-    public Integer getPatternId() {
-        return patternId;
-    }
-    
-    /**
-     * Set the pattern ID
-     * @param patternId The ID of the predefined pattern
-     */
-    public void setPatternId(Integer patternId) {
-        this.patternId = patternId;
     }
 }

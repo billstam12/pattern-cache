@@ -329,8 +329,7 @@ public class QuerySequenceGenerator {
                             s = "measureChange";
                             break;
                         case PD:
-                            PatternQuery patternQuery = (PatternQuery) q;
-                            s = PredefinedPattern.getPatternById(patternQuery.getPatternId()).getName();
+                            s = PredefinedPattern.getPatternById(typedQuery.getPatternId()).getName();
                             break;
                         default:
                             break;
@@ -390,7 +389,7 @@ public class QuerySequenceGenerator {
         }
 
         List<TypedQuery> queries = new ArrayList<>();
-        queries.add(new TypedQuery(q0, null)); //op type null = initial query
+        queries.add(new TypedQuery(q0, null, -1)); //op type null = initial query
         Query q = q0;
         
         List<ViewPort> viewPorts = new ArrayList<>();
@@ -452,12 +451,14 @@ public class QuerySequenceGenerator {
                 timeRange = zoomIn(q);
             }
             
-            // pattern
+            // Pattern detection requires special handling
+            int patternId = -1; // Default: not a pattern
             if(opType.equals(PD)){
                 Random patternRandom = new Random(mainRandom.nextInt());
-                q = generatePatternQuery(q.getFrom(), q.getTo(), q.getMeasures().get(0), q.getViewPort(), patternRandom);
-            } // else create visual query
-            else {
+                // Generate pattern query and capture pattern ID
+                patternId = generatePatternQuery(q, patternRandom);
+                // q will be updated inside the method
+            } else {
                 // Generate a visual query
                 q = new VisualQueryBuilder()
                     .withTimeRange(timeRange.getFrom(), timeRange.getTo())
@@ -466,7 +467,7 @@ public class QuerySequenceGenerator {
                     .withAccuracy(q0.getAccuracy())
                     .build();
             }
-            queries.add(new TypedQuery(q, opType));
+            queries.add(new TypedQuery(q, opType, patternId));
             
             // Update current state if using state transitions
             if (useStateTransitions) {
@@ -478,8 +479,16 @@ public class QuerySequenceGenerator {
     
     /**
      * Generates a pattern query with randomized pattern parameters
+     * @param baseQuery The source query to build from
+     * @param random Random generator
+     * @return The ID of the pattern used
      */
-    private PatternQuery generatePatternQuery(long from, long to, int measure, ViewPort viewPort, Random random) {
+    private int generatePatternQuery(Query baseQuery, Random random) {
+        long from = baseQuery.getFrom();
+        long to = baseQuery.getTo();
+        int measure = baseQuery.getMeasures().get(0);
+        ViewPort viewPort = baseQuery.getViewPort();
+        
         // Generate an aggregation interval two to four times smaller than the time range
         int level = random.nextInt(3) + 2; // Generates 2, 3, or 4
         AggregateInterval timeUnit = DateTimeUtil.roundDownToCalendarBasedInterval((to - from) / level * viewPort.getWidth());
@@ -493,13 +502,20 @@ public class QuerySequenceGenerator {
         int patternId = patternIds.get(random.nextInt(patternIds.size()));
         PredefinedPattern predefinedPattern = PredefinedPattern.getPatternById(patternId);
         
-        // Create and return a pattern query with the selected pattern ID
-        return new PatternQuery(
-            from, to, measure, timeUnit, aggregationType, 
-            predefinedPattern.getPatternNodes(), viewPort, 1.0, patternId
-        );
+        // Create a pattern query using the builder
+        baseQuery = new PatternQueryBuilder()
+            .withTimeRange(from, to)
+            .withMeasure(measure)
+            .withTimeUnit(timeUnit)
+            .withAggregationType(aggregationType)
+            .withPatternNodes(predefinedPattern.getPatternNodes())
+            .withViewPort(viewPort)
+            .withAccuracy(baseQuery.getAccuracy())
+            .build();
+            
+        return patternId;
     }
-    
+
     private TimeRange pan(Query query, double shift, Direction direction) {
         long from = query.getFrom();
         long to = query.getTo();
