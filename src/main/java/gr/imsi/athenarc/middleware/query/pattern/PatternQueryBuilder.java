@@ -18,7 +18,8 @@ public class PatternQueryBuilder {
     private AggregateInterval timeUnit;
     private AggregationType aggregationType = AggregationType.LAST_VALUE; // Default aggregation type
     private List<PatternNode> patternNodes = new ArrayList<>();
-    private ViewPort viewPort = new ViewPort(800, 400); // Default viewport
+    private int width = 800;
+    private int height = 400;
     private double accuracy = 1.0; // Default accuracy
 
     /**
@@ -115,18 +116,8 @@ public class PatternQueryBuilder {
      * @return This builder for method chaining
      */
     public PatternQueryBuilder withViewPort(int width, int height) {
-        this.viewPort = new ViewPort(width, height);
-        return this;
-    }
-
-    /**
-     * Set the viewport object directly.
-     * 
-     * @param viewPort The viewport object
-     * @return This builder for method chaining
-     */
-    public PatternQueryBuilder withViewPort(ViewPort viewPort) {
-        this.viewPort = viewPort;
+        this.width = width;
+        this.height = height;
         return this;
     }
 
@@ -160,7 +151,8 @@ public class PatternQueryBuilder {
             timeUnit,
             aggregationType,
             patternNodes,
-            viewPort,
+            width,
+            height,
             accuracy
         );
     }

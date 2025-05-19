@@ -271,11 +271,8 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
                 public int getCount() {
                     // Debug log to see what we're actually getting
                     int count = (int) aggregates[index * AGG_SIZE + 6];
-                    LOG.debug("Getting count for index {}: {} (raw value: {})", 
-                        index, count, aggregates[index * AGG_SIZE + 6]);
                     return count;
                 }
-
 
                 @Override
                 public double getMinValue() {

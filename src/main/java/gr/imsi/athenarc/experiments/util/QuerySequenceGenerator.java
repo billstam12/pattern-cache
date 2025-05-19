@@ -13,9 +13,12 @@ import gr.imsi.athenarc.middleware.domain.ViewPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 import static gr.imsi.athenarc.experiments.util.UserOpType.*;
@@ -39,7 +42,7 @@ public class QuerySequenceGenerator {
     private float minShift = 0.1f;
     private float maxShift = 0.5f;
 
-    private float zoomFactor = 2.0f;
+    private float maxZoomFactor = 1.5f;
     private double panProbability = 0.5;
     private double zoomInProbability = 0.2;
     private double zoomOutProbability = 0.2;
@@ -55,9 +58,11 @@ public class QuerySequenceGenerator {
     public QuerySequenceGenerator(AbstractDataset dataset) {
         this.dataset = dataset;
         this.mainRandom = new Random(seed);
+        this.useStateTransitions = false;
         // Initialize predefined patterns
         PredefinedPattern.initializePredefinedPatterns();
         initStateTransitionMatrix();
+        
     }
     
     /**
@@ -96,8 +101,16 @@ public class QuerySequenceGenerator {
         
         // Initialize empty transition probabilities for each state
         for (UserOpType fromState : UserOpType.values()) {
-            stateTransitionMatrix.put(fromState, new HashMap<>());
+            Map<UserOpType, Double> transitions = new HashMap<>();
+            stateTransitionMatrix.put(fromState, transitions);
+            
+            // Initialize all transition probabilities to 0
+            for (UserOpType toState : UserOpType.values()) {
+                transitions.put(toState, 0.0);
+            }
         }
+        
+        LOG.debug("Initialized state transition matrix with all probabilities set to 0");
     }
     
     /**
@@ -106,7 +119,7 @@ public class QuerySequenceGenerator {
      * @param toState The destination state
      * @param probability The transition probability
      */
-    public void setStateTransitionProbability(UserOpType fromState, UserOpType toState, double probability) {
+    private void setStateTransitionProbability(UserOpType fromState, UserOpType toState, double probability) {
         Map<UserOpType, Double> transitions = stateTransitionMatrix.get(fromState);
         if (transitions == null) {
             transitions = new HashMap<>();
@@ -151,11 +164,7 @@ public class QuerySequenceGenerator {
                 }
             }
         }
-        
-        // Enable state transitions if any were found
-        if (useStateTransitions) {
-            LOG.info("Configured state transitions from properties");
-        }
+        LOG.info("Configured state transitions from properties: {}", stateTransitionMatrix);
     }
     
     /**
@@ -179,20 +188,19 @@ public class QuerySequenceGenerator {
         double total = transitions.values().stream().mapToDouble(Double::doubleValue).sum();
         if (total <= 0) {
             // Fall back to random if probabilities don't sum up
-            return randomStateFromProbabilities();
+            throw new IllegalStateException("Transition probabilities for " + currentState + " do not sum to a positive value");
         }
         
         // Select a state using the transition probabilities
         double rand = mainRandom.nextDouble() * total;
         double cumulative = 0;
-        
+
         for (Map.Entry<UserOpType, Double> entry : transitions.entrySet()) {
             cumulative += entry.getValue();
             if (rand <= cumulative) {
                 return entry.getKey();
             }
         }
-        
         // Fallback to last state if something went wrong
         return transitions.keySet().iterator().next();
     }
@@ -272,87 +280,13 @@ public class QuerySequenceGenerator {
          return idx;
     }
 
-
-    /**
-     * Save the generated query sequence to a text file
-     * @param queries The list of queries to save
-     * @param filePath The path where to save the file
-     */
-    public void saveQueriesToFile(List<TypedQuery> queries, String filePath) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            for (TypedQuery typedQuery : queries) {
-                Query q = typedQuery.getQuery();
-                UserOpType userOpType = typedQuery.getUserOpType();
-               
-                // Write from,to,dateFrom,dateTomeasureId,viewportWidth,viewportHeight,queryType[,patternId]
-                StringBuilder line = new StringBuilder();
-                line.append(q.getFrom()).append(",")
-                    .append(q.getTo()).append(",");
-
-                // Write dateFrom, dateTo, 
-                line.append(DateTimeUtil.format(q.getFrom())).append(",")
-                    .append(DateTimeUtil.format(q.getTo())).append(",")
-                    .append(q.getMeasures().get(0));
-                
-                // Add additional measures if they exist
-                for (int i = 1; i < q.getMeasures().size(); i++) {
-                    line.append("|").append(q.getMeasures().get(i));
-                }
-                
-                // Add viewport information
-                line.append(",")
-                    .append(q.getViewPort().getWidth()).append(",")
-                    .append(q.getViewPort().getHeight());
-                    
-                // Add query type information
-                boolean isPattern = q instanceof PatternQuery;
-                line.append(",").append(isPattern ? "pattern" : "visual");
-                
-
-                String s = "initial";
-                 // Skip the initial query
-                if(userOpType != null) {
-                    switch (userOpType) {
-                        case P:
-                            s = "pan";
-                            break;
-                        case ZI:
-                            s = "zoomIn";
-                            break;
-                        case ZO:
-                            s = "zoomOut";
-                            break;
-                        case R:
-                            s = "resize";
-                            break;
-                        case MC:
-                            s = "measureChange";
-                            break;
-                        case PD:
-                            s = PredefinedPattern.getPatternById(typedQuery.getPatternId()).getName();
-                            break;
-                        default:
-                            break;
-                    }
-                    
-                    line.append(",").append(s);
-                }
-                writer.write(line.toString());
-                writer.newLine();
-            }
-        } catch (IOException e) {
-            LOG.error("Error saving queries to file: " + e.getMessage());
-            throw new RuntimeException(e);
-        }
-    }
-
     public List<TypedQuery> generateQuerySequence(Query q0, int count) {
         Direction[] directions = Direction.getRandomDirections(count);
         Random shiftRandom = new Random(mainRandom.nextLong());
         double[] shifts = shiftRandom.doubles(count, minShift, maxShift).toArray();
         
         Random zoomRandom = new Random(mainRandom.nextLong());
-        double[] zooms = zoomRandom.doubles(count, 1, zoomFactor).toArray();
+        double[] zooms = zoomRandom.doubles(count, 1, maxZoomFactor).toArray();
         
         Random opRandom = new Random(mainRandom.nextLong());
         Random measureChangeRandom = new Random(mainRandom.nextLong());
@@ -389,9 +323,10 @@ public class QuerySequenceGenerator {
         }
 
         List<TypedQuery> queries = new ArrayList<>();
-        queries.add(new TypedQuery(q0, null, -1)); //op type null = initial query
         Query q = q0;
-        
+        TypedQuery typedQuery = new TypedQuery(q, null, -1);
+        queries.add(typedQuery);
+
         List<ViewPort> viewPorts = new ArrayList<>();
         viewPorts.add(new ViewPort(500, 250));
         viewPorts.add(new ViewPort(1000, 500));
@@ -406,7 +341,7 @@ public class QuerySequenceGenerator {
                 opType = ops.get(opRandom.nextInt(ops.size()));
             }
             
-            zoomFactor = (float) zooms[i];
+            maxZoomFactor = (float) zooms[i];
             TimeRange timeRange = null;
             ViewPort viewPort = q.getViewPort();
             List<Integer> measures = new ArrayList<>(q.getMeasures());
@@ -427,9 +362,9 @@ public class QuerySequenceGenerator {
                     }
                 }
             }
-            else if (zoomFactor > 1 && opType.equals(ZI)) {
+            else if (maxZoomFactor > 1 && opType.equals(ZI)) {
                 timeRange = zoomIn(q);
-            } else if (zoomFactor > 1 && opType.equals(ZO)) {
+            } else if (maxZoomFactor > 1 && opType.equals(ZO)) {
                 timeRange = zoomOut(q);
             } else if (opType.equals(P)) {
                 timeRange = pan(q, shifts[i], directions[i]);
@@ -456,7 +391,7 @@ public class QuerySequenceGenerator {
             if(opType.equals(PD)){
                 Random patternRandom = new Random(mainRandom.nextInt());
                 // Generate pattern query and capture pattern ID
-                patternId = generatePatternQuery(q, patternRandom);
+                typedQuery = generatePatternQuery(q, patternRandom);
                 // q will be updated inside the method
             } else {
                 // Generate a visual query
@@ -466,9 +401,9 @@ public class QuerySequenceGenerator {
                     .withViewPort(viewPort.getWidth(), viewPort.getHeight())
                     .withAccuracy(q0.getAccuracy())
                     .build();
+                typedQuery = new TypedQuery(q, opType, patternId);
             }
-            queries.add(new TypedQuery(q, opType, patternId));
-            
+            queries.add(typedQuery);
             // Update current state if using state transitions
             if (useStateTransitions) {
                 currentState = opType;
@@ -483,15 +418,15 @@ public class QuerySequenceGenerator {
      * @param random Random generator
      * @return The ID of the pattern used
      */
-    private int generatePatternQuery(Query baseQuery, Random random) {
+    private TypedQuery generatePatternQuery(Query baseQuery, Random random) {
         long from = baseQuery.getFrom();
         long to = baseQuery.getTo();
         int measure = baseQuery.getMeasures().get(0);
         ViewPort viewPort = baseQuery.getViewPort();
         
-        // Generate an aggregation interval two to four times smaller than the time range
-        int level = random.nextInt(3) + 2; // Generates 2, 3, or 4
-        AggregateInterval timeUnit = DateTimeUtil.roundDownToCalendarBasedInterval((to - from) / level * viewPort.getWidth());
+        // Generate an aggregation interval smaller than the time range
+        double level = random.nextInt(4) + 1.0; 
+        AggregateInterval timeUnit = DateTimeUtil.roundDownToCalendarBasedInterval((long) Math.floor((to - from) / (level * viewPort.getWidth())));
 
         // Generate a random aggregation type
         AggregationType[] types = AggregationType.values();
@@ -503,17 +438,17 @@ public class QuerySequenceGenerator {
         PredefinedPattern predefinedPattern = PredefinedPattern.getPatternById(patternId);
         
         // Create a pattern query using the builder
-        baseQuery = new PatternQueryBuilder()
+        PatternQuery q = new PatternQueryBuilder()
             .withTimeRange(from, to)
             .withMeasure(measure)
             .withTimeUnit(timeUnit)
             .withAggregationType(aggregationType)
             .withPatternNodes(predefinedPattern.getPatternNodes())
-            .withViewPort(viewPort)
+            .withViewPort(viewPort.getWidth(), viewPort.getHeight())
             .withAccuracy(baseQuery.getAccuracy())
             .build();
             
-        return patternId;
+        return new TypedQuery(q, opType, patternId);
     }
 
     private TimeRange pan(Query query, double shift, Direction direction) {
@@ -547,18 +482,18 @@ public class QuerySequenceGenerator {
 
 
     private TimeRange zoomIn(Query query) {
-        return zoom(query, 1f / zoomFactor);
+        return zoom(query, 1f / maxZoomFactor);
     }
 
     private TimeRange zoomOut(Query query) {
-        return zoom(query, zoomFactor);
+        return zoom(query, maxZoomFactor);
     }
 
-    private TimeRange zoom(Query query, float zoomFactor) {
+    private TimeRange zoom(Query query, float maxZoomFactor) {
         long from = query.getFrom();
         long to = query.getTo();
         float middle = (float) (from + to) / 2f;
-        float size = (float) (to - from) * zoomFactor;
+        float size = (float) (to - from) * maxZoomFactor;
         long newFrom = (long) (middle - (size / 2f));
         long newTo = (long) (middle + (size / 2f));
 
@@ -640,20 +575,6 @@ public class QuerySequenceGenerator {
             measureChangeProbability = 0.0;
             patternDetectionProbability = 0.1;
         }
-
-        // Look for state transition flag
-        String useTransitions = properties.getProperty("useStateTransitions");
-        if (useTransitions != null) {
-            this.useStateTransitions = Boolean.parseBoolean(useTransitions);
-        }
-        
-        // If state transitions are enabled, also load the transition matrix
-        if (this.useStateTransitions) {
-            setStateTransitionsFromProperties(properties);
-        }
-        
-        LOG.info("Set probabilities from config: pattern={}, pan={}, zoomIn={}, zoomOut={}, resize={}, measureChange={}, useStateTransitions={}", 
-            patternDetectionProbability, panProbability, zoomInProbability, zoomOutProbability, resizeProbability, measureChangeProbability, useStateTransitions);
     }
     
     /**
@@ -686,5 +607,268 @@ public class QuerySequenceGenerator {
     public void setStateTransitionMatrix(Map<UserOpType, Map<UserOpType, Double>> stateTransitionMatrix) {
         this.stateTransitionMatrix = stateTransitionMatrix;
         this.useStateTransitions = true;
+    }
+
+    /**
+     * Generates a query sequence based on a previously saved query file
+     * 
+     * @param filePath Path to the file containing the saved queries
+     * @return List of TypedQuery objects generated from the file
+     */
+    public List<TypedQuery> generateQuerySequenceFromFile(String filePath) {
+        List<TypedQuery> queries = new ArrayList<>();
+        
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                TypedQuery typedQuery = parseQueryFromLine(line);
+                if (typedQuery != null) {
+                    queries.add(typedQuery);
+                }
+            }
+            LOG.info("Loaded {} queries from file: {}", queries.size(), filePath);
+        } catch (IOException e) {
+            LOG.error("Error reading queries from file: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+        
+        return queries;
+    }
+    
+    /**
+     * Parse a single line from the queries file and convert it to a TypedQuery object
+     * 
+     * @param line The line from the file to parse
+     * @return A TypedQuery object representing the query in the line
+     */
+    private TypedQuery parseQueryFromLine(String line) {
+        try {
+            String[] parts = line.split(",");
+            if (parts.length < 8) {
+                LOG.warn("Invalid line format (too few fields): {}", line);
+                return null;
+            }
+            
+            // Parse timestamps
+            long from = Long.parseLong(parts[0]);
+            long to = Long.parseLong(parts[1]);
+            
+            // Parse measures (may contain multiple measures separated by |)
+            String[] measureStrings = parts[4].split("\\|");
+            List<Integer> measures = new ArrayList<>();
+            for (String measureStr : measureStrings) {
+                measures.add(Integer.parseInt(measureStr));
+            }
+            
+            // Parse viewport dimensions
+            int viewportWidth = Integer.parseInt(parts[5]);
+            int viewportHeight = Integer.parseInt(parts[6]);
+            
+            // Parse accuracy
+            double accuracy = Double.parseDouble(parts[7]);
+            
+            // Parse query type
+            boolean isPattern = "pattern".equals(parts[8]);
+            
+            // Parse query operation type (if present)
+            UserOpType opType = null;
+            int patternId = -1;
+            String opTypeStr = parts[9];
+            opType = parseUserOpType(opTypeStr);
+            
+            // Create the appropriate query based on type
+            Query query;
+            if (isPattern) {
+                // For pattern queries, we need to reconstruct the pattern
+                patternId = getPatternIdByName(opTypeStr);
+                String[] aggregateInterval = parts[10].split(" ");
+                AggregateInterval timeUnit = AggregateInterval.of(Long.parseLong(aggregateInterval[0]), ChronoUnit.valueOf(aggregateInterval[1].toUpperCase()));
+                PredefinedPattern predefinedPattern = PredefinedPattern.getPatternById(patternId);
+                
+                // Use default aggregate interval and type if not available in file
+                AggregationType aggregationType = AggregationType.LAST_VALUE;
+                
+                query = new PatternQueryBuilder()
+                    .withTimeRange(from, to)
+                    .withMeasure(measures.get(0))
+                    .withTimeUnit(timeUnit)
+                    .withAggregationType(aggregationType)
+                    .withPatternNodes(predefinedPattern.getPatternNodes())
+                    .withViewPort(viewportWidth, viewportHeight)
+                    .withAccuracy(accuracy)
+                    .build();
+            } else {
+                // For visual queries
+                query = new VisualQueryBuilder()
+                    .withTimeRange(from, to)
+                    .withMeasures(measures)
+                    .withViewPort(viewportWidth, viewportHeight)
+                    .withAccuracy(accuracy)
+                    .build();
+            }
+            return new TypedQuery(query, opType, patternId);
+        } catch (Exception e) {
+            LOG.error("Error parsing query line: " + line, e);
+            return null;
+        }
+    }
+    
+    /**
+     * Parse the operation type from its string representation
+     * 
+     * @param opTypeStr String representation of the operation type
+     * @return The UserOpType enum value
+     */
+    private UserOpType parseUserOpType(String opTypeStr) {
+        // Handle the initial query case
+        if ("initial".equals(opTypeStr)) {
+            return null;
+        }
+        
+        // Handle standard operation types
+        switch (opTypeStr) {
+            case "pan":
+                return UserOpType.P;
+            case "zoomIn":
+                return UserOpType.ZI;
+            case "zoomOut":
+                return UserOpType.ZO;
+            case "resize":
+                return UserOpType.R;
+            case "measureChange":
+                return UserOpType.MC;
+            default:
+                // If not a standard operation type, it might be a pattern name
+                if (getPatternIdByName(opTypeStr) != -1) {
+                    return UserOpType.PD;
+                }
+                LOG.warn("Unknown operation type: {}", opTypeStr);
+                return null;
+        }
+    }
+    
+    /**
+     * Get a pattern ID based on its name
+     * 
+     * @param patternName The name of the pattern
+     * @return The pattern ID or -1 if not found
+     */
+    private int getPatternIdByName(String patternName) {
+        List<Integer> patternIds = PredefinedPattern.getAllPatternIds();
+        
+        for (Integer id : patternIds) {
+            PredefinedPattern pattern = PredefinedPattern.getPatternById(id);
+            if (pattern.getName().equalsIgnoreCase(patternName)) {
+                return id;
+            }
+        }
+        
+        return -1;
+    }
+    
+    /**
+     * Execute a sequence of queries loaded from a file
+     * This is useful for replaying query sequences for testing and benchmarking
+     * 
+     * @param filePath Path to the file containing saved queries
+     * @return A list of query execution results (can be customized based on needs)
+     */
+    public List<Object> executeQuerySequenceFromFile(String filePath) {
+        List<TypedQuery> queries = generateQuerySequenceFromFile(filePath);
+        List<Object> results = new ArrayList<>();
+        
+        // Example of how to process and execute queries
+        // This can be customized based on how queries should be executed
+        for (TypedQuery typedQuery : queries) {
+            Query query = typedQuery.getQuery();
+            UserOpType opType = typedQuery.getUserOpType();
+    
+            LOG.debug("Executing query: {} of type {}", query, opType);
+            
+            // Placeholder for query execution result
+            Object result = "Result for query " + query;
+            results.add(result);
+        }
+        
+        return results;
+    }
+
+    /**
+     * Save the generated query sequence to a text file
+     * @param queries The list of queries to save
+     * @param filePath The path where to save the file
+     */
+    public void saveQueriesToFile(List<TypedQuery> queries, String filePath) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+            for (TypedQuery typedQuery : queries) {
+                Query q = typedQuery.getQuery();
+                UserOpType userOpType = typedQuery.getUserOpType();
+               
+                // Write from,to,dateFrom,dateTomeasureId,viewportWidth,viewportHeight,queryType[,patternId]
+                StringBuilder line = new StringBuilder();
+                line.append(q.getFrom()).append(",")
+                    .append(q.getTo()).append(",");
+
+                // Write dateFrom, dateTo, 
+                line.append(DateTimeUtil.format(q.getFrom())).append(",")
+                    .append(DateTimeUtil.format(q.getTo())).append(",")
+                    .append(q.getMeasures().get(0));
+                
+                // Add additional measures if they exist
+                for (int i = 1; i < q.getMeasures().size(); i++) {
+                    line.append("|").append(q.getMeasures().get(i));
+                }
+                
+                // Add viewport information
+                line.append(",")
+                    .append(q.getViewPort().getWidth()).append(",")
+                    .append(q.getViewPort().getHeight());
+
+                // Add accuracy information
+                line.append(",").append(q.getAccuracy());
+
+                // Add query type information
+                boolean isPattern = q instanceof PatternQuery;
+                line.append(",").append(isPattern ? "pattern" : "visual");
+                
+                String s = "initial";
+                 // Skip the initial query
+                if(userOpType != null) {
+                    switch (userOpType) {
+                        case P:
+                            s = "pan";
+                            break;
+                        case ZI:
+                            s = "zoomIn";
+                            break;
+                        case ZO:
+                            s = "zoomOut";
+                            break;
+                        case R:
+                            s = "resize";
+                            break;
+                        case MC:
+                            s = "measureChange";
+                            break;
+                        case PD:
+                            s = PredefinedPattern.getPatternById(typedQuery.getPatternId()).getName();
+                            break;
+                        default:
+                            break;
+                    }
+                    
+                }
+                line.append(",").append(s);
+                if (isPattern) {
+                    AggregateInterval timeUnit = ((PatternQuery) q).getTimeUnit();
+                    line.append(",").append(String.valueOf(timeUnit.getMultiplier()) + " " + timeUnit.getChronoUnit());
+                }
+                writer.write(line.toString());
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            LOG.error("Error saving queries to file: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
     }
 }

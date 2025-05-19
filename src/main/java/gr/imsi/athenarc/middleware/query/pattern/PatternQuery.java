@@ -21,14 +21,14 @@ public class PatternQuery implements Query {
     private final double accuracy;
     
     public PatternQuery(long from, long to, int measure, AggregateInterval timeUnit,
-     AggregationType aggregationType, List<PatternNode> patternNodes, ViewPort viewPort, double accuracy) {
+     AggregationType aggregationType, List<PatternNode> patternNodes, int width, int height, double accuracy) {
         this.from = from;
         this.to = to;
         this.measure = measure;
         this.timeUnit = timeUnit;
         this.aggregationType = aggregationType;
         this.patternNodes = patternNodes;
-        this.viewPort = viewPort;
+        this.viewPort = new ViewPort(width, height);
         this.accuracy = accuracy;
     }
     

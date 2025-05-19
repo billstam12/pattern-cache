@@ -89,10 +89,12 @@ final class InfluxDBM4Datapoints implements AggregatedDataPoints {
         aggregateFunctions.add("max");
         aggregateFunctions.add("first");
         aggregateFunctions.add("last");
+        
+        // Start building the query with the custom function definitions
         StringBuilder fluxQuery = new StringBuilder();
         fluxQuery.append("customAggregateWindow = (every, fn, column=\"_value\", timeSrc=\"_time\", timeDst=\"_time\", offset, tables=<-) =>\n" +
             "  tables\n" +
-            "    |> window(every:every, offset: offset)\n" +
+            "    |> window(every:every, offset: offset, createEmpty: true)\n" +
             "    |> fn(column:column)\n" +
             "    |> group()" +
             "\n" +
@@ -101,97 +103,28 @@ final class InfluxDBM4Datapoints implements AggregatedDataPoints {
             "|> customAggregateWindow(every: aggregateInterval, fn: agg, offset: offset)" +
             "\n");
 
-        // Create a query for each measure
-        List<String> queryParts = new java.util.ArrayList<>();
-        int i = 0;
+        // Generate data section for each measure and its time intervals
+        int dataSourceCounter = 0;
         Map<String, Integer> measuresMap = new HashMap<>();
+        
+        // First pass - gather all data source parts
         for (int measureIdx : missingIntervalsPerMeasure.keySet()) {
             String measureName = headers[measureIdx];
             measuresMap.put(measureName, measureIdx);
-            // Get the specific aggregate interval for this measure
-            AggregateInterval aggregateInterval = aggregateIntervalsPerMeasure.get(measureIdx);
-            String measureFluxTimeInterval = getFluxTimeInterval(aggregateInterval);
             List<TimeInterval> missingIntervals = missingIntervalsPerMeasure.get(measureIdx);
             
+            // If no specific intervals were provided, use the full time range
             if (missingIntervals == null || missingIntervals.isEmpty()) {
-                // Use the global time range if no missing intervals are specified
-                String dataPart = "data_" + i + " = () => from(bucket:" + "\"" + bucket + "\"" + ") \n" +
-                    "|> range(start:" + getFromDate(format) + ", stop:" + getToDate(format) + ")\n" +
-                    "|> filter(fn: (r) => r[\"_measurement\"] ==" + "\"" + measurement + "\"" + ") \n" +
-                    "|> filter(fn: (r) => r[\"_field\"] ==\"" + measureName + "\")\n";
-                
-                fluxQuery.append(dataPart);
-                
-                // Calculate offset based on the from time
-                long offset = from % (aggregateInterval.getMultiplier() * 
-                                     getChronoUnitMillis(aggregateInterval.getChronoUnit()));
-                
-                StringBuilder unionPart = new StringBuilder();
-                unionPart.append("union_").append(i).append(" = union(\n")
-                       .append("    tables: [\n");
-                
-                for (String aggregateFunction : aggregateFunctions) {
-                    unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
-                            .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
-                            .append("aggregateInterval:").append(measureFluxTimeInterval)
-                            .append(", offset: ").append(offset).append("ms")
-                            .append("),\n");
-                }
-                
-                String unionQueries = unionPart.substring(0, unionPart.length() - 2);
-                unionPart = new StringBuilder(unionQueries);
-                unionPart.append("\n    ]\n)\n");
-                
-                fluxQuery.append(unionPart);
-                queryParts.add("union_" + i);
-                
-            } else if (missingIntervals.size() == 1) {
-                // Special case for a single missing interval
-                TimeInterval interval = missingIntervals.get(0);
-                String start = Instant.ofEpochMilli(interval.getFrom())
-                        .atZone(ZoneId.of("UTC"))
-                        .format(DateTimeFormatter.ofPattern(format));
-                String stop = Instant.ofEpochMilli(interval.getTo())
-                        .atZone(ZoneId.of("UTC"))
-                        .format(DateTimeFormatter.ofPattern(format));
-                
-                String dataPart = "data_" + i + " = () => from(bucket:" + "\"" + bucket + "\"" + ") \n" +
-                    "|> range(start:" + start + ", stop:" + stop + ")\n" +
-                    "|> filter(fn: (r) => r[\"_measurement\"] ==" + "\"" + measurement + "\"" + ") \n" +
-                    "|> filter(fn: (r) => r[\"_field\"] ==\"" + measureName + "\")\n";
-                
-                fluxQuery.append(dataPart);
-                
-                // Calculate offset based on the interval start time
-                long offset = interval.getFrom() % (aggregateInterval.getMultiplier() * 
-                                                  getChronoUnitMillis(aggregateInterval.getChronoUnit()));
-                
-                StringBuilder unionPart = new StringBuilder();
-                unionPart.append("union_").append(i).append(" = union(\n")
-                       .append("    tables: [\n");
-                
-                for (String aggregateFunction : aggregateFunctions) {
-                    unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
-                            .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
-                            .append("aggregateInterval:").append(measureFluxTimeInterval)
-                            .append(", offset: ").append(offset).append("ms")
-                            .append("),\n");
-                }
-                
-                String unionQueries = unionPart.substring(0, unionPart.length() - 2);
-                unionPart = new StringBuilder(unionQueries);
-                unionPart.append("\n    ]\n)\n");
-                
-                fluxQuery.append(unionPart);
-                queryParts.add("union_" + i);
-                
+                fluxQuery.append("data_").append(dataSourceCounter).append(" = () => from(bucket:\"")
+                       .append(bucket).append("\")\n")
+                       .append("|> range(start:").append(getFromDate(format)).append(", stop:")
+                       .append(getToDate(format)).append(")\n")
+                       .append("|> filter(fn: (r) => r[\"_measurement\"] == \"").append(measurement).append("\")\n")
+                       .append("|> filter(fn: (r) => r[\"_field\"] == \"").append(measureName).append("\")\n");
+                dataSourceCounter++;
             } else {
-                // Generate a union of queries for multiple missing intervals
-                fluxQuery.append("data_").append(i).append(" = () => union(\n")
-                       .append("    tables: [\n");
-                
-                for (int j = 0; j < missingIntervals.size(); j++) {
-                    TimeInterval interval = missingIntervals.get(j);
+                // Add a data source for each missing interval
+                for (TimeInterval interval : missingIntervals) {
                     String start = Instant.ofEpochMilli(interval.getFrom())
                             .atZone(ZoneId.of("UTC"))
                             .format(DateTimeFormatter.ofPattern(format));
@@ -199,67 +132,69 @@ final class InfluxDBM4Datapoints implements AggregatedDataPoints {
                             .atZone(ZoneId.of("UTC"))
                             .format(DateTimeFormatter.ofPattern(format));
                     
-                    fluxQuery.append("        from(bucket:\"").append(bucket).append("\")\n")
-                            .append("        |> range(start:").append(start).append(", stop:").append(stop).append(")\n")
-                            .append("        |> filter(fn: (r) => r[\"_measurement\"] == \"").append(measurement).append("\")\n")
-                            .append("        |> filter(fn: (r) => r[\"_field\"] == \"").append(measureName).append("\")");
-                    
-                    if (j < missingIntervals.size() - 1) {
-                        fluxQuery.append(",\n");
-                    } else {
-                        fluxQuery.append("\n");
-                    }
+                    fluxQuery.append("data_").append(dataSourceCounter).append(" = () => from(bucket:\"")
+                           .append(bucket).append("\")\n")
+                           .append("|> range(start:").append(start).append(", stop:").append(stop).append(")\n")
+                           .append("|> filter(fn: (r) => r[\"_measurement\"] == \"").append(measurement).append("\")\n")
+                           .append("|> filter(fn: (r) => r[\"_field\"] == \"").append(measureName).append("\")\n");
+                    dataSourceCounter++;
                 }
-                
-                fluxQuery.append("    ]\n)\n");
-                
-                StringBuilder unionPart = new StringBuilder();
-                unionPart.append("union_").append(i).append(" = union(\n")
-                       .append("    tables: [\n");
+            }
+        }
+        
+        // Start building the union of all data with all aggregation functions
+        fluxQuery.append("union(\n")
+               .append("    tables: [\n");
+        
+        // Reset counter for second pass
+        dataSourceCounter = 0;
+        
+        // Second pass - create the union of all aggregations
+        for (int measureIdx : missingIntervalsPerMeasure.keySet()) {
+            AggregateInterval aggregateInterval = aggregateIntervalsPerMeasure.get(measureIdx);
+            String measureFluxTimeInterval = getFluxTimeInterval(aggregateInterval);
+            List<TimeInterval> missingIntervals = missingIntervalsPerMeasure.get(measureIdx);
+            
+            // If no specific intervals were provided, use the full time range
+            if (missingIntervals == null || missingIntervals.isEmpty()) {
+                // Calculate offset based on the from time
+                long offset = from % (aggregateInterval.getMultiplier() * 
+                                     getChronoUnitMillis(aggregateInterval.getChronoUnit()));
                 
                 for (String aggregateFunction : aggregateFunctions) {
-                    // Get the first interval's start time for offset calculation
-                    long offset = missingIntervals.get(0).getFrom() % (aggregateInterval.getMultiplier() * 
-                                                                     getChronoUnitMillis(aggregateInterval.getChronoUnit()));
-                    
-                    unionPart.append("        data_").append(i).append("() |> aggregate(agg: ")
-                            .append(aggregateFunction).append(", name: \"data_").append(i).append("\", ")
+                    fluxQuery.append("        data_").append(dataSourceCounter).append("() |> aggregate(agg: ")
+                            .append(aggregateFunction).append(", name: \"").append(aggregateFunction).append("\", ")
                             .append("aggregateInterval:").append(measureFluxTimeInterval)
                             .append(", offset: ").append(offset).append("ms")
                             .append("),\n");
                 }
-                
-                String unionQueries = unionPart.substring(0, unionPart.length() - 2);
-                unionPart = new StringBuilder(unionQueries);
-                unionPart.append("\n    ]\n)\n");
-                
-                fluxQuery.append(unionPart);
-                queryParts.add("union_" + i);
+                dataSourceCounter++;
+            } else {
+                // Add aggregations for each missing interval
+                for (TimeInterval interval : missingIntervals) {
+                    // Calculate offset based on the interval start time
+                    long offset = interval.getFrom() % (aggregateInterval.getMultiplier() * 
+                                                     getChronoUnitMillis(aggregateInterval.getChronoUnit()));
+                    
+                    for (String aggregateFunction : aggregateFunctions) {
+                        fluxQuery.append("        data_").append(dataSourceCounter).append("() |> aggregate(agg: ")
+                                .append(aggregateFunction).append(", name: \"").append(aggregateFunction).append("\", ")
+                                .append("aggregateInterval:").append(measureFluxTimeInterval)
+                                .append(", offset: ").append(offset).append("ms")
+                                .append("),\n");
+                    }
+                    dataSourceCounter++;
+                }
             }
-            i ++;
         }
         
-        // Combine all measure queries using union if we have multiple measures
-        if (missingIntervalsPerMeasure.size() > 1) {
-            fluxQuery.append("combined = union(\n")
-                   .append("    tables: [");
-            
-            for (String part : queryParts) {
-                fluxQuery.append(part).append(", ");
-            }
-            
-            // Remove the trailing comma and space
-            fluxQuery.delete(fluxQuery.length() - 2, fluxQuery.length());
-            fluxQuery.append("]\n)\n");
-            
-            fluxQuery.append("combined");
-        } else {
-            fluxQuery.append(queryParts.get(0));
-        }
+        // Remove the trailing comma and close the union
+        fluxQuery.delete(fluxQuery.length() - 2, fluxQuery.length());
+        fluxQuery.append("\n    ]\n)");
         
-        // Add final operations
-        fluxQuery.append("\n|> group(columns: [\"_field\", \"_start\", \"_stop\"])\n")
-                .append("|> sort(columns: [\"_time\"], desc: false)\n");
+        // Add final operations for sorting
+        fluxQuery.append("\n|> group(columns: [\"_field\"])")
+                .append("\n|> sort(columns: [\"_time\"], desc: false)\n");
         
         // Execute the query
         List<FluxTable> fluxTables = influxDBQueryExecutor.executeDbQuery(fluxQuery.toString());

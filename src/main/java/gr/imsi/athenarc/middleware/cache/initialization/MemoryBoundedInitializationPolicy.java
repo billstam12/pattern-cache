@@ -5,12 +5,17 @@ import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.cache.AggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
+import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
+import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
-import gr.imsi.athenarc.middleware.manager.visual.VisualQueryManager;
-import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
+import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.middleware.domain.TimeInterval;
+import gr.imsi.athenarc.middleware.domain.TimeRange;
 
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,18 +82,17 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
     }
     
     @Override
-    public void initialize(TimeSeriesCache cache, VisualQueryManager visualQueryManager) {
-        initialize(cache, visualQueryManager, null);
+    public void initialize(TimeSeriesCache cache, DataSource dataSource) {
+        initialize(cache, dataSource, null);
     }
     
     /**
      * Initialize the cache with specific measures.
      * 
      * @param cache The time series cache to initialize
-     * @param visualQueryManager The visual query manager
      * @param measures List of measures to initialize (null means use all measures)
      */
-    public void initialize(TimeSeriesCache cache, VisualQueryManager visualQueryManager, List<Integer> measures) {
+    public void initialize(TimeSeriesCache cache, DataSource dataSource, List<Integer> measures) {
         if (lookbackPercentage == null) {
             LOG.info("Initializing cache with full dataset using memory-bounded approach (limit: {} bytes, utilization: {}%)", 
                     maxMemoryBytes, memoryUtilizationTarget * 100);
@@ -97,8 +101,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
                 lookbackPercentage, maxMemoryBytes, memoryUtilizationTarget * 100);
         }
                 
-        AbstractDataset dataset = visualQueryManager.getDataSource().getDataset();
-        
+        AbstractDataset dataset = dataSource.getDataset();
         // Determine time range based on mode (full or recent data)
         long endTimestamp = dataset.getTimeRange().getTo();
         long startTimestamp = dataset.getTimeRange().getFrom();
@@ -127,22 +130,27 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         
         LOG.info("Selected time range spans {} ms with {} measures", datasetTimeRange, measureCount);
         LOG.info("Memory budget per measure: {} bytes", perMeasureBytes);
-        
+        Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure = new HashMap<>();
         // Determine appropriate aggregation intervals
         Map<Integer, AggregateInterval> aggregateIntervals = calculateOptimalAggregationIntervals(
             measureList, perMeasureBytes, datasetTimeRange);
     
-        // Create a single query with the calculated intervals for all measures
-        VisualQuery query = VisualQuery.builder()
-            .withMeasures(measureList)
-            .withTimeRange(startTimestamp, endTimestamp)
-            .withViewPort(1000, 500)  // Default viewport
-            .withAccuracy(0.95)        // Use default accuracy
-            .withMeasureAggregateIntervals(aggregateIntervals)
-            .build();
+                
+        for (int measure : measureList){
+            List<TimeInterval> missingIntervals = new ArrayList<>();
+            missingIntervals.add(new TimeRange(startTimestamp, endTimestamp));
+            missingIntervalsPerMeasure.put(measure, missingIntervals);
+        }
+        AggregatedDataPoints missingDataPoints = 
+            dataSource.getM4DataPoints(startTimestamp, endTimestamp, missingIntervalsPerMeasure, aggregateIntervals);
+
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
         
+        for(List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
+            cache.addToCache(spans);
+        }
+
         try {
-            visualQueryManager.executeQuery(query);
             LOG.info("Successfully pre-loaded {} measures with memory-optimized intervals", measureList.size());
         } catch (Exception e) {
             LOG.error("Failed to pre-load measures: {}", e.getMessage(), e);

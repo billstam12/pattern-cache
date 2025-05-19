@@ -43,6 +43,9 @@ public class InfluxDBMinMaxDataPointsIterator extends InfluxDBIterator<Aggregate
             return next();
         }
 
+        statsAggregator.setFrom(startGroupTimestamp);
+        statsAggregator.setTo(endGroupTimestamp);
+
         AggregatedDataPoint point = new ImmutableAggregatedDataPoint(
             startGroupTimestamp, 
             endGroupTimestamp, 
