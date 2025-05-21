@@ -21,7 +21,7 @@ public class DateTimeUtil {
     private static final Logger LOG = LoggerFactory.getLogger(DateTimeUtil.class);
 
     // Pre-defined calendar intervals for rounding operations
-    private static final List<AggregateInterval> CALENDAR_INTERVALS = initializeCalendarIntervals();
+    public static final List<AggregateInterval> CALENDAR_INTERVALS = initializeCalendarIntervals();
 
     // Initialize the calendar intervals
     private static List<AggregateInterval> initializeCalendarIntervals() {

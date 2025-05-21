@@ -2,6 +2,7 @@ package gr.imsi.athenarc.middleware.pattern;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,7 +16,6 @@ import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
 import gr.imsi.athenarc.middleware.pattern.nfa.NFASketchSearch;
-import gr.imsi.athenarc.middleware.pattern.util.Util;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
@@ -35,6 +35,8 @@ public class PatternQueryManager {
 
     private final DataSource dataSource;
     private final TimeSeriesCache cache;
+
+    private static final Set<String> AGGREGATE_FUNCTIONS = Set.of( "min", "max", "first", "last");
 
     public PatternQueryManager(DataSource dataSource, TimeSeriesCache cache) {
         this.dataSource = dataSource;
@@ -61,7 +63,7 @@ public class PatternQueryManager {
         TimeRange alignedTimeRange = new TimeRange(alignedFrom, alignedTo);
         
         // 1. Create sketches based on the query's timeUnit first, properly aligned
-        List<Sketch> sketches = Util.generateAlignedSketches(alignedFrom, alignedTo, timeUnit, aggregationType);
+        List<Sketch> sketches = PatternUtils.generateAlignedSketches(alignedFrom, alignedTo, timeUnit, aggregationType);
         LOG.info("Created {} sketches for aligned time range with time unit {}", 
                 sketches.size(), timeUnit);
         
@@ -101,8 +103,8 @@ public class PatternQueryManager {
             Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = DateTimeUtil.alignIntervalsToTimeUnitBoundary(missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
 
             // Fetch missing data, ensuring we use the same time unit for alignment
-            AggregatedDataPoints newDataPoints = dataSource.getM4DataPoints(
-                alignedFrom, alignedTo, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+            AggregatedDataPoints newDataPoints = dataSource.getAggregatedDataPoints(
+                alignedFrom, alignedTo, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AGGREGATE_FUNCTIONS);
                         
             // Create spans and add to cache
             Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
@@ -143,7 +145,7 @@ public class PatternQueryManager {
                 LOG.debug("Match:");
                 for (int i = 0; i < firstMatch.size(); i++) {
                     List<Sketch> segment = firstMatch.get(i);
-                    Sketch combinedSketch = Util.combineSketches(segment);
+                    Sketch combinedSketch = PatternUtils.combineSketches(segment);
                     LOG.debug("Segment {}: {}", i, combinedSketch);
                 }
                 LOG.debug("");

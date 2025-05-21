@@ -1,9 +1,8 @@
-package gr.imsi.athenarc.middleware;
+package gr.imsi.athenarc.middleware.cache;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.initialization.CacheInitializationPolicy;
 import gr.imsi.athenarc.middleware.pattern.PatternQueryManager;
 import gr.imsi.athenarc.middleware.visual.VisualQueryManager;
@@ -26,16 +25,24 @@ public class CacheManager {
     private final PatternQueryManager patternQueryManager;
     private final VisualQueryManager visualQueryManager;
     private final DataSource dataSource;
+    private final CacheMemoryManager memoryManager;
 
     // Private constructor used by builder
     private CacheManager(TimeSeriesCache cache, 
                         DataSource dataSource,
                         PatternQueryManager patternQueryManager, 
-                        VisualQueryManager visualQueryManager) {
+                        VisualQueryManager visualQueryManager,
+                        CacheMemoryManager memoryManager) {
         this.cache = cache;
         this.dataSource = dataSource;
         this.patternQueryManager = patternQueryManager;
         this.visualQueryManager = visualQueryManager;
+        this.memoryManager = memoryManager;
+        
+        // Connect cache and memory manager if one is provided
+        if (memoryManager != null) {
+            cache.setMemoryManager(memoryManager);
+        }
     }
     
     /**
@@ -64,8 +71,12 @@ public class CacheManager {
      * @param query the pattern query
      * @return the result of pattern matching
      */
-    private PatternQueryResults executePatternQuery(PatternQuery query) {
-        LOG.debug("Handling pattern query for measure {}", query.getMeasures());
+    private PatternQueryResults executePatternQuery(PatternQuery query) {        
+        // Check memory usage before executing query
+        if (memoryManager != null) {
+            memoryManager.checkMemoryAndEvict();
+        }
+        
         return patternQueryManager.executeQuery(query);
     }
     
@@ -76,8 +87,11 @@ public class CacheManager {
      * @return map of measure IDs to their aggregated data points
      */
     private VisualQueryResults executeVisualQuery(VisualQuery query) {
-        LOG.debug("Handling visualization query for {} measures", query.getMeasures().size());
-
+        // Check memory usage before executing query
+        if (memoryManager != null) {
+            memoryManager.checkMemoryAndEvict();
+        }
+        
         return visualQueryManager.executeQuery(query);
     }
     
@@ -107,7 +121,7 @@ public class CacheManager {
      * @return A new QueryManager instance
      */
     public static CacheManager createDefault(DataSource dataSource) {
-        return builder(dataSource).build();
+        return builder(dataSource).withMaxMemory(1*1024*1024).build();
     }
     
     /**
@@ -116,6 +130,14 @@ public class CacheManager {
      */
     public TimeSeriesCache getCache() {
         return cache;
+    }
+    
+    /**
+     * Get the cache memory manager if available
+     * @return The CacheMemoryManager or null if not configured
+     */
+    public CacheMemoryManager getMemoryManager() {
+        return memoryManager;
     }
     
     /**
@@ -128,6 +150,8 @@ public class CacheManager {
         private int initialAggregationFactor = 4;
         private int prefetchingFactor = 0;
         private CacheInitializationPolicy initializationPolicy = null;
+        private Long maxMemoryBytes = null;
+        private Double memoryUtilizationThreshold = null;
 
         public Builder(DataSource dataSource) {
             this.dataSource = dataSource;
@@ -166,21 +190,68 @@ public class CacheManager {
             return this;
         }
         
+        /**
+         * Sets the maximum memory (in bytes) the cache should use.
+         * This will enable memory management for the cache.
+         * 
+         * @param maxMemoryBytes Maximum memory in bytes
+         * @return The builder instance
+         */
+        public Builder withMaxMemory(long maxMemoryBytes) {
+            this.maxMemoryBytes = maxMemoryBytes;
+            return this;
+        }
+        
+        /**
+         * Sets the memory utilization threshold (0.0-1.0) at which to start
+         * evicting cached items.
+         * 
+         * @param threshold Threshold between 0.0 and 1.0
+         * @return The builder instance
+         */
+        public Builder withMemoryUtilizationThreshold(double threshold) {
+            if (threshold <= 0.0 || threshold > 1.0) {
+                throw new IllegalArgumentException(
+                    "Memory utilization threshold must be between 0.0 and 1.0");
+            }
+            this.memoryUtilizationThreshold = threshold;
+            return this;
+        }
+        
         public CacheManager build() {
-            // Create a CacheManager that uses our unified cache
+            // Create memory manager if max memory is specified
+            CacheMemoryManager memoryManager = null;
+            if (maxMemoryBytes != null) {
+                double threshold = memoryUtilizationThreshold != null ? 
+                    memoryUtilizationThreshold : 0.8;
+                memoryManager = new CacheMemoryManager(
+                    cache, maxMemoryBytes, threshold, 10, true);
+                LOG.info("Created cache memory manager with {} MB max memory and {}% threshold",
+                    maxMemoryBytes/(1024*1024), threshold*100);
+            }
             
+            // Create a CacheManager that uses our unified cache
             PatternQueryManager patternQueryManager = 
                 new PatternQueryManager(dataSource, cache);
                 
             VisualQueryManager visualQueryManager = 
                 new VisualQueryManager(dataSource, cache, dataReductionFactor, initialAggregationFactor, prefetchingFactor);
                 
-            CacheManager manager = new CacheManager(cache, dataSource, patternQueryManager, visualQueryManager);
+            CacheManager manager = new CacheManager(cache, dataSource, patternQueryManager, visualQueryManager, memoryManager);
             
             // Apply initialization policy if one was specified
             if (initializationPolicy != null) {
                 LOG.info("Applying cache initialization policy: {}", initializationPolicy.getDescription());
                 initializationPolicy.initialize(cache, dataSource);
+                
+                // After initialization, update memory usage tracking
+                if (memoryManager != null) {
+                    memoryManager.updateCurrentMemoryUsage();
+                    LOG.info("Initial cache memory usage: {} MB / {} MB ({}%)", 
+                            memoryManager.getCurrentMemoryBytes()/(1024*1024),
+                            memoryManager.getMaxMemoryBytes()/(1024*1024),
+                            memoryManager.getMemoryUtilizationPercentage());
+                }
             }
             
             return manager;

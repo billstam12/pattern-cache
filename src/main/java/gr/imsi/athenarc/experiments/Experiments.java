@@ -8,7 +8,7 @@ import com.google.common.base.Stopwatch;
 import com.univocity.parsers.csv.CsvWriter;
 import com.univocity.parsers.csv.CsvWriterSettings;
 
-import gr.imsi.athenarc.middleware.CacheManager;
+import gr.imsi.athenarc.middleware.cache.CacheManager;
 import gr.imsi.athenarc.middleware.cache.initialization.MemoryBoundedInitializationPolicy;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.DataSourceFactory;

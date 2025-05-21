@@ -7,15 +7,18 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.IntervalTree;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
+import gr.imsi.athenarc.middleware.domain.TimeRange;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Spliterators;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -24,14 +27,30 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * that can be used by different types of queries.
  */
 public class TimeSeriesCache {
+    
     private static final Logger LOG = LoggerFactory.getLogger(TimeSeriesCache.class);
     
     private final Map<Integer, IntervalTree<TimeSeriesSpan>> measureToIntervalTree;
     private final ReadWriteLock cacheLock;
+    private CacheMemoryManager memoryManager;
     
     public TimeSeriesCache() {
         this.measureToIntervalTree = new HashMap<>();
         this.cacheLock = new ReentrantReadWriteLock();
+    }
+    
+    /**
+     * Sets the memory manager for this cache.
+     * 
+     * @param memoryManager The memory manager to use
+     */
+    public void setMemoryManager(CacheMemoryManager memoryManager) {
+        this.memoryManager = memoryManager;
+        
+        // Update memory usage with all current spans
+        if (memoryManager != null) {
+            memoryManager.updateCurrentMemoryUsage();
+        }
     }
     
     /**
@@ -62,6 +81,11 @@ public class TimeSeriesCache {
             cacheLock.writeLock().lock();
             IntervalTree<TimeSeriesSpan> tree = getOrCreateIntervalTree(span.getMeasure());
             tree.insert(span);
+            
+            // Track memory usage if memory manager is configured
+            if (memoryManager != null) {
+                memoryManager.trackSpanAddition(span);
+            }
         } finally {
             cacheLock.writeLock().unlock();
         }
@@ -78,6 +102,11 @@ public class TimeSeriesCache {
             for (TimeSeriesSpan span : spans) {
                 IntervalTree<TimeSeriesSpan> tree = getOrCreateIntervalTree(span.getMeasure());
                 tree.insert(span);
+                
+                // Track memory usage if memory manager is configured
+                if (memoryManager != null) {
+                    memoryManager.trackSpanAddition(span);
+                }
             }
         } finally {
             cacheLock.writeLock().unlock();
@@ -94,6 +123,13 @@ public class TimeSeriesCache {
     public List<TimeSeriesSpan> getOverlappingSpans(int measure, TimeInterval interval) {
         try {
             cacheLock.readLock().lock();
+            
+            // Track access pattern if memory manager is configured
+            if (memoryManager != null) {
+                memoryManager.recordMeasureAccess(measure);
+                memoryManager.recordTimeRangeAccess(new TimeRange(interval.getFrom(), interval.getTo()));
+            }
+            
             IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
             if (tree == null) {
                 return new ArrayList<>();
@@ -118,6 +154,13 @@ public class TimeSeriesCache {
     public List<TimeSeriesSpan> getCompatibleSpans(int measure, TimeInterval interval, AggregateInterval targetInterval) {
         try {
             cacheLock.readLock().lock();
+            
+            // Track access pattern if memory manager is configured
+            if (memoryManager != null) {
+                memoryManager.recordMeasureAccess(measure);
+                memoryManager.recordTimeRangeAccess(new TimeRange(interval.getFrom(), interval.getTo()), targetInterval);
+            }
+            
             IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
             if (tree == null) {
                 return new ArrayList<>();
@@ -148,6 +191,13 @@ public class TimeSeriesCache {
     private List<TimeSeriesSpan> getOverlappingSpansForVisualization(int measure, TimeInterval interval, AggregateInterval pixelColumnInterval) {
         try {
             cacheLock.readLock().lock();
+            
+            // Track access pattern if memory manager is configured
+            if (memoryManager != null) {
+                memoryManager.recordMeasureAccess(measure);
+                memoryManager.recordTimeRangeAccess(new TimeRange(interval.getFrom(), interval.getTo()), pixelColumnInterval);
+            }
+            
             IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
             if (tree == null) {
                 return new ArrayList<>();
@@ -236,6 +286,62 @@ public class TimeSeriesCache {
             measureToIntervalTree.clear();
         } finally {
             cacheLock.writeLock().unlock();
+        }
+    }
+    
+    /**
+     * Removes a specific span from the cache.
+     * 
+     * @param span The span to remove
+     * @return true if the span was removed, false otherwise
+     */
+    public boolean removeSpan(TimeSeriesSpan span) {
+        try {
+            cacheLock.writeLock().lock();
+            IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(span.getMeasure());
+            if (tree != null) {
+                boolean removed = tree.delete(span);
+                return removed;
+            }
+            return false;
+        } finally {
+            cacheLock.writeLock().unlock();
+        }
+    }
+    
+    /**
+     * Gets all spans for a specific measure (used for memory management).
+     * 
+     * @param measure The measure ID
+     * @return A list of all spans for the measure
+     */
+    public List<TimeSeriesSpan> getAllSpansForMeasure(int measure) {
+        try {
+            cacheLock.readLock().lock();
+            IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
+            if (tree == null) {
+                return new ArrayList<>();
+            }
+            
+            List<TimeSeriesSpan> allSpans = new ArrayList<>();
+            tree.forEach(allSpans::add);
+            return allSpans;
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+    
+    /**
+     * Gets all measure IDs in the cache.
+     *
+     * @return Set of all measure IDs
+     */
+    public Set<Integer> getAllMeasures() {
+        try {
+            cacheLock.readLock().lock();
+            return new HashSet<>(measureToIntervalTree.keySet());
+        } finally {
+            cacheLock.readLock().unlock();
         }
     }
 }

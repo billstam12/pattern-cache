@@ -55,7 +55,7 @@ public class MaxErrorEvaluator {
             
             // There are no data points or we have raw data points
             // Initialized means a time series span (created from the database) tried to add points to this column
-            // If after that operation the column's count is still 0, it means that the column is empty
+            // If after that operation the column's count is still 0, it means that there are no data points in the range of the column
             if((currentPixelColumn.getStats().getCount() == 0 && currentPixelColumn.hasInitialized()) || currentPixelColumn.hasNoError()){
                 maxPixelErrorsPerColumn.add(0.0);
                 missingPixels.add(pixelColumnMissingPixels);

@@ -153,7 +153,7 @@ public class RawTimeSeriesSpan implements TimeSeriesSpan {
         // Memory overhead for an object in a 64-bit JVM
         final int OBJECT_OVERHEAD = 16;
         // Memory overhead for an array in a 64-bit JVM
-        final int ARRAY_OVERHEAD = 20;
+        final int ARRAY_OVERHEAD = 24;
         // Memory usage of int in a 64-bit JVM
         final int INT_SIZE = 4;
         // Memory usage of long in a 64-bit JVM
@@ -161,17 +161,33 @@ public class RawTimeSeriesSpan implements TimeSeriesSpan {
         // Memory usage of double in a 64-bit JVM
         final int DOUBLE_SIZE = 8;
         // Memory usage of a reference in a 64-bit JVM with a heap size less than 32 GB
-        final int REF_SIZE = 4;
-
-
-        long valuesByMeasureMemory = REF_SIZE + ARRAY_OVERHEAD + (values.length * DOUBLE_SIZE);
-
-        long timestampsMemory = REF_SIZE + ARRAY_OVERHEAD + (timestamps.length * LONG_SIZE);
-
-        long deepMemorySize = REF_SIZE + OBJECT_OVERHEAD  +
-                valuesByMeasureMemory + timestampsMemory;
-
-        return deepMemorySize;
+        final int REF_SIZE = 8;
+        
+        // Base object size (object header + instance fields)
+        long baseSize = OBJECT_OVERHEAD;
+        baseSize += INT_SIZE;  // count
+        baseSize += REF_SIZE;  // values reference
+        baseSize += REF_SIZE;  // timestamps reference
+        baseSize += LONG_SIZE; // from
+        baseSize += LONG_SIZE; // to
+        baseSize += INT_SIZE;  // measure
+        
+        // Size of the values array 
+        // (array overhead + size of each double element)
+        long valuesSize = 0;
+        if (values != null) {
+            valuesSize = ARRAY_OVERHEAD + (values.length * DOUBLE_SIZE);
+        }
+        
+        // Size of the timestamps array 
+        // (array overhead + size of each long element)
+        long timestampsSize = 0;
+        if (timestamps != null) {
+            timestampsSize = ARRAY_OVERHEAD + (timestamps.length * LONG_SIZE);
+        }
+        
+        // Total size
+        return baseSize + valuesSize + timestampsSize;
     }
 
     @Override
