@@ -39,10 +39,10 @@ public class QuerySequenceGenerator {
     double RESIZE_FACTOR = 1.2;
     
     // Configurable operation probabilities
-    private float minShift = 0.1f;
+    private float minShift = 0f;
     private float maxShift = 0.5f;
 
-    private float maxZoomFactor = 1.5f;
+    private double maxZoomFactor = 0.5;
     private double panProbability = 0.5;
     private double zoomInProbability = 0.2;
     private double zoomOutProbability = 0.2;
@@ -184,25 +184,7 @@ public class QuerySequenceGenerator {
             return randomStateFromProbabilities();
         }
         
-        // Calculate cumulative probabilities
-        double total = transitions.values().stream().mapToDouble(Double::doubleValue).sum();
-        if (total <= 0) {
-            // Fall back to random if probabilities don't sum up
-            throw new IllegalStateException("Transition probabilities for " + currentState + " do not sum to a positive value");
-        }
-        
-        // Select a state using the transition probabilities
-        double rand = mainRandom.nextDouble() * total;
-        double cumulative = 0;
-
-        for (Map.Entry<UserOpType, Double> entry : transitions.entrySet()) {
-            cumulative += entry.getValue();
-            if (rand <= cumulative) {
-                return entry.getKey();
-            }
-        }
-        // Fallback to last state if something went wrong
-        return transitions.keySet().iterator().next();
+        return MarkovUtils.pickRandomOp(transitions);
     }
     
     /**
@@ -286,8 +268,9 @@ public class QuerySequenceGenerator {
         double[] shifts = shiftRandom.doubles(count, minShift, maxShift).toArray();
         
         Random zoomRandom = new Random(mainRandom.nextLong());
-        double[] zooms = zoomRandom.doubles(count, 1, maxZoomFactor).toArray();
-        
+        double[] zoomInFactors = zoomRandom.doubles(count, maxZoomFactor, 1).toArray();
+        double[] zoomOutFactors = zoomRandom.doubles(count, 1, 1 + maxZoomFactor).toArray();
+
         Random opRandom = new Random(mainRandom.nextLong());
         Random measureChangeRandom = new Random(mainRandom.nextLong());
         
@@ -341,11 +324,9 @@ public class QuerySequenceGenerator {
                 opType = ops.get(opRandom.nextInt(ops.size()));
             }
             
-            maxZoomFactor = (float) zooms[i];
-            TimeRange timeRange = null;
+            TimeRange timeRange = new TimeRange(q.getFrom(), q.getTo());   
             ViewPort viewPort = q.getViewPort();
             List<Integer> measures = new ArrayList<>(q.getMeasures());
-            
             // Handle measure change operation
             if (opType.equals(MC)) {
                 boolean addMeasure = measureChangeRandom.nextBoolean();
@@ -362,10 +343,10 @@ public class QuerySequenceGenerator {
                     }
                 }
             }
-            else if (maxZoomFactor > 1 && opType.equals(ZI)) {
-                timeRange = zoomIn(q);
-            } else if (maxZoomFactor > 1 && opType.equals(ZO)) {
-                timeRange = zoomOut(q);
+            else if (opType.equals(ZI)) {
+                timeRange = zoom(q, (float) zoomInFactors[i]);
+            } else if (opType.equals(ZO)) {
+                timeRange = zoom(q, (float) zoomOutFactors[i]);
             } else if (opType.equals(P)) {
                 timeRange = pan(q, shifts[i], directions[i]);
             } else if (opType.equals(R)) {
@@ -378,14 +359,6 @@ public class QuerySequenceGenerator {
                     }
                 }
             } 
-
-            // Time range handling
-            if (timeRange == null) timeRange = new TimeRange(q.getFrom(), q.getTo());
-            else if ((timeRange.getFrom() == q.getFrom() && timeRange.getTo() == q.getTo())) {
-                opType = ZI;
-                timeRange = zoomIn(q);
-            }
-            
             // Pattern detection requires special handling
             int patternId = -1; // Default: not a pattern
             if(opType.equals(PD)){
@@ -425,7 +398,7 @@ public class QuerySequenceGenerator {
         ViewPort viewPort = baseQuery.getViewPort();
         
         // Generate an aggregation interval smaller than the time range
-        double level = random.nextInt(4) + 1.0; 
+        double level = random.nextInt(4) + 0.1; 
         AggregateInterval timeUnit = DateTimeUtil.roundDownToCalendarBasedInterval((long) Math.floor((to - from) / (level * viewPort.getWidth())));
 
         // Generate a random aggregation type
@@ -454,46 +427,55 @@ public class QuerySequenceGenerator {
     private TimeRange pan(Query query, double shift, Direction direction) {
         long from = query.getFrom();
         long to = query.getTo();
-        long timeShift = (long) ((to - from) * shift);
-
+        long datasetStart = dataset.getTimeRange().getFrom();
+        long datasetEnd = dataset.getTimeRange().getTo();
+        long currentRange = to - from;
+        
+        // Calculate adjusted shift based on proximity to dataset boundaries
+        long timeShift = (long) (currentRange * shift);
+        
         switch (direction) {
             case L:
-                if(dataset.getTimeRange().getFrom() >= (from - timeShift)){
-                    opType = ZI;
-                    return zoomIn(query);
+                // When panning left, check proximity to left boundary
+                if (from - datasetStart < currentRange) {
+                    // We're close to the left edge, scale down the shift
+                    double proximityFactor = Math.max(0.1, (double)(from - datasetStart) / currentRange);
+                    timeShift = (long)(timeShift * proximityFactor);
                 }
-                to = to - timeShift;
-                from = from - timeShift;
+                
+                // Apply the shift with boundaries check
+                from = Math.max(datasetStart, from - timeShift);
+                to = from + currentRange;
                 break;
+
             case R:
-                if(dataset.getTimeRange().getTo() <= (to + timeShift)){
-                    opType = ZI;
-                    return zoomIn(query);
+                // When panning right, check proximity to right boundary
+                if (datasetEnd - to < currentRange) {
+                    // We're close to the right edge, scale down the shift
+                    double proximityFactor = Math.max(0.1, (double)(datasetEnd - to) / currentRange);
+                    timeShift = (long)(timeShift * proximityFactor);
                 }
-                to = to + timeShift;
-                from = from + timeShift;
+                
+                // Apply the shift with boundaries check
+                to = Math.min(datasetEnd, to + timeShift);
+                from = to - currentRange;
                 break;
+                
             default:
                 return new TimeRange(from, to);
-
         }
+        
+        LOG.debug("Pan {} with shift {}: [{} -> {}]", 
+            direction, timeShift, DateTimeUtil.format(from), DateTimeUtil.format(to));
+            
         return new TimeRange(from, to);
     }
 
-
-    private TimeRange zoomIn(Query query) {
-        return zoom(query, 1f / maxZoomFactor);
-    }
-
-    private TimeRange zoomOut(Query query) {
-        return zoom(query, maxZoomFactor);
-    }
-
-    private TimeRange zoom(Query query, float maxZoomFactor) {
+    private TimeRange zoom(Query query, float zoomFactor) {
         long from = query.getFrom();
         long to = query.getTo();
         float middle = (float) (from + to) / 2f;
-        float size = (float) (to - from) * maxZoomFactor;
+        float size = (float) (to - from) * zoomFactor;
         long newFrom = (long) (middle - (size / 2f));
         long newTo = (long) (middle + (size / 2f));
 
@@ -504,8 +486,7 @@ public class QuerySequenceGenerator {
             newFrom = dataset.getTimeRange().getFrom();
         }
         if (newFrom >= newTo) {
-            newTo = dataset.getTimeRange().getTo();
-            newFrom = dataset.getTimeRange().getFrom();
+            return null;
         }
 
         return new TimeRange(newFrom, newTo);

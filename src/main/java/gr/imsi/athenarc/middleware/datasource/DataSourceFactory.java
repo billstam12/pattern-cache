@@ -1,4 +1,7 @@
 package gr.imsi.athenarc.middleware.datasource;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,13 +34,22 @@ public class DataSourceFactory {
         ).connect();
         InfluxDBQueryExecutor executor = new InfluxDBQueryExecutor(connection);
 
-        InfluxDBDataset dataset = new InfluxDBDataset(
-            config.getMeasurement(),
-            config.getBucket(),
-            config.getMeasurement()
-        );
-
-        fillInfluxDBDatasetInfo(dataset, executor);
+        InfluxDBDataset dataset;
+        
+        // Check if dataset info exists in cache
+        if (DatasetCache.hasDataset("influxdb", config.getBucket(), config.getMeasurement())) {
+            dataset = (InfluxDBDataset) DatasetCache.getDataset("influxdb", config.getBucket(), config.getMeasurement());
+        } else {
+            dataset = new InfluxDBDataset(
+                config.getMeasurement(),
+                config.getBucket(),
+                config.getMeasurement()
+            );
+            fillInfluxDBDatasetInfo(dataset, executor);
+            
+            // Save dataset info to cache
+            DatasetCache.saveDataset("influxdb", dataset);
+        }
 
         return new InfluxDBDatasource(executor, dataset);
     }

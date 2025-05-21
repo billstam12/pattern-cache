@@ -30,6 +30,7 @@ public class InfluxDBM4DataPointsIterator extends InfluxDBIterator<AggregatedDat
             FluxRecord record = currentRecords.get(current);
             measureName = record.getField();
             Object value = record.getValue();
+
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 long timestamp = getTimestampFromRecord(record, "_time");
@@ -57,7 +58,7 @@ public class InfluxDBM4DataPointsIterator extends InfluxDBIterator<AggregatedDat
             statsAggregator
         );
 
-        logAggregatedPoint(point, statsAggregator);
+        // logAggregatedPoint(point, statsAggregator);
         startGroupTimestamp = endGroupTimestamp;
         
         return point;

@@ -43,7 +43,7 @@ public class Experiments<T> {
     private static final Logger LOG = LoggerFactory.getLogger(Experiments.class);
 
     @Parameter(names = "-queries", description = "The path of the input queries file if it exists")
-    public String queries;
+    public String queries = "./output/generate/influx/intel_lab_exp/queries.txt";
 
     @Parameter(names = "-type", description = "The type of the input (influx/postgres)")
     public String type = "influx";
@@ -58,7 +58,7 @@ public class Experiments<T> {
     Double q = 1.0;
 
     @Parameter(names = "-p", description = "Prefetching factor")
-    Double prefetchingFactor = 1.0;
+    Double mprefetchingFactor = 1.0;
     
     @Parameter(names = "-a")
     private float accuracy = 0.95f;
@@ -94,7 +94,7 @@ public class Experiments<T> {
     public String stateTransitionsFile = "/Users/vasilisstamatopoulos/Documents/Works/ATHENA/PhD/Code/pattern-cache/config/pattern-hunter.properties";
 
     @Parameter(names = "-mode", description = "Mode: 'timeCacheQueries' (default), timeQueries (no-cache) or 'generate' to only create query sequence")
-    private String mode = "generate";
+    private String mode = "timeCacheQueries";
 
     @Parameter(names = "-genFile", description = "Name of the generated file")
     private String genFile = "queries.txt";
@@ -156,6 +156,7 @@ public class Experiments<T> {
                 double time = 0;
                 TypedQuery typedQuery = sequence.get(i);
                 Query query = typedQuery.getQuery();    
+                LOG.info("Executing query " + i + " (" + typedQuery.getUserOpType() + ") " + query.getFrom() + " - " + query.getTo());
                 if (query instanceof VisualQuery){
                     VisualUtils.executeM4Query((VisualQuery) query, dataSource);   
                 } else if (query instanceof PatternQuery) { 
@@ -309,16 +310,6 @@ public class Experiments<T> {
         Properties properties = readProperties();
         LOG.info("{}", properties);
         switch (type) {
-            case "postgres":
-                // dataSourceConfiguration = new PostgreSQLConfiguration.Builder()
-                //     .url(properties.getProperty("postgres.url"))
-                //     .username(properties.getProperty("postgres.username"))
-                //     .password(properties.getProperty("postgres.password"))
-                //     .schema(schema)
-                //     .timeFormat(timeFormat)
-                //     .table(table)
-                //     .build();  
-                break;
             case "influx":
                 dataSourceConfiguration = new InfluxDBConfiguration.Builder()
                     .url(properties.getProperty("influxdb.url"))

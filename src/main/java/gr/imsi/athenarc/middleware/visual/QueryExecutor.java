@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.Stopwatch;
 
 import gr.imsi.athenarc.middleware.cache.AggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
@@ -127,25 +128,37 @@ public class QueryExecutor {
             errorPerMeasure.put(measure, errorResults);
             List<TimeInterval> missingIntervalsForMeasure = errorCalculator.getMissingIntervals();
 
-            // Calculate aggFactor
-            double coveragePercentages = 0.0;
-            double totalAggFactors = 0.0;
-            for (TimeSeriesSpan overlappingSpan : overlappingSpans) {
-                long size = overlappingSpan.getAggregateInterval().toDuration().toMillis(); // ms
-                if(size <= dataset.getSamplingInterval()) continue; // if raw data continue
-                double coveragePercentage = overlappingSpan.percentage(query); // coverage
-                int spanAggFactor = (int) ((double) (pixelColumnInterval.toDuration().toMillis()) / size);
-                totalAggFactors += coveragePercentage * spanAggFactor;
-                coveragePercentages += coveragePercentage;
+            double weightSum = 0.0;
+            double weightedSum = 0.0;
+
+            // --- 2. Process overlapping spans ----------------------------------
+            for (TimeSeriesSpan span : overlappingSpans) {
+                double spanMs = span.getAggregateInterval().toDuration().toMillis();
+                if(span instanceof RawTimeSeriesSpan) continue;              // skip raw data
+
+                double w = span.percentage(query);                // weight ∈ [0,1]
+                double factor = pixelColumnIntervalInMillis / spanMs;                 // now a double
+                weightedSum += w * factor;
+                weightSum += w;
             }
-            // The missing intervals get a value equal to the initial value
-            for(TimeInterval missingInterval : missingIntervalsForMeasure){
-                double coveragePercentage = missingInterval.percentage(query); // coverage
-                totalAggFactors += coveragePercentage * initialAggFactor;
-                coveragePercentages += coveragePercentage;
+
+            // --- 3. Process missing intervals ----------------------------------
+            for (TimeInterval missing : missingIntervalsForMeasure) {
+                double w = missing.percentage(query);
+                weightedSum += w * initialAggFactor;
+                weightSum += w;
             }
-            int meanWeightAggFactor = coveragePercentages != 0 ? (int) Math.ceil(totalAggFactors / coveragePercentages) : aggFactors.get(measure);
-            aggFactors.put(measure, meanWeightAggFactor);
+
+            // --- 4. Compute ceiled mean safely --------------------------------
+            int meanAggFactor;
+            if (weightSum > 0.0) {
+                double mean = weightedSum / weightSum;
+                meanAggFactor = (int) Math.ceil(mean);          
+            } else {
+                meanAggFactor = aggFactors.getOrDefault(measure, initialAggFactor);
+            }
+
+            aggFactors.put(measure, meanAggFactor);
 
             // Update aggFactor if there is an error
             if(errorCalculator.hasError()){

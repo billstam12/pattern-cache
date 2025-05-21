@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
 public class PatternUtils {
 
     private static final Logger LOG = LoggerFactory.getLogger(PatternUtils.class);
+    private static final Set<String> AGGREGATE_FUNCTIONS = Set.of( "min", "max", "first", "last");
 
     public static PatternQueryResults executePatternQuery(PatternQuery query, DataSource dataSource){
         PatternQueryResults patternQueryResults = new PatternQueryResults();
@@ -66,8 +68,8 @@ public class PatternUtils {
         aggregateIntervalsPerMeasure.put(measure, timeUnit);
 
         // 4. Get data from the data source
-        AggregatedDataPoints newDataPoints = dataSource.getM4DataPoints(
-                alignedFrom, alignedTo, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+        AggregatedDataPoints newDataPoints = dataSource.getAggregatedDataPoints(
+                alignedFrom, alignedTo, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure, AGGREGATE_FUNCTIONS);
                         
         // 5. Create spans and add to sketches
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 

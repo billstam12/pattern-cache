@@ -6,33 +6,51 @@ import com.influxdb.query.FluxTable;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ImmutableAggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.NonTimestampedStatsAggregator;
+import gr.imsi.athenarc.middleware.domain.NonTimestampedStats;
 
 import java.util.List;
 import java.util.Map;
 
-public class InfluxDBMinMaxDataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
+public class InfluxDBAggregateDataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
 
     private final Map<String, Integer> measuresMap;
 
-    public InfluxDBMinMaxDataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap) {
+    private final int noOfAggregates;
+
+    public InfluxDBAggregateDataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap, int noOfAggregates) {
         super(tables);
         this.measuresMap = measuresMap;
+        this.noOfAggregates = noOfAggregates;
     }
 
     @Override
     protected AggregatedDataPoint getNext() {
-        NonTimestampedStatsAggregator statsAggregator = new NonTimestampedStatsAggregator();
+        NonTimestampedStats statsAggregator = new NonTimestampedStats();
         String measureName = "";
 
-        for (int i = 0; i < 2 && current < currentSize; i++) {
+        for (int i = 0; i < noOfAggregates && current < currentSize; i++) {
             FluxRecord record = currentRecords.get(current);
             measureName = record.getField();
             Object value = record.getValue();
+            String aggType = (String) record.getValues().get("agg");
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();                
-                statsAggregator.accept(doubleValue);
-               
+                switch (aggType) {
+                    case "min":
+                        statsAggregator.setMinValue(doubleValue);
+                        break;
+                    case "max":
+                        statsAggregator.setMaxValue(doubleValue);
+                        break;
+                    case "first":
+                        statsAggregator.setFirstValue(doubleValue);
+                        break;
+                    case "last":
+                        statsAggregator.setLastValue(doubleValue);
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported aggregation type: " + aggType);
+                }
             }
             current++;
         }
@@ -67,7 +85,7 @@ public class InfluxDBMinMaxDataPointsIterator extends InfluxDBIterator<Aggregate
         }
     }
 
-    private void logAggregatedPoint(AggregatedDataPoint point, NonTimestampedStatsAggregator stats) {
+    private void logAggregatedPoint(AggregatedDataPoint point, NonTimestampedStats stats) {
         LOG.debug("Created aggregate Datapoint {} - {} first: {}, last {}, min: {}, max: {}, for measure: {}",
             DateTimeUtil.format(point.getFrom()),
             DateTimeUtil.format(point.getTo()),

@@ -3,8 +3,6 @@ package gr.imsi.athenarc.middleware.datasource.iterator;
 import com.influxdb.query.FluxRecord;
 import com.influxdb.query.FluxTable;
 
-import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

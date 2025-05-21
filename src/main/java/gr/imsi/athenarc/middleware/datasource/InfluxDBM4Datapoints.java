@@ -101,6 +101,8 @@ final class InfluxDBM4Datapoints implements AggregatedDataPoints {
             "aggregate = (tables=<-, agg, name, aggregateInterval, offset) => tables" +
             "\n" +
             "|> customAggregateWindow(every: aggregateInterval, fn: agg, offset: offset)" +
+            "\n" +
+            "|> map(fn: (r) => ({ r with agg: name }))" +
             "\n");
 
         // Generate data section for each measure and its time intervals

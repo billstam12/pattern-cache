@@ -33,7 +33,7 @@ public class ErrorCalculator {
         }
         LOG.info("Valid columns: {}", validColumns);
         error /= validColumns;
-        hasError = error > 1 - accuracy;
+        hasError = validColumns > Math.floor(viewPort.getHeight() /  2) && error > 1 - accuracy;
         return error;
     }
 

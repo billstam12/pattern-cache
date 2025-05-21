@@ -32,16 +32,17 @@ public interface DataSource {
                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure);
                                                 
     /**
-     * Returns an {@link AggregatedDataPoints} instance to access min, max data points (without timestamps) for multiple measures,
+     * Returns an {@link AggregatedDataPoints} instance to access aggregated data points (without timestamps) for multiple measures,
      * each with its own missing intervals and aggregate interval.
      * @param from global start timestamp
      * @param to global end timestamp
      * @param missingIntervalsPerMeasure list of measure-specific aggregation requests
      * @param aggregateIntervalsPerMeasure list of measure-specific aggregation intervals
+     * @param aggregateFunctions list of aggregation functions to use
      * @return aggregated data points
      */
-    AggregatedDataPoints getMinMaxDataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
-                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure);                                           
+    AggregatedDataPoints getAggregatedDataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
+                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, Set<String> aggregateFunctions);                                           
 
     public AbstractDataset getDataset();
 

@@ -26,49 +26,29 @@ public class DateTimeUtil {
     // Initialize the calendar intervals
     private static List<AggregateInterval> initializeCalendarIntervals() {
         List<AggregateInterval> intervals = new ArrayList<>();
-        
-        // Seconds
-        intervals.add(AggregateInterval.of(1, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(2, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(3, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(4, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(5, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(6, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(10, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(12, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(15, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(20, ChronoUnit.SECONDS));
-        intervals.add(AggregateInterval.of(30, ChronoUnit.SECONDS));
-        
-        // Minutes
-        intervals.add(AggregateInterval.of(1, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(2, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(3, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(4, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(5, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(6, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(10, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(12, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(15, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(20, ChronoUnit.MINUTES));
-        intervals.add(AggregateInterval.of(30, ChronoUnit.MINUTES));
+        // Milliseconds
+        for (int i = 1; i <= 500; i ++){
+            if (1000 % i == 0) {
+                intervals.add(AggregateInterval.of(i, ChronoUnit.MILLIS));
+            }
+        }
+        // Seconds, Minutes
+        for (int i = 1; i <= 30; i ++){
+            if (60 % i == 0) {
+                intervals.add(AggregateInterval.of(i, ChronoUnit.SECONDS));
+                intervals.add(AggregateInterval.of(i, ChronoUnit.MINUTES));
+            }
+        }
         
         // Hours
-        intervals.add(AggregateInterval.of(1, ChronoUnit.HOURS));
-        intervals.add(AggregateInterval.of(2, ChronoUnit.HOURS));
-        intervals.add(AggregateInterval.of(3, ChronoUnit.HOURS));
-        intervals.add(AggregateInterval.of(4, ChronoUnit.HOURS));
-        intervals.add(AggregateInterval.of(6, ChronoUnit.HOURS));
-        intervals.add(AggregateInterval.of(8, ChronoUnit.HOURS));
-        intervals.add(AggregateInterval.of(12, ChronoUnit.HOURS));
-        
-        // Days and above
+        for (int i = 1; i <= 12; i ++){
+            if (24 % i == 0) {
+                intervals.add(AggregateInterval.of(i, ChronoUnit.HOURS));
+            }
+        }       
+         
+        // Days 
         intervals.add(AggregateInterval.of(1, ChronoUnit.DAYS));
-        // intervals.add(AggregateInterval.of(1, ChronoUnit.WEEKS));
-        // intervals.add(AggregateInterval.of(1, ChronoUnit.MONTHS));
-        // intervals.add(AggregateInterval.of(3, ChronoUnit.MONTHS));
-        // intervals.add(AggregateInterval.of(6, ChronoUnit.MONTHS));
-        // intervals.add(AggregateInterval.of(1, ChronoUnit.YEARS));
         
         return intervals;
     }

@@ -28,6 +28,7 @@ public class DataProcessor {
 
     private static final Logger LOG = LoggerFactory.getLogger(DataProcessor.class);
 
+    private static final Set<String> AGGREGATE_FUNCTIONS = Set.of( "min", "max", "first", "last");
     
     public RangeSet<Long> getRawTimeSeriesSpanRanges(List<TimeSeriesSpan> timeSeriesSpans) {
         RangeSet<Long> rangeSet = TreeRangeSet.create();
@@ -117,8 +118,7 @@ public class DataProcessor {
                                                  Map<Integer, Integer> aggFactors, ViewPort viewPort) {
         missingIntervalsPerMeasure = sortMeasuresAndIntervals(missingIntervalsPerMeasure); // This helps with parsing the query results
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = new HashMap<>(missingIntervalsPerMeasure.size());
-        Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>(missingIntervalsPerMeasure.size());
-
+ 
         long rawAggregateInterval = dataSource.getDataset().getSamplingInterval();
         
         // Separate intervals into raw and aggregate categories
@@ -184,13 +184,11 @@ public class DataProcessor {
             Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = 
                 DateTimeUtil.alignIntervalsToTimeUnitBoundary(aggregateMissingIntervals, aggIntervals);
             
-            LOG.info("Fetching missing aggregate data from data source");
+            long start = System.currentTimeMillis();
             AggregatedDataPoints aggDataPoints = 
-                dataSource.getM4DataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals);
+                dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, AGGREGATE_FUNCTIONS);
             Map<Integer, List<TimeSeriesSpan>> aggTimeSeriesSpans = 
                 TimeSeriesSpanFactory.createAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
-            LOG.info("Fetched missing aggregate data from data source");
-            
             // Merge aggregate time series spans with the result
             for (Map.Entry<Integer, List<TimeSeriesSpan>> entry : aggTimeSeriesSpans.entrySet()) {
                 int measure = entry.getKey();

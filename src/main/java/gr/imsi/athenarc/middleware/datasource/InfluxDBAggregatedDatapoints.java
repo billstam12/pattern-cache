@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
-import java.util.HashSet;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -17,15 +16,17 @@ import com.influxdb.query.FluxTable;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.InfluxDBQueryExecutor;
-import gr.imsi.athenarc.middleware.datasource.iterator.InfluxDBMinMaxDataPointsIterator;
+import gr.imsi.athenarc.middleware.datasource.iterator.InfluxDBAggregateDataPointsIterator;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 
-final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
+final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
 
+
+        
     private AbstractDataset dataset;
     private InfluxDBQueryExecutor influxDBQueryExecutor;
 
@@ -33,11 +34,11 @@ final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
     private long to;
     private Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure; 
     private Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure;
+    private Set<String> aggregateFunctions;
 
-    public InfluxDBMinMaxDatapoints(InfluxDBQueryExecutor influxDBQueryExecutor, AbstractDataset dataset, 
+    public InfluxDBAggregatedDatapoints(InfluxDBQueryExecutor influxDBQueryExecutor, AbstractDataset dataset, 
                                      long from, long to,  Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
-                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure
-                                    ) {
+                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, Set<String> aggregateFunctions) {
        this.from = from;
        this.to = to; 
        this.missingIntervalsPerMeasure = missingIntervalsPerMeasure;
@@ -45,9 +46,24 @@ final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
        this.dataset = dataset;
        this.influxDBQueryExecutor = influxDBQueryExecutor;
        
+       // Validate aggregate functions
+       if (aggregateFunctions == null || aggregateFunctions.isEmpty()) {
+           throw new IllegalArgumentException("No aggregate functions specified");
+       }
+       
+       // Check if all provided functions are supported
+       for (String function : aggregateFunctions) {
+           if (!SUPPORTED_AGGREGATE_FUNCTIONS.contains(function)) {
+               throw new IllegalArgumentException("Unsupported aggregate function: " + function + 
+                   ". Supported functions are: " + SUPPORTED_AGGREGATE_FUNCTIONS);
+           }
+       }
+       
+       this.aggregateFunctions = aggregateFunctions;
+       
        // If no measures are specified, throw error
        if (this.missingIntervalsPerMeasure == null || this.missingIntervalsPerMeasure.size() == 0 
-            || aggregateIntervalsPerMeasure == null || aggregateIntervalsPerMeasure.size() == 0 || aggregateIntervalsPerMeasure.size() == 0) {
+            || aggregateIntervalsPerMeasure == null || aggregateIntervalsPerMeasure.size() == 0) {
            throw new IllegalArgumentException("No measures specified");
        }
     }
@@ -84,9 +100,6 @@ final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
         String bucket = dataset.getSchema();
         String measurement = dataset.getTableName();
         String[] headers = dataset.getHeader();
-        Set<String> aggregateFunctions = new HashSet<>();
-        aggregateFunctions.add("min");
-        aggregateFunctions.add("max");
 
         // Start building the query with the aggregate function definition
         StringBuilder fluxQuery = new StringBuilder();
@@ -94,6 +107,8 @@ final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
             "aggregate = (tables=<-, agg, name, aggregateInterval, offset) => tables" +
             "\n" +
             "|> aggregateWindow(every: aggregateInterval, createEmpty: true, offset: offset, fn: agg, timeSrc:\"_start\")" +
+            "\n" +
+            "|> map(fn: (r) => ({ r with agg: name }))" +
             "\n");
 
         // Generate data source definitions for each measure and interval
@@ -153,14 +168,14 @@ final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
                 long offset = from % (aggregateInterval.getMultiplier() * 
                                      getChronoUnitMillis(aggregateInterval.getChronoUnit()));
                 
-                // Add min and max aggregations
-                fluxQuery.append("        data_").append(dataSourceCounter).append("() |> aggregate(agg: max, name: \"data_")
-                        .append(dataSourceCounter).append("\", offset: ").append(offset).append("ms,")
-                        .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
-                        
-                fluxQuery.append("        data_").append(dataSourceCounter).append("() |> aggregate(agg: min, name: \"data_")
-                        .append(dataSourceCounter).append("\", offset: ").append(offset).append("ms,")
-                        .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
+                // Add all specified aggregation functions
+                for (String aggFunction : aggregateFunctions) {
+                    fluxQuery.append("        data_").append(dataSourceCounter)
+                            .append("() |> aggregate(agg: ").append(aggFunction)
+                            .append(", name: \"").append(aggFunction).append("\", offset: ")
+                            .append(offset).append("ms,")
+                            .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
+                }
                 
                 dataSourceCounter++;
             } else {
@@ -170,14 +185,14 @@ final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
                     long offset = interval.getFrom() % (aggregateInterval.getMultiplier() * 
                                                      getChronoUnitMillis(aggregateInterval.getChronoUnit()));
                     
-                    // Add min and max aggregations for this interval
-                    fluxQuery.append("        data_").append(dataSourceCounter).append("() |> aggregate(agg: max, name: \"data_")
-                            .append(dataSourceCounter).append("\", offset: ").append(offset).append("ms,")
-                            .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
-                            
-                    fluxQuery.append("        data_").append(dataSourceCounter).append("() |> aggregate(agg: min, name: \"data_")
-                            .append(dataSourceCounter).append("\", offset: ").append(offset).append("ms,")
-                            .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
+                    // Add all specified aggregation functions for each interval
+                    for (String aggFunction : aggregateFunctions) {
+                        fluxQuery.append("        data_").append(dataSourceCounter)
+                                .append("() |> aggregate(agg: ").append(aggFunction)
+                                .append(", name: \"").append(aggFunction).append("\", offset: ")
+                                .append(offset).append("ms,")
+                                .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
+                    }
                     
                     dataSourceCounter++;
                 }
@@ -194,7 +209,7 @@ final class InfluxDBMinMaxDatapoints implements AggregatedDataPoints {
         
         // Execute the query
         List<FluxTable> fluxTables = influxDBQueryExecutor.executeDbQuery(fluxQuery.toString());
-        return new InfluxDBMinMaxDataPointsIterator(fluxTables, measuresMap);
+        return new InfluxDBAggregateDataPointsIterator(fluxTables, measuresMap, aggregateFunctions.size());
     }
 
     /**
