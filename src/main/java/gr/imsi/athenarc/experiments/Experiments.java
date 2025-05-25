@@ -94,7 +94,7 @@ public class Experiments<T> {
     public String stateTransitionsFile = "/Users/vasilisstamatopoulos/Documents/Works/ATHENA/PhD/Code/pattern-cache/config/pattern-hunter.properties";
 
     @Parameter(names = "-mode", description = "Mode: 'timeCacheQueries' (default), timeQueries (no-cache) or 'generate' to only create query sequence")
-    private String mode = "timeCacheQueries";
+    private String mode = "timeQueries";
 
     @Parameter(names = "-genFile", description = "Name of the generated file")
     private String genFile = "queries.txt";

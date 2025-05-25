@@ -2,14 +2,16 @@ package gr.imsi.athenarc.middleware.visual;
 
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.DoubleSummaryStatistics;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -290,9 +292,11 @@ public class QueryExecutor {
             intervals.add(DateTimeUtil.alignIntervalToTimeUnitBoundary(query, measureIntervals.get(measure)));
             intervalsPerMeasure.put(measure, intervals);
         }
+
+        Set<String> aggregateFunctions = new HashSet<>(Arrays.asList("min", "max", "first", "last"));
         // Fetch data 
-        AggregatedDataPoints dataPoints = dataSource.getM4DataPoints(
-            from, to, intervalsPerMeasure, measureIntervals);
+        AggregatedDataPoints dataPoints = dataSource.getAggregatedDataPoints(
+            from, to, intervalsPerMeasure, measureIntervals, aggregateFunctions);
         
         // Convert to time series spans and add to cache
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 

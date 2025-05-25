@@ -8,12 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.base.Stopwatch;
 
-import gr.imsi.athenarc.middleware.cache.AggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
@@ -53,12 +50,12 @@ public class VisualUtils {
         AggregatedDataPoints missingDataPoints = 
             dataSource.getM4DataPoints(startPixelColumn, endPixelColumn, missingIntervalsPerMeasure, aggregateIntervals);
         
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createAggregateM4(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
         for (Integer measure : query.getMeasures()) {
             List<TimeSeriesSpan> spans = timeSeriesSpans.get(measure);
             List<DataPoint> dataPoints = new ArrayList<>();
             for (TimeSeriesSpan span : spans) {
-                Iterator<AggregatedDataPoint> it = ((AggregateTimeSeriesSpan) span).iterator();
+                Iterator<AggregatedDataPoint> it = ((M4AggregateTimeSeriesSpan) span).iterator();
                 while (it.hasNext()) {
                     AggregatedDataPoint aggregatedDataPoint = it.next();
                     dataPoints.add(new ImmutableDataPoint(aggregatedDataPoint.getStats().getFirstDataPoint().getTimestamp(), aggregatedDataPoint.getStats().getFirstDataPoint().getValue(), measure));

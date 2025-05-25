@@ -24,46 +24,64 @@ public class NonTimestampedStats implements Stats, Serializable {
     private Double lastValue;
 
     public NonTimestampedStats() {
+
     }
 
-    public double getMinValue() {
-        return minValue;
-    }
 
     @Override
     public long getMinTimestamp() {
-        return (from + to) / 2;
-    }
-
-    public double getMaxValue() {
-        return maxValue;
+        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
     }
 
     @Override
     public long getMaxTimestamp() {
-        return (from + to) / 2;
-    }
-
-    @Override
-    public double getFirstValue() {
-        return firstValue == null ? (getMinValue() + getMaxValue()) / 2 : firstValue;
+        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
     }
 
     @Override
     public long getFirstTimestamp() {
-        return from + 1;
-    }
-
-    @Override
-    public double getLastValue() {
-        return lastValue == null ? (getMinValue() + getMaxValue()) / 2 : lastValue;
+        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
     }
 
     @Override
     public long getLastTimestamp() {
-        return to - 1;
+        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
     }
 
+
+    @Override
+    public double getMinValue() {
+        if(minValue == null) {
+            throw new IllegalStateException("minValue is not set");
+        }
+        return minValue;
+    }
+ 
+    @Override
+    public double getMaxValue() {
+        if(maxValue == null) {
+            throw new IllegalStateException("maxValue is not set");
+        }
+        return maxValue;
+    }
+    
+    @Override
+    public double getFirstValue() {
+        if(firstValue == null) {
+            throw new IllegalStateException("firstValue is not set");
+        }
+        return firstValue;
+    }
+
+    @Override
+    public double getLastValue() {
+        if(lastValue == null) {
+            throw new IllegalStateException("lastValue is not set");
+        }
+        return lastValue;
+    }
+
+  
     public void setFrom(long from) {
         this.from = from;
     }

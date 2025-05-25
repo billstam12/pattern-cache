@@ -12,6 +12,12 @@ public class ImmutableDataPoint implements DataPoint {
     // The measure of this data point
     private final int measure;
 
+    public ImmutableDataPoint(final long timestamp, final double value) {
+        this.timestamp = timestamp;
+        this.value = value;
+        this.measure = -1;
+    }
+
     public ImmutableDataPoint(final long timestamp, final double value, int measure) {
         this.timestamp = timestamp;
         this.value = value;

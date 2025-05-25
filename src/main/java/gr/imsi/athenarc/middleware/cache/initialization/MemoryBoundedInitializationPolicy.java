@@ -16,9 +16,12 @@ import gr.imsi.athenarc.middleware.domain.TimeRange;
 
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A cache initialization policy that attempts to load data within memory constraints.
@@ -141,8 +144,11 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
             missingIntervals.add(new TimeRange(startTimestamp, endTimestamp));
             missingIntervalsPerMeasure.put(measure, missingIntervals);
         }
+        
+        Set<String> aggregateFunctions = new HashSet<>(Arrays.asList("min", "max", "first", "last"));
+
         AggregatedDataPoints missingDataPoints = 
-            dataSource.getM4DataPoints(startTimestamp, endTimestamp, missingIntervalsPerMeasure, aggregateIntervals);
+            dataSource.getAggregatedDataPoints(startTimestamp, endTimestamp, missingIntervalsPerMeasure, aggregateIntervals, aggregateFunctions);
 
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
         

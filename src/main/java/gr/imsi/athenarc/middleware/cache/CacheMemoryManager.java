@@ -747,6 +747,10 @@ public class CacheMemoryManager {
         return (currentCacheMemoryBytes.get() * 100.0) / maxMemoryBytes;
     }
     
+    public boolean monitorsMemory() {
+        return monitorMemoryPeriodically;
+    }
+
     /**
      * Shutdown the memory manager, stopping any background tasks.
      */

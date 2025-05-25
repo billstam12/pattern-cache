@@ -121,7 +121,7 @@ public class CacheManager {
      * @return A new QueryManager instance
      */
     public static CacheManager createDefault(DataSource dataSource) {
-        return builder(dataSource).withMaxMemory(1*1024*1024).build();
+        return builder(dataSource).withMaxMemory(100*1024*1024).build();
     }
     
     /**
