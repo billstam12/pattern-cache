@@ -7,7 +7,7 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
-import gr.imsi.athenarc.middleware.domain.NonTimestampedStats;
+import gr.imsi.athenarc.middleware.domain.AggregateStats;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -19,10 +19,10 @@ import java.util.stream.IntStream;
  * A {@link DataPoints} implementation that aggregates a series of consecutive
  * raw data points based on the specified aggregation interval.
  * For each aggregation interval included we store 5 doubles,
- * i.e. the sum, min and max aggregate values, 2 longs corresponding to the timestamp of the min and max value, as well as the corresponding
+ * i.e. the first, last, min and max aggregate values, as well as the corresponding
  * non-missing value counts.
  */
-public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
+public class M4StarAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
     private static final Logger LOG = LoggerFactory.getLogger(TimeSeriesSpan.class);
 
@@ -64,7 +64,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         LOG.debug("Initializing time series span ({},{}) measure = {} with size {}, aggregate interval {}", getFromDate(), getToDate(), measure, size, aggregateInterval);
     }
 
-    protected AggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
+    protected M4StarAggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
         initialize(from, to, aggregateInterval, measure);
     }
 
@@ -72,8 +72,8 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         int i = DateTimeUtil.indexInInterval(getFrom(), getTo(), aggregateInterval, aggregatedDataPoint.getTimestamp());
         Stats stats = aggregatedDataPoint.getStats();
        
-        if(!(stats instanceof NonTimestampedStats)){
-            throw new IllegalArgumentException("Only NonTimestampedStats supported in AggregateTimeSeriesSpan");
+        if(!(stats instanceof AggregateStats)){
+            throw new IllegalArgumentException("Only AggregateStats supported in AggregateTimeSeriesSpan");
         }
 
         if (stats.getCount() == 0) {
@@ -234,7 +234,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
      * @param targetInterval The target aggregation interval to roll up to
      * @return A new span with rolled-up data, or null if the operation isn't possible
      */
-    public AggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
+    public M4StarAggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
         // Check if the target interval is coarser than the current one
         if (targetInterval.toDuration().toMillis() <= aggregateInterval.toDuration().toMillis()) {
             LOG.warn("Cannot roll up to a finer or equal granularity interval");
@@ -254,7 +254,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
         int factor = (int) (targetMs / currentMs);
         
         // Create new span
-        AggregateTimeSeriesSpan rolledUpSpan = new AggregateTimeSeriesSpan(from, to, measure, targetInterval);
+        M4StarAggregateTimeSeriesSpan rolledUpSpan = new M4StarAggregateTimeSeriesSpan(from, to, measure, targetInterval);
         
         // Process groups of indices to aggregate them together
         int newSize = (size + factor - 1) / factor; // ceil(size/factor)
@@ -282,7 +282,7 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
             // Calculate total count for this group
             int groupTotalCount = 0;
             for (int i = startIdx; i < endIdx; i++) {
-                groupTotalCount += (int) aggregates[i * AGG_SIZE + 6];
+                groupTotalCount += (int) aggregates[i * AGG_SIZE + 4];
             }
             final int totalCount = groupTotalCount;
             
@@ -449,7 +449,6 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public double getFirstValue() {
-                    // return (getMinValue() + getMaxValue()) / 2;
                     return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 2]);
                 }
 
@@ -460,7 +459,6 @@ public class AggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public double getLastValue() {
-                    // return (getMinValue() + getMaxValue()) / 2;
                     return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 3]);
                 }
 

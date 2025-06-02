@@ -3,17 +3,19 @@ package gr.imsi.athenarc.middleware.pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.Sketch;
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
-import gr.imsi.athenarc.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
-/** Only for non timestampe stats = agg. time series spans */
-public class TimestampedSketch implements Sketch {
+/** Only for non timestamped aggregate stats = agg. time series spans */
+public class M4Sketch implements Sketch {
 
-    private static final Logger LOG = LoggerFactory.getLogger(NonTimestampedSketch.class);
+    private static final Logger LOG = LoggerFactory.getLogger(M4Sketch.class);
 
     private long from;
     private long to;
@@ -24,15 +26,15 @@ public class TimestampedSketch implements Sketch {
     // The aggregation type to use when adding data points
     private AggregationType aggregationType;
     
-    private double slope;
+    private double angle;
 
     // used for fetching data from the db
     // There is a difference between count = 0 and no underlying data at all
     private boolean hasInitialized = false;
 
-    // Track first and last data points for slope calculation
-    private DataPoint firstDataPoint;
-    private DataPoint lastDataPoint;
+    // The interval this sketch represents. If it is combined it is the interval of its sub-sketches that created it.
+    // Used in angle calculation.
+    private AggregateInterval originalAggregateInterval; 
 
     /**
      * Creates a new sketch with the specified aggregation type.
@@ -41,10 +43,11 @@ public class TimestampedSketch implements Sketch {
      * @param to The end timestamp of this sketch
      * @param aggregationType The function that gets the representative data point
      */
-    public TimestampedSketch(long from, long to, AggregationType aggregationType) {
+    public M4Sketch(long from, long to, AggregationType aggregationType) {
         this.from = from;
         this.to = to;
         this.aggregationType = aggregationType;
+        this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
     }
 
     /**
@@ -56,14 +59,6 @@ public class TimestampedSketch implements Sketch {
         hasInitialized = true; // Mark as having underlying data
         Stats stats = dp.getStats();
         if (stats.getCount() > 0) {
-            // Track first and last data points for slope calculation
-            if (firstDataPoint == null || dp.getTimestamp() < firstDataPoint.getTimestamp()) {
-                firstDataPoint = new ImmutableDataPoint(dp.getStats().getFirstTimestamp(), dp.getStats().getFirstValue());
-            }
-            if (lastDataPoint == null || dp.getTimestamp() > lastDataPoint.getTimestamp()) {
-                lastDataPoint = new ImmutableDataPoint(dp.getStats().getLastTimestamp(), dp.getStats().getLastValue());
-            }
-            
             statsAggregator.accept(dp);
         }
     }
@@ -89,32 +84,18 @@ public class TimestampedSketch implements Sketch {
             return this;
         }
 
-        if (!(other instanceof TimestampedSketch)) {
+        if (!(other instanceof M4Sketch)) {
             throw new IllegalArgumentException("Cannot combine sketches of different types: " + other.getClass());
         }
         
-        TimestampedSketch otherSketch = (TimestampedSketch) other;
+        M4Sketch otherSketch = (M4Sketch) other;
         validateConsecutiveSketch(otherSketch);
         validateCompatibleAggregationTypes(otherSketch);
 
-        // Calculate slope between consecutive sketches before combining stats
-        computeSlopeBetweenConsecutiveSketches(this, otherSketch);
+        // Calculate angle between consecutive sketches before combining stats
+        computeAngleBetweenConsecutiveSketches(this, otherSketch);
         // Update time interval and duration
-        this.to = otherSketch.getTo();
-        
-        // Update first/last data points
-        if (otherSketch.firstDataPoint != null) {
-            if (this.firstDataPoint == null || otherSketch.firstDataPoint.getTimestamp() < this.firstDataPoint.getTimestamp()) {
-                this.firstDataPoint = otherSketch.firstDataPoint;
-            }
-        }
-        
-        if (otherSketch.lastDataPoint != null) {
-            if (this.lastDataPoint == null || otherSketch.lastDataPoint.getTimestamp()  > this.lastDataPoint.getTimestamp() ) {
-                this.lastDataPoint = otherSketch.lastDataPoint;
-            }
-        }
-        
+        this.to = otherSketch.getTo();        
         // Combine stats
         this.statsAggregator.combine(otherSketch.getStatsAggregator());
         
@@ -170,17 +151,16 @@ public class TimestampedSketch implements Sketch {
     }
 
     @Override
-    public double getSlope() {
-        return slope;
+    public double getAngle() {
+        return angle;
     }
-
+    
     public Sketch clone() {
-        TimestampedSketch sketch = new TimestampedSketch(this.from, this.to, this.aggregationType);
+        M4Sketch sketch = new M4Sketch(this.from, this.to, this.aggregationType);
         sketch.statsAggregator = this.statsAggregator.clone();
         sketch.hasInitialized = this.hasInitialized;
-        sketch.slope = this.slope;
-        sketch.firstDataPoint = this.firstDataPoint;
-        sketch.lastDataPoint = this.lastDataPoint;
+        sketch.angle = this.angle;
+        sketch.originalAggregateInterval = this.originalAggregateInterval;
         return sketch;
     }
 
@@ -196,70 +176,57 @@ public class TimestampedSketch implements Sketch {
         return hasInitialized;
     }
     
-    /**
-     * Gets the first data point added to this sketch.
-     * 
-     * @return The first aggregated data point
-     */
-    public DataPoint getFirstAddedDataPoint() {
-        return firstDataPoint;
-    }
     
     /**
-     * Gets the last data point added to this sketch.
-     * 
-     * @return The last aggregated data point
+     * Computes the slope of a composite sketch against the ValueFilter of a segment.
+     * Returns true if the slope is within the filter's range.
      */
-    public DataPoint getLastAddedDataPoint() {
-        return lastDataPoint;
+    public boolean matches(ValueFilter filter) {
+        if (filter.isValueAny()) {
+            return true;
+        }
+        double low = filter.getMinDegree();
+        double high = filter.getMaxDegree();
+        boolean match = angle >= low && angle <= high;
+        return match;
     }
-    
+
     /**
-     * Calculates the slope between two consecutive sketches based on their first or last data points,
+     * Calculates the angle between two consecutive sketches based on their first or last data points,
      * depending on aggregation type.
      * 
      * @param first The first sketch in sequence
      * @param second The second sketch in sequence (consecutive to first)
      */
-    private void computeSlopeBetweenConsecutiveSketches(TimestampedSketch first, TimestampedSketch second) {
+    private void computeAngleBetweenConsecutiveSketches(M4Sketch first, M4Sketch second) {
         DataPoint firstPoint = first.getReferencePointFromSketch();
         DataPoint secondPoint = second.getReferencePointFromSketch();
-        LOG.debug("Calculating slope between sketches from {} to {}", firstPoint, secondPoint);
+        LOG.debug("Calculating angle between sketches from {} to {}", firstPoint, secondPoint);
         if (firstPoint == null || secondPoint == null) {
-            LOG.debug("Insufficient data points to calculate slope between sketches");
-            this.slope = 0.0;
+            LOG.debug("Insufficient data points to calculate angle between sketches");
+            this.angle = Double.POSITIVE_INFINITY;
             return;
         }
         // Calculate value change
         double valueChange = secondPoint.getValue() - firstPoint.getValue();
         // Calculate time change
-        long timeChange = secondPoint.getTimestamp()  - firstPoint.getTimestamp();
+        long timeChange = (second.getFrom() - first.getFrom()) / (originalAggregateInterval.toDuration().toMillis());
 
-        double normalizedTimeChange = timeChange / (double)(second.getTo() - first.getFrom());
-
-        double rawSlope = valueChange / normalizedTimeChange;
-
-        this.slope = Math.atan(rawSlope) / Math.PI;
-
+        // Check for zero time difference before division
         if (timeChange == 0) {
-            LOG.warn("Zero time difference between reference points, setting slope to 0");
-            this.slope = 0.0;
+            LOG.warn("Zero time difference between reference points, setting angle to 0");
+            this.angle = Double.POSITIVE_INFINITY;
             return;
         }
         
-        LOG.debug("Calculated slope between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
-                first.getFromDate(), second.getFromDate(), this.slope);
+        double slope = valueChange / timeChange;
+        double radians = Math.atan(slope);
+        this.angle = Math.toDegrees(radians);
+        
+        LOG.debug("Calculated angle between consecutive sketches {} and {} : {}", 
+                first, second, this.angle);
     }
     
-    /**
-     * Gets the appropriate reference point from a sketch based on aggregation type.
-     * For the first sketch in a sequence, we typically want the last data point.
-     * For the second sketch in a sequence, we typically want the first data point.
-     *
-     * @param sketch The sketch to get the reference point from
-     * @param isFirstInSequence Whether this is the first sketch in the sequence
-     * @return The reference data point based on aggregation type
-     */
     private DataPoint getReferencePointFromSketch() {
         if (isEmpty()) {
             return null;
@@ -267,25 +234,24 @@ public class TimestampedSketch implements Sketch {
         
         switch (aggregationType) {
             case FIRST_VALUE:
-                return getFirstAddedDataPoint();
+                return statsAggregator.getLastDataPoint();
             case LAST_VALUE:
-                return getLastAddedDataPoint();
-            // case MIN_VALUE:
-            // case MAX_VALUE:
-            //     // For min/max, use the data point that would be selected by the aggregation type
-            //     if (isFirstInSequence) {
-            //         return sketch.aggregationType == AggregationType.MIN_VALUE ? 
-            //                sketch.getStatsAggregator().getMinDataPoint() :
-            //                sketch.getStatsAggregator().getMaxDataPoint();
-            //     } else {
-            //         return sketch.aggregationType == AggregationType.MIN_VALUE ?
-            //                sketch.getStatsAggregator().getMinDataPoint() :
-            //                sketch.getStatsAggregator().getMaxDataPoint();
-            //     }
+                return statsAggregator.getLastDataPoint();
+            case MIN_VALUE:
+                return statsAggregator.getMinDataPoint();
+            case MAX_VALUE:
+                return statsAggregator.getMaxDataPoint();
             default:
-                // Default to first/last based on position in sequence
-                return getLastAddedDataPoint();
+                throw new IllegalArgumentException("Unsupported aggregation type: " + aggregationType);
         }
     }
     
+    @Override
+    public String toString(){
+        return "NonTimestampedSketch{" +
+                "from=" + getFromDate() +
+                ", to=" + getToDate() +
+                ", referencePoint=" + getReferencePointFromSketch() +
+                '}';
+    }
 }

@@ -3,6 +3,8 @@ package gr.imsi.athenarc.middleware.visual;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.ErrorCalculator;
+import gr.imsi.athenarc.middleware.cache.PixelColumn;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.datasource.DataSource;

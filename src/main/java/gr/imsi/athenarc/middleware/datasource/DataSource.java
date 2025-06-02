@@ -44,6 +44,10 @@ public interface DataSource {
     AggregatedDataPoints getAggregatedDataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, Set<String> aggregateFunctions);                                           
 
+
+    AggregatedDataPoints getSlopeAggregates(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
+                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure);                                  
+    
     public AbstractDataset getDataset();
 
     public void closeConnection();

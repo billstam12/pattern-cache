@@ -8,8 +8,8 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.pattern.PatternQueryManager;
-import gr.imsi.athenarc.middleware.pattern.Sketch;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
 import gr.imsi.athenarc.middleware.query.pattern.RepetitionFactor;
@@ -444,25 +444,12 @@ public class NFASketchSearch {
             }
     
             // Only consider this match if there were no empty sketches and it meets value constraints
-            if (!hasEmptySketch && matchesComposite(composite, valueFilter)) {
+            if (!hasEmptySketch && composite.matches(valueFilter)) {
                 results.add(new MatchResult(count, segmentSketches));
             }
         }
     
         return results;
-    }
-    
-    private boolean matchesComposite(Sketch sketch, ValueFilter valueFilter) {
-        if (valueFilter.isValueAny()) {
-            return true;
-        }
-    
-        double slope = sketch.getSlope();
-        LOG.debug("Composite sketch duration: {} time units, slope computed: {} (expected between {} and {})", 
-            sketch.getTo() - sketch.getFrom(), 
-            slope, valueFilter.getMinSlope(), valueFilter.getMaxSlope());
-    
-        return (slope >= valueFilter.getMinSlope() && slope <= valueFilter.getMaxSlope());
     }
     
     // ---------------------------

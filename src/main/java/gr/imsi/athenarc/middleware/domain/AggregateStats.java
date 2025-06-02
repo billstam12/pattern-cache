@@ -1,19 +1,12 @@
 package gr.imsi.athenarc.middleware.domain;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.Serializable;
 
 /**
  * An implementation of the Stats interface that calculates stats within a fixed interval [from, to).
  * This class only takes into account values and not timestamps of data points.
- * As timestamps the middle of the interval is used for the data points with the min and max values,
- * and the from and to timestamps for the first and last data points.
  */
-public class NonTimestampedStats implements Stats, Serializable {
-
-    private static final Logger LOG = LoggerFactory.getLogger(NonTimestampedStats.class);
+public class AggregateStats implements Stats, Serializable {
 
     private long from;
     private long to;
@@ -23,7 +16,8 @@ public class NonTimestampedStats implements Stats, Serializable {
     private Double firstValue;
     private Double lastValue;
 
-    public NonTimestampedStats() {
+
+    public AggregateStats() {
 
     }
 

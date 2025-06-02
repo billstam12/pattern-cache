@@ -3,15 +3,18 @@ package gr.imsi.athenarc.middleware.pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.Sketch;
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 /** Only for non timestampe stats = agg. time series spans */
-public class NonTimestampedSketch implements Sketch {
+public class MinMaxSketch implements Sketch {
 
-    private static final Logger LOG = LoggerFactory.getLogger(NonTimestampedSketch.class);
+    private static final Logger LOG = LoggerFactory.getLogger(M4Sketch.class);
 
     private long from;
     private long to;
@@ -22,18 +25,22 @@ public class NonTimestampedSketch implements Sketch {
     // The aggregation type to use when adding data points
     private AggregationType aggregationType;
     
-    private double slope;
-    private double minSlope; // Lower bound of slope error
-    private double maxSlope; // Upper bound of slope error
-    private double slopeErrorMargin; // The difference between max and min slopes
+    private double angle;
+    private double minAngle; // Lower bound of angle error
+    private double maxAngle; // Upper bound of angle error
+    private double angleErrorMargin; // The difference between max and min angles
 
     // used for fetching data from the db
     // There is a difference between count = 0 and no underlying data at all
     private boolean hasInitialized = false;
 
-    // Track first and last data points for slope calculation
+    // Track first and last data points for angle calculation
     private ReferenceDataPoint firstDataPoint;
     private ReferenceDataPoint lastDataPoint;
+
+    // The interval this sketch represents. If it is combined it is the interval of its sub-sketches that created it.
+    // Used in angle calculation.
+    private AggregateInterval originalAggregateInterval; 
 
     /**
      * Creates a new sketch with the specified aggregation type.
@@ -42,10 +49,11 @@ public class NonTimestampedSketch implements Sketch {
      * @param to The end timestamp of this sketch
      * @param aggregationType The function that gets the representative data point
      */
-    public NonTimestampedSketch(long from, long to, AggregationType aggregationType) {
+    public MinMaxSketch(long from, long to, AggregationType aggregationType) {
         this.from = from;
         this.to = to;
         this.aggregationType = aggregationType;
+        this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
     }
 
     /**
@@ -57,16 +65,15 @@ public class NonTimestampedSketch implements Sketch {
         hasInitialized = true; // Mark as having underlying data
         Stats stats = dp.getStats();
         if (stats.getCount() > 0) {
-            // Track first and last data points for slope calculation
-            if (firstDataPoint == null || dp.getTimestamp() < firstDataPoint.getFrom()) {
+            // Track first and last data points for angle calculation
+            if (firstDataPoint == null || dp.getFrom() < firstDataPoint.getFrom()) { 
                 firstDataPoint = new ReferenceDataPoint(
-                    dp.getFrom(), dp.getTo(), dp.getStats().getFirstValue());
+                    dp.getFrom(), dp.getTo(), dp.getStats().getFirstValue(), dp.getStats().getMinValue(), dp.getStats().getMaxValue());  
             }
-            if (lastDataPoint == null || dp.getTimestamp() > lastDataPoint.getFrom()) {
+            if (lastDataPoint == null || dp.getFrom() > lastDataPoint.getFrom()) {
                 lastDataPoint = new ReferenceDataPoint(
-                    dp.getFrom(), dp.getTo(), dp.getStats().getLastValue());
+                    dp.getFrom(), dp.getTo(), dp.getStats().getLastValue(), dp.getStats().getMinValue(), dp.getStats().getMaxValue());  
             }
-            
             statsAggregator.accept(dp);
         }
     }
@@ -92,16 +99,16 @@ public class NonTimestampedSketch implements Sketch {
             return this;
         }
 
-        if (!(other instanceof NonTimestampedSketch)) {
+        if (!(other instanceof MinMaxSketch)) {
             throw new IllegalArgumentException("Cannot combine sketches of different types: " + other.getClass());
         }
         
-        NonTimestampedSketch otherSketch = (NonTimestampedSketch) other;
+        MinMaxSketch otherSketch = (MinMaxSketch) other;
         validateConsecutiveSketch(otherSketch);
         validateCompatibleAggregationTypes(otherSketch);
 
-        // Calculate slope between consecutive sketches before combining stats
-        computeSlopeBetweenConsecutiveSketches(this, otherSketch);
+        // Calculate angle between consecutive sketches before combining stats
+        computeAngleBetweenConsecutiveSketches(this, otherSketch);
         // Update time interval and duration
         this.to = otherSketch.getTo();
         
@@ -120,7 +127,6 @@ public class NonTimestampedSketch implements Sketch {
         
         // Combine stats
         this.statsAggregator.combine(otherSketch.getStatsAggregator());
-        
         return this;
     }
     
@@ -173,47 +179,48 @@ public class NonTimestampedSketch implements Sketch {
     }
 
     @Override
-    public double getSlope() {
-        return slope;
+    public double getAngle() {
+        return angle;
     }
     
     /**
-     * Gets the minimum possible slope based on error bounds calculation.
+     * Gets the minimum possible angle based on error bounds calculation.
      *
-     * @return The minimum possible slope value
+     * @return The minimum possible angle value
      */
-    public double getMinSlope() {
-        return minSlope;
+    public double getMinAngle() {
+        return minAngle;
     }
     
     /**
-     * Gets the maximum possible slope based on error bounds calculation.
+     * Gets the maximum possible angle based on error bounds calculation.
      *
-     * @return The maximum possible slope value
+     * @return The maximum possible angle value
      */
-    public double getMaxSlope() {
-        return maxSlope;
+    public double getMaxAngle() {
+        return maxAngle;
     }
     
     /**
-     * Gets the error margin in the slope calculation.
+     * Gets the error margin in the angle calculation.
      *
-     * @return The error margin (difference between max and min slopes)
+     * @return The error margin (difference between max and min angles)
      */
-    public double getSlopeErrorMargin() {
-        return slopeErrorMargin;
+    public double getAngleErrorMargin() {
+        return angleErrorMargin;
     }
 
     public Sketch clone() {
-        NonTimestampedSketch sketch = new NonTimestampedSketch(this.from, this.to, this.aggregationType);
+        MinMaxSketch sketch = new MinMaxSketch(this.from, this.to, this.aggregationType);
         sketch.statsAggregator = this.statsAggregator.clone();
         sketch.hasInitialized = this.hasInitialized;
-        sketch.slope = this.slope;
-        sketch.minSlope = this.minSlope;
-        sketch.maxSlope = this.maxSlope;
-        sketch.slopeErrorMargin = this.slopeErrorMargin;
+        sketch.angle = this.angle;
+        sketch.minAngle = this.minAngle;
+        sketch.maxAngle = this.maxAngle;
+        sketch.angleErrorMargin = this.angleErrorMargin;
         sketch.firstDataPoint = this.firstDataPoint;
         sketch.lastDataPoint = this.lastDataPoint;
+        sketch.originalAggregateInterval = this.originalAggregateInterval;
         return sketch;
     }
 
@@ -248,43 +255,55 @@ public class NonTimestampedSketch implements Sketch {
     }
     
     /**
-     * Calculates the slope between two consecutive sketches based on their first or last data points,
+     * Computes the slope of a composite sketch against the ValueFilter of a segment.
+     * Returns true if the slope is within the filter's range.
+     */
+    public boolean matches(ValueFilter filter) {
+        if (filter.isValueAny()) {
+            return true;
+        }
+        double low = filter.getMinDegree();
+        double high = filter.getMaxDegree();
+        boolean match = minAngle >= low && maxAngle <= high;
+        return match;
+    }
+
+    /**
+     * Calculates the angle between two consecutive sketches based on their first or last data points,
      * depending on aggregation type.
      * 
      * @param first The first sketch in sequence
      * @param second The second sketch in sequence (consecutive to first)
      */
-    private void computeSlopeBetweenConsecutiveSketches(NonTimestampedSketch first, NonTimestampedSketch second) {
+    private void computeAngleBetweenConsecutiveSketches(MinMaxSketch first, MinMaxSketch second) {
         ReferenceDataPoint firstPoint = first.getReferencePointFromSketch();
         ReferenceDataPoint secondPoint = second.getReferencePointFromSketch();
-        LOG.debug("Calculating slope between sketches from {} to {}", firstPoint, secondPoint);
+        LOG.debug("Calculating angle between sketches from {} to {}", firstPoint, secondPoint);
         if (firstPoint == null || secondPoint == null) {
-            LOG.debug("Insufficient data points to calculate slope between sketches");
-            this.slope = 0.0;
-            this.minSlope = 0.0;
-            this.maxSlope = 0.0;
-            this.slopeErrorMargin = 0.0;
+            LOG.debug("Insufficient data points to calculate angle between sketches");
+            this.angle = 0.0;
+            this.minAngle = 0.0;
+            this.maxAngle = 0.0;
+            this.angleErrorMargin = 0.0;
             return;
         }
-        // Calculate value change
-        double valueChange = secondPoint.getValue() - firstPoint.getValue();
         // Calculate time change
-        long timeChange = secondPoint.getFrom()  - firstPoint.getFrom();
+        long timeChange = (secondPoint.getFrom() - firstPoint.getFrom()) / originalAggregateInterval.toDuration().toMillis(); // Convert to milliseconds
 
         if (timeChange == 0) {
-            LOG.warn("Zero time difference between reference points, setting slope to 0");
-            this.slope = 0.0;
-            this.minSlope = 0.0;
-            this.maxSlope = 0.0;
-            this.slopeErrorMargin = 0.0;
+            LOG.warn("Zero time difference between reference points, setting angle to 0");
+            this.angle = 0.0;
+            this.minAngle = 0.0;
+            this.maxAngle = 0.0;
+            this.angleErrorMargin = 0.0;
             return;
         }
         
         // Calculate error bounds based on possible timestamp ranges
-        calculateSlopeErrorBounds(first, second, firstPoint, secondPoint, valueChange);
+        calculateAngleErrorBounds(first, second, firstPoint, secondPoint, timeChange);
         
-        LOG.debug("Calculated slope between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
-                first.getFromDate(), second.getFromDate(), this.slope, this.minSlope, this.maxSlope, this.slopeErrorMargin);
+        LOG.debug("Calculated angle between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
+                first, second, this.angle, this.minAngle, this.maxAngle, this.angleErrorMargin);
     }
     
     /**
@@ -325,116 +344,104 @@ public class NonTimestampedSketch implements Sketch {
     }
     
     /**
-     * Calculates error bounds for slope based on possible timestamp ranges of the data points
+     * Calculates error bounds for angle based on possible timestamp ranges of the data points
      * within each sketch.
      *
      * @param first First sketch in the sequence
      * @param second Second sketch in the sequence
      * @param firstPoint Reference point from first sketch
      * @param secondPoint Reference point from second sketch
-     * @param valueChange The value change between reference points
+     * @param timeChange The time change between reference points
      */
-    private void calculateSlopeErrorBounds(Sketch first, Sketch second, 
+    private void calculateAngleErrorBounds(Sketch first, Sketch second, 
                                            ReferenceDataPoint firstPoint, 
                                            ReferenceDataPoint secondPoint,
-                                           double valueChange) {
-        // For each reference point, determine its potential time range within its sketch
-        long firstPointEarliestPossibleTime, firstPointLatestPossibleTime;
-        long secondPointEarliestPossibleTime, secondPointLatestPossibleTime;
+                                           double timeChange) {
+                
+                                        
+        double valueChange = secondPoint.getValue() - firstPoint.getValue();                                    
+        // Calculate the maximum possible value change (for max angle)
+        // This is when the first point value is at its minimum and the second point is at its maximum
+        double maxValueChange = secondPoint.getMaxValue() - firstPoint.getMinValue();
         
-        // Calculate time range for the first point based on aggregation type
-        if (first.getAggregationType() == AggregationType.FIRST_VALUE) {
-            // For first value, it could be anywhere from the start of the sketch to its recorded timestamp
-            firstPointEarliestPossibleTime = first.getFrom();
-            firstPointLatestPossibleTime = firstPoint.getTo();
-        } else if (first.getAggregationType() == AggregationType.LAST_VALUE) {
-            // For last value, it could be anywhere from its recorded timestamp to the end of the sketch
-            firstPointEarliestPossibleTime = firstPoint.getFrom();
-            firstPointLatestPossibleTime = first.getTo();
-        } else {
-            // For min/max values, it could be anywhere within the sketch
-            firstPointEarliestPossibleTime = first.getFrom();
-            firstPointLatestPossibleTime = first.getTo();
-        }
+        // Calculate the minimum possible value change (for min angle)
+        // This is when the first point is at its maximum and the second point is at its minimum
+        double minValueChange = secondPoint.getMinValue() - firstPoint.getMaxValue();
         
-        // Calculate time range for the second point based on aggregation type
-        if (second.getAggregationType() == AggregationType.FIRST_VALUE) {
-            // For first value, it could be anywhere from the start of the sketch to its recorded timestamp
-            secondPointEarliestPossibleTime = second.getFrom();
-            secondPointLatestPossibleTime = secondPoint.getTo();
-        } else if (second.getAggregationType() == AggregationType.LAST_VALUE) {
-            // For last value, it could be anywhere from its recorded timestamp to the end of the sketch
-            secondPointEarliestPossibleTime = secondPoint.getFrom();
-            secondPointLatestPossibleTime = second.getTo();
-        } else {
-            // For min/max values, it could be anywhere within the sketch
-            secondPointEarliestPossibleTime = second.getFrom();
-            secondPointLatestPossibleTime = second.getTo();
-        }
 
-        // Calculate the maximum possible time change (for min slope)
-        // This is when the first point is at its earliest and the second point is at its latest
-        long maxTimeChange = secondPointLatestPossibleTime - firstPointEarliestPossibleTime;
+        // Calculate slopes for error bounds
+        double normalizedTimeChange = timeChange;
+        double minSlope = minValueChange / normalizedTimeChange;
+        double maxSlope = maxValueChange / normalizedTimeChange;
         
-        // Calculate the minimum possible time change (for max slope)
-        // This is when the first point is at its latest and the second point is at its earliest
-        long minTimeChange = secondPointEarliestPossibleTime - firstPointLatestPossibleTime;
+        // Calculate degree angles
+        double rawAngle = Math.atan(valueChange / normalizedTimeChange) * (180.0 / Math.PI);
+        this.minAngle = Math.atan(minSlope) * (180.0 / Math.PI);
+        this.maxAngle = Math.atan(maxSlope) * (180.0 / Math.PI);
+        this.angle = rawAngle;
         
-        // Ensure min time change is at least 1 to avoid division by zero
-        minTimeChange = Math.max(1, minTimeChange);
+        // Calculate error margin as a percentage of the angle
+        this.angleErrorMargin = this.angle != 0 ? 
+            (Math.abs(this.maxAngle - this.minAngle) / Math.abs(this.angle)) : 0.0;
         
-        // Calculate the normalized time changes for error bounds
-        double minNormalizedTimeChange = minTimeChange / (double)(second.getTo() - first.getFrom());
-        double maxNormalizedTimeChange = maxTimeChange / (double)(second.getTo() - first.getFrom());
-
-        // Calculate raw slopes for the bounds
-        double rawMinSlope = valueChange / maxNormalizedTimeChange;
-        double rawMaxSlope = valueChange / minNormalizedTimeChange;
-        
-        // Ensure proper ordering if value change is negative
-        if (valueChange < 0) {
-            double temp = rawMinSlope;
-            rawMinSlope = rawMaxSlope;
-            rawMaxSlope = temp;
-        }
-        
-        // Normalize to range [-0.5, 0.5]
-        this.minSlope = Math.atan(rawMinSlope) / Math.PI;
-        this.maxSlope = Math.atan(rawMaxSlope) / Math.PI;
-        this.slope = (this.minSlope + this.maxSlope) / 2.0;
-        this.slopeErrorMargin = Math.abs(this.maxSlope - this.minSlope);
+        LOG.debug("Minimum angle: {}, Maximum angle: {}, Angle: {}", 
+            this.minAngle, this.maxAngle, this.angle);
     }
 
     private class ReferenceDataPoint {  
         private final long from;
         private final long to;
+        private final double minValue;
+        private final double maxValue;
+
         private final double value;
 
-        public ReferenceDataPoint(long from, long to, double value) {
+        public ReferenceDataPoint(long from, long to, double value, double minValue, double maxValue) {
             this.from = from;
             this.to = to;
-            this.value = value;
+            this.value = value; //for test
+            this.minValue = minValue;
+            this.maxValue = maxValue;
         }
 
         public long getFrom() {
             return from;
         }
 
+        public double getValue() {
+            return value;
+        }
+
         public long getTo(){
             return to;
         }
 
-        public double getValue() {
-            return value;
+        public double getMinValue() {
+            return minValue;
+        }
+
+        public double getMaxValue() {
+            return maxValue;
         }
 
         @Override
         public String toString() {
             return "ReferenceDataPoint{" +
-                    "from=" + from +
-                    "to=" + to +
+                    ", from= " + from +
+                    ", to= " + to +
+                    ", minValue= " + minValue +
+                    ", maxValue= " + maxValue +
                     ", value=" + value +
                     '}';
         }
+    }
+
+    @Override
+    public String toString(){
+        return "NonTimestampedSketch{" +
+                "from=" + getFromDate() +
+                ", to=" + getToDate() +
+                ", referencePoint=" + getReferencePointFromSketch() +
+                '}';
     }
 }

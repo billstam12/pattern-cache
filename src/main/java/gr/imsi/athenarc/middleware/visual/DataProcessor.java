@@ -7,10 +7,13 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
-import gr.imsi.athenarc.middleware.cache.AggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.M4StarAggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.MinMaxAggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.PixelColumn;
 import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
+import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.*;
 
@@ -28,7 +31,7 @@ public class DataProcessor {
 
     private static final Logger LOG = LoggerFactory.getLogger(DataProcessor.class);
 
-    private static final Set<String> AGGREGATE_FUNCTIONS = Set.of( "min", "max", "first", "last");
+    private static final Set<String> aggregateFunctions = AggregationFunctionsConfig.getDefaultAggregateFunctions();
     
     public RangeSet<Long> getRawTimeSeriesSpanRanges(List<TimeSeriesSpan> timeSeriesSpans) {
         RangeSet<Long> rangeSet = TreeRangeSet.create();
@@ -75,14 +78,21 @@ public class DataProcessor {
                     DataPoint dataPoint = iterator.next();
                     addDataPointToPixelColumns(from, to, viewPort, pixelColumns, dataPoint);
                 }
-            } else if (span instanceof AggregateTimeSeriesSpan) {
+            } else if (span instanceof M4StarAggregateTimeSeriesSpan) {
                 // Add aggregated data points to pixel columns with errors
-                Iterator<AggregatedDataPoint> iterator = ((AggregateTimeSeriesSpan) span).iterator(from, to);
+                Iterator<AggregatedDataPoint> iterator = ((M4StarAggregateTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     AggregatedDataPoint aggregatedDataPoint = iterator.next();
                     addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
-                }
-            } else {
+                } 
+            } else if (span instanceof MinMaxAggregateTimeSeriesSpan) {
+                // Add aggregated data points to pixel columns with errors
+                Iterator<AggregatedDataPoint> iterator = ((MinMaxAggregateTimeSeriesSpan) span).iterator(from, to);
+                while (iterator.hasNext()) {
+                    AggregatedDataPoint aggregatedDataPoint = iterator.next();
+                    addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                } 
+             } else {
                 throw new IllegalArgumentException("Time Series Span Read Error");
             }
         }
@@ -185,10 +195,18 @@ public class DataProcessor {
                 DateTimeUtil.alignIntervalsToTimeUnitBoundary(aggregateMissingIntervals, aggIntervals);
             
             long start = System.currentTimeMillis();
+            
             AggregatedDataPoints aggDataPoints = 
-                dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, AGGREGATE_FUNCTIONS);
-            Map<Integer, List<TimeSeriesSpan>> aggTimeSeriesSpans = 
-                TimeSeriesSpanFactory.createAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
+                dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, aggregateFunctions);
+
+            Map<Integer, List<TimeSeriesSpan>> aggTimeSeriesSpans = null;
+            
+            if(aggregateFunctions.contains("first")){
+                aggTimeSeriesSpans = TimeSeriesSpanFactory.createM4StarAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
+            } else {
+                aggTimeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
+            }
+
             // Merge aggregate time series spans with the result
             for (Map.Entry<Integer, List<TimeSeriesSpan>> entry : aggTimeSeriesSpans.entrySet()) {
                 int measure = entry.getKey();

@@ -10,8 +10,13 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.AggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.M4StarAggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.MinMaxAggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.ErrorCalculator;
 import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.PixelColumn;
+import gr.imsi.athenarc.middleware.cache.Sketch;
+import gr.imsi.athenarc.middleware.cache.SlopeAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
@@ -23,6 +28,7 @@ import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
+import gr.imsi.athenarc.middleware.domain.ViewPort;
 import gr.imsi.athenarc.middleware.pattern.nfa.NFASketchSearch;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
@@ -40,10 +46,9 @@ public class PatternUtils {
      * @param to End timestamp (already aligned to time unit boundary)
      * @param timeUnit Aggregate interval for sketches
      * @param aggregationType Type of aggregation for the sketches
-     * @param hasTimestamps Whether the sketches should include timestamps
      * @return List of sketches spanning the time range
      */
-    public static List<Sketch> generateAlignedSketches(long from, long to, AggregateInterval timeUnit, AggregationType aggregationType, boolean hasTimestamps) {
+    public static List<Sketch> generateAlignedSketches(long from, long to, AggregateInterval timeUnit, AggregationType aggregationType, ViewPort viewPort) {
         List<Sketch> sketches = new ArrayList<>();
         
         // Calculate the number of complete intervals
@@ -54,15 +59,13 @@ public class PatternUtils {
         for (int i = 0; i < numIntervals; i++) {
             long sketchStart = from + (i * unitDurationMs);
             long sketchEnd = Math.min(sketchStart + unitDurationMs, to);
-            Sketch sketch = hasTimestamps ? 
-                new TimestampedSketch(sketchStart, sketchEnd, aggregationType) :
-                new NonTimestampedSketch(sketchStart, sketchEnd, aggregationType);
+            // Sketch sketch = new M4Sketch(sketchStart, sketchEnd, aggregationType);
+            Sketch sketch = new PixelColumn(sketchStart, sketchEnd, viewPort);
             sketches.add(sketch);
         }
         
         return sketches;
     }
-
 
     public static Sketch combineSketches(List<Sketch> sketchs){
         if(sketchs == null || sketchs.isEmpty()){
@@ -96,7 +99,7 @@ public class PatternUtils {
         // Create sketches for non-timestamped pattern matching (used with cache)
         List<Sketch> sketches = generateAlignedSketches(
                 params.alignedFrom, params.alignedTo, params.timeUnit, 
-                params.aggregationType, false);
+                params.aggregationType, params.viewPort);
         
         LOG.info("Created {} sketches for aligned time range with time unit {}", 
                 sketches.size(), params.timeUnit);
@@ -104,18 +107,26 @@ public class PatternUtils {
         // Check cache and populate sketches with existing data
         populateSketchesFromCache(
                 sketches, cache, params.measure, 
-                params.alignedFrom, params.alignedTo, params.timeUnit);
+                params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
         
         // Fetch missing data from datasource and update cache
         fetchMissingDataAndUpdateCache(
                 sketches, dataSource, cache, 
                 params.measure, params.alignedFrom, params.alignedTo, 
-                params.timeUnit, aggregateFunctions);
+                params.timeUnit, aggregateFunctions, params.viewPort);
+
+        if((sketches.get(0) instanceof PixelColumn)){
+            List<PixelColumn> pixelColumns = getPixelColumnsFromSketches(sketches);
+            ErrorCalculator errorCalculator = new ErrorCalculator();
+            double totalError = errorCalculator.calculateTotalError(pixelColumns, params.viewPort, params.timeUnit, params.accuracy);
+            LOG.info("Total error for pixel columns: {}", totalError);
+        }    
         
         // Perform pattern matching and return results
         List<List<List<Sketch>>> matches = performPatternMatching(sketches, patternNodes);
 
-        
+        // LOG.info("Matches: {}", matches);
+        System.exit(0);
         return new PatternQueryResults();
     }
 
@@ -137,19 +148,21 @@ public class PatternUtils {
         // Create timestamped sketches for direct data source pattern matching
         List<Sketch> sketches = generateAlignedSketches(
                 params.alignedFrom, params.alignedTo, params.timeUnit, 
-                params.aggregationType, true);
+                params.aggregationType, params.viewPort);
         
         LOG.info("Created {} sketches for aligned time range with time unit {}", 
                 sketches.size(), params.timeUnit);
 
         // Fetch all data directly from data source
-        fetchAllDataFromDataSource(
+        fetchSlopeDataFromDataSource(
                 sketches, dataSource, params.measure,
-                params.alignedFrom, params.alignedTo, params.timeUnit);
-
+                params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
+        
         // Perform pattern matching and return results
         List<List<List<Sketch>>> matches = performPatternMatching(sketches, patternNodes);
         
+        LOG.info("Matches: {}", matches);
+        System.exit(0);
         return new PatternQueryResults();
     }
     
@@ -161,18 +174,22 @@ public class PatternUtils {
         final long to;
         final long alignedFrom;
         final long alignedTo;
+        final double accuracy;
         final int measure;
         final AggregateInterval timeUnit;
         final AggregationType aggregationType;
+        final ViewPort viewPort;
         
-        QueryParams(long from, long to, long alignedFrom, long alignedTo, 
-                   int measure, AggregateInterval timeUnit, AggregationType aggregationType) {
+        QueryParams(long from, long to, long alignedFrom, long alignedTo, double accuracy,
+                   int measure, AggregateInterval timeUnit, ViewPort viewPort, AggregationType aggregationType) {
             this.from = from;
             this.to = to;
             this.alignedFrom = alignedFrom;
             this.alignedTo = alignedTo;
+            this.accuracy = accuracy;
             this.measure = measure;
             this.timeUnit = timeUnit;
+            this.viewPort = viewPort;
             this.aggregationType = aggregationType;
         }
     }
@@ -191,11 +208,12 @@ public class PatternUtils {
         // Align start and end times to the time unit boundaries for proper alignment
         long alignedFrom = DateTimeUtil.alignToTimeUnitBoundary(from, timeUnit, true);  // floor
         long alignedTo = DateTimeUtil.alignToTimeUnitBoundary(to, timeUnit, false);     // ceiling
-        
+        double accuracy =  query.getAccuracy();
+        ViewPort viewPort = query.getViewPort();
         LOG.info("Original time range: {} to {}", from, to);
         LOG.info("Aligned time range: {} to {} with time unit {}", alignedFrom, alignedTo, timeUnit);
         
-        return new QueryParams(from, to, alignedFrom, alignedTo, measure, timeUnit, aggregationType);
+        return new QueryParams(from, to, alignedFrom, alignedTo, accuracy, measure, timeUnit, viewPort, aggregationType);
     }
     
     /**
@@ -203,25 +221,24 @@ public class PatternUtils {
      */
     private static void populateSketchesFromCache(List<Sketch> sketches, TimeSeriesCache cache, 
                                               int measure, long alignedFrom, long alignedTo, 
-                                              AggregateInterval timeUnit) {
+                                              AggregateInterval timeUnit, ViewPort viewPort) {
         if (cache == null) {
             return;
         }
         
         TimeRange alignedTimeRange = new TimeRange(alignedFrom, alignedTo);
-        List<TimeSeriesSpan> existingSpans = cache.getCompatibleSpans(measure, alignedTimeRange, timeUnit);
-        
+        List<TimeSeriesSpan> existingSpans = cache.getOverlappingSpansForVisualization(measure, alignedTimeRange, timeUnit);
         if (!existingSpans.isEmpty()) {
             LOG.info("Found {} existing compatible spans in cache for measure {}", existingSpans.size(), measure);
             
             // Fill sketches with data from cache
             for (TimeSeriesSpan span : existingSpans) {
-                if(span instanceof AggregateTimeSeriesSpan) {
-                    AggregateTimeSeriesSpan aggregateSpan = (AggregateTimeSeriesSpan) span;
+                if(span instanceof M4StarAggregateTimeSeriesSpan) {
+                    M4StarAggregateTimeSeriesSpan aggregateSpan = (M4StarAggregateTimeSeriesSpan) span;
                     Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
                     while (dataPoints.hasNext()) {
                         AggregatedDataPoint point = dataPoints.next();
-                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point);
+                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point, viewPort);
                     }
                 } else {
                     throw new IllegalArgumentException("Unsupported span type for cached patterns: " + span.getClass());
@@ -237,7 +254,8 @@ public class PatternUtils {
                                                    TimeSeriesCache cache, int measure, 
                                                    long alignedFrom, long alignedTo, 
                                                    AggregateInterval timeUnit, 
-                                                   Set<String> aggregateFunctions) {
+                                                   Set<String> aggregateFunctions,
+                                                   ViewPort viewPort) {
         // Identify unfilled sketches/intervals
         List<TimeInterval> missingIntervals = identifyMissingIntervals(sketches, alignedFrom, alignedTo, timeUnit);
         
@@ -260,8 +278,13 @@ public class PatternUtils {
                 alignedFrom, alignedTo, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
                         
             // Create spans and add to cache
-            Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
-                TimeSeriesSpanFactory.createAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+            Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = null;
+
+            if(aggregateFunctions.contains("first")){
+                timeSeriesSpans = TimeSeriesSpanFactory.createM4StarAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+            } else {
+                timeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+            }
 
             for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
                 if (cache != null) {
@@ -269,13 +292,21 @@ public class PatternUtils {
                 }
                 // Fill the sketches with the new data
                 for (TimeSeriesSpan span : spans) {
-                    if(span instanceof AggregateTimeSeriesSpan) {
-                        AggregateTimeSeriesSpan aggregateSpan = (AggregateTimeSeriesSpan) span;
-                        Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
-                        while (dataPoints.hasNext()) {
-                            AggregatedDataPoint point = dataPoints.next();
-                            addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point);
-                        }
+                    Iterator<AggregatedDataPoint> dataPoints = null;
+                    if(span instanceof M4StarAggregateTimeSeriesSpan) {
+                        M4StarAggregateTimeSeriesSpan aggregateSpan = (M4StarAggregateTimeSeriesSpan) span;
+                        dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
+                        
+                    } 
+                    else if (span instanceof MinMaxAggregateTimeSeriesSpan) {
+                        MinMaxAggregateTimeSeriesSpan aggregateSpan = (MinMaxAggregateTimeSeriesSpan) span;
+                        dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
+                    } else {
+                        throw new IllegalArgumentException("Unsupported span type for non timestamped patterns: " + span.getClass());
+                    }
+                    while (dataPoints.hasNext()) {
+                        AggregatedDataPoint point = dataPoints.next();
+                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point, viewPort);
                     }
                 }
             }
@@ -290,7 +321,7 @@ public class PatternUtils {
      */
     private static void fetchAllDataFromDataSource(List<Sketch> sketches, DataSource dataSource, 
                                                int measure, long alignedFrom, long alignedTo, 
-                                               AggregateInterval timeUnit) {
+                                               AggregateInterval timeUnit, ViewPort viewPort) {
         // Create a time range for the pattern query (entire range)
         TimeRange patternTimeRange = new TimeRange(alignedFrom, alignedTo);
         
@@ -309,7 +340,7 @@ public class PatternUtils {
                         
         // Create spans and add to sketches
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
-            TimeSeriesSpanFactory.createAggregateM4(newDataPoints, intervalsPerMeasure, aggregateIntervalsPerMeasure);
+            TimeSeriesSpanFactory.createM4Aggregate(newDataPoints, intervalsPerMeasure, aggregateIntervalsPerMeasure);
         
         // Fill the sketches with the data
         for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
@@ -319,8 +350,50 @@ public class PatternUtils {
                     Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
                     while (dataPoints.hasNext()) {
                         AggregatedDataPoint point = dataPoints.next();
-                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point);
+                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point, viewPort);
                     }
+                } else {
+                   throw new IllegalArgumentException("Unsupported span type for M4 patterns: " + span.getClass());     
+                }
+            }
+        }
+    }
+
+    private static void fetchSlopeDataFromDataSource(List<Sketch> sketches, DataSource dataSource, 
+                                               int measure, long alignedFrom, long alignedTo, 
+                                               AggregateInterval timeUnit, ViewPort viewPort) {
+        // Create a time range for the pattern query (entire range)
+        TimeRange patternTimeRange = new TimeRange(alignedFrom, alignedTo);
+        
+        // Setup measure and intervals
+        Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
+        List<TimeInterval> intervals = new ArrayList<>();  
+        intervals.add(patternTimeRange);
+        intervalsPerMeasure.put(measure, intervals);
+        
+        Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
+        aggregateIntervalsPerMeasure.put(measure, timeUnit);
+        
+        // Fetch all data directly from the data source
+        AggregatedDataPoints newDataPoints = dataSource.getSlopeAggregates(
+                alignedFrom, alignedTo, intervalsPerMeasure, aggregateIntervalsPerMeasure);
+                        
+        // Create spans and add to sketches
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
+            TimeSeriesSpanFactory.createSlopeAggregate(newDataPoints, intervalsPerMeasure, aggregateIntervalsPerMeasure);
+        
+        // Fill the sketches with the data
+        for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
+            for (TimeSeriesSpan span : spans) {
+                if(span instanceof SlopeAggregateTimeSeriesSpan) {
+                    SlopeAggregateTimeSeriesSpan aggregateSpan = (SlopeAggregateTimeSeriesSpan) span;
+                    Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
+                    while (dataPoints.hasNext()) {
+                        AggregatedDataPoint point = dataPoints.next();
+                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point, viewPort);
+                    }
+                } else {
+                   throw new IllegalArgumentException("Unsupported span type for M4 patterns: " + span.getClass());     
                 }
             }
         }
@@ -340,7 +413,6 @@ public class PatternUtils {
 
         LOG.info("Pattern matching completed in {} ms, found {} matches", 
                 (endTime - startTime), matches.size());
-        
         return matches;
     }
     
@@ -361,6 +433,18 @@ public class PatternUtils {
         }
     }
 
+    private static List<PixelColumn> getPixelColumnsFromSketches(List<Sketch> sketches){
+        List<PixelColumn> pixelColumns = new ArrayList<>();
+        for (Sketch sketch : sketches) {
+            if (sketch instanceof PixelColumn) {
+                PixelColumn pixelColumn = (PixelColumn) sketch;
+                pixelColumns.add(pixelColumn);
+            } else {
+                throw new IllegalArgumentException("Sketch type not supported for pattern query: " + sketch.getClass());
+            }
+        }
+        return pixelColumns;
+    }
     /**
      * Adds an aggregated data point to the appropriate sketch using direct index calculation.
      * If the aggregated data point has count=0, it means there's no data for that interval
@@ -373,11 +457,15 @@ public class PatternUtils {
      * @param aggregatedDataPoint The data point to add to the appropriate sketch
      */
     public static void addAggregatedDataPointToSketches(long from, long to, AggregateInterval timeUnit, 
-                                                List<Sketch> sketches, AggregatedDataPoint aggregatedDataPoint) {
+                                                List<Sketch> sketches, AggregatedDataPoint aggregatedDataPoint, ViewPort viewPort) {
+
+        if((sketches.get(0) instanceof PixelColumn)){
+            addAggregatedDataPointToPixelColumns(from, to, viewPort, getPixelColumnsFromSketches(sketches), aggregatedDataPoint);     
+        }                                        
+
         long timestamp = aggregatedDataPoint.getTimestamp();
         // Calculate the sketch index based on the timeUnit
         int index = DateTimeUtil.indexInInterval(from, to, timeUnit, timestamp);
-        
         // Handle the edge case where timestamp is exactly at the end of the range
         if (timestamp == to) {
             // Add to the last sketch
@@ -392,6 +480,27 @@ public class PatternUtils {
                     index, timestamp, sketches.size());
         }
     }
+
+    private static int getPixelColumnForTimestamp(long timestamp, long from, long to, int width) {
+        long aggregateInterval = (to - from) / width;
+        return (int) ((timestamp - from) / aggregateInterval);
+    }
+
+    private static void addAggregatedDataPointToPixelColumns(long from, long to, ViewPort viewPort, List<PixelColumn> pixelColumns, AggregatedDataPoint aggregatedDataPoint) {
+        int pixelColumnIndex = getPixelColumnForTimestamp(aggregatedDataPoint.getFrom(), from, to, viewPort.getWidth());
+        if (pixelColumnIndex < viewPort.getWidth() 
+        && !pixelColumns.get(pixelColumnIndex).hasNoError()) {
+            pixelColumns.get(pixelColumnIndex).addAggregatedDataPoint(aggregatedDataPoint);
+        }
+        // Since we only consider spans with intervals smaller than the pixel column interval, we know that the data point will not overlap more than two pixel columns.
+        if (pixelColumnIndex <  viewPort.getWidth() - 1 && pixelColumns.get(pixelColumnIndex + 1).overlaps(aggregatedDataPoint) 
+            && !pixelColumns.get(pixelColumnIndex + 1).hasNoError()) {
+            // If the next pixel column overlaps the data point, then we need to add the data point to the next pixel column as well.
+            pixelColumns.get(pixelColumnIndex + 1).addAggregatedDataPoint(aggregatedDataPoint);
+        }
+    }
+
+
     
     /**
      * Identifies missing intervals in the sketches that need to be fetched from the data source.

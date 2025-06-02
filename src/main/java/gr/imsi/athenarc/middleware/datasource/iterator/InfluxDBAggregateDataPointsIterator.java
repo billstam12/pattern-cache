@@ -6,7 +6,7 @@ import com.influxdb.query.FluxTable;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ImmutableAggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.NonTimestampedStats;
+import gr.imsi.athenarc.middleware.domain.AggregateStats;
 
 import java.util.List;
 import java.util.Map;
@@ -25,7 +25,7 @@ public class InfluxDBAggregateDataPointsIterator extends InfluxDBIterator<Aggreg
 
     @Override
     protected AggregatedDataPoint getNext() {
-        NonTimestampedStats statsAggregator = new NonTimestampedStats();
+        AggregateStats statsAggregator = new AggregateStats();
         String measureName = "";
 
         for (int i = 0; i < noOfAggregates && current < currentSize; i++) {
@@ -71,7 +71,7 @@ public class InfluxDBAggregateDataPointsIterator extends InfluxDBIterator<Aggreg
             statsAggregator
         );
 
-        logAggregatedPoint(point, statsAggregator);
+        // logAggregatedPoint(point, statsAggregator);
         startGroupTimestamp = endGroupTimestamp;
         
         return point;
@@ -85,7 +85,7 @@ public class InfluxDBAggregateDataPointsIterator extends InfluxDBIterator<Aggreg
         }
     }
 
-    private void logAggregatedPoint(AggregatedDataPoint point, NonTimestampedStats stats) {
+    private void logAggregatedPoint(AggregatedDataPoint point, AggregateStats stats) {
         LOG.debug("Created aggregate Datapoint {} - {} first: {}, last {}, min: {}, max: {}, for measure: {}",
             DateTimeUtil.format(point.getFrom()),
             DateTimeUtil.format(point.getTo()),

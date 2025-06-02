@@ -49,6 +49,15 @@ public class InfluxDBDatasource implements DataSource {
         return new InfluxDBDataPoints(influxDBQueryExecutor, dataset, from, to, missingIntervalsPerMeasure);
     }
 
+   
+
+    @Override
+    public AggregatedDataPoints getSlopeAggregates(long from, long to,
+            Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
+            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
+        return new InfluxDBSlopeAggregatedDataPoints(influxDBQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+    }
+
     public void closeConnection(){
         influxDBQueryExecutor.closeConnection();
     }

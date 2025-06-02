@@ -236,6 +236,8 @@ public class StatsAggregator implements Consumer<DataPoint>, Stats, Serializable
         }
         return "Stats{count=" + count + 
                ", min=" + minValue + 
-               ", max=" + maxValue + "}";
+               ", max=" + maxValue + 
+               ", first=" + firstValue +
+               ", last=" + lastValue + "}";
     }
 }

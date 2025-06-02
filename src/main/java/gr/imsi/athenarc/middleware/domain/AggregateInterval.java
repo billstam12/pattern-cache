@@ -74,4 +74,11 @@ public class AggregateInterval implements Comparable<AggregateInterval> {
         return this.toDuration().toMillis() < other.toDuration().toMillis();
     }
 
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AggregateInterval)) return false;
+        AggregateInterval that = (AggregateInterval) o;
+        return multiplier == that.multiplier && chronoUnit == that.chronoUnit;
+    }
+
 }

@@ -49,41 +49,30 @@ public class PredefinedPattern {
             return; // Already initialized
         }
         
-        // Pattern 1: Simple increasing trend
-        List<PatternNode> pattern1 = new ArrayList<>();
-        pattern1.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, 3, 5),
-                ValueFilter.increasing()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        registerPattern(new PredefinedPattern(1, "Increasing Trend", "A simple increasing trend pattern", pattern1));
-        
-        // Pattern 2: Decreasing followed by increasing (V-shape)
+        // Pattern 1: Decreasing followed by increasing (V-shape)
         List<PatternNode> pattern2 = new ArrayList<>();
         pattern2.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, 2, 4),
-                ValueFilter.decreasing()
+                ValueFilter.moderateDecrease()
             ),
             RepetitionFactor.exactly(1)
         ));
         pattern2.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, 2, 4),
-                ValueFilter.increasing()
+                ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)
         ));
-        registerPattern(new PredefinedPattern(2, "V-Shape", "A V-shaped pattern of decreasing followed by increasing", pattern2));
+        registerPattern(new PredefinedPattern(1, "V-Shape", "A V-shaped pattern of decreasing followed by increasing", pattern2));
         
-        // Pattern 3: Stable plateau 
+        // Pattern 2: Stable plateau /-\
         List<PatternNode> pattern3 = new ArrayList<>();
         pattern3.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, 1, 2),
-                ValueFilter.increasing()
+                ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)
         ));
@@ -97,31 +86,31 @@ public class PredefinedPattern {
         pattern3.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, 1, 2),
-                ValueFilter.decreasing()
+                ValueFilter.moderateDecrease()
             ),
             RepetitionFactor.exactly(1)
         ));
-        registerPattern(new PredefinedPattern(3, "Plateau", "A stable plateau with increasing and decreasing edges", pattern3));
+        registerPattern(new PredefinedPattern(2, "Plateau", "A stable plateau with increasing and decreasing edges", pattern3));
         
-        // Pattern 4: Oscillating pattern
+        // Pattern 3: Oscillating pattern
         List<PatternNode> upDown = new ArrayList<>();
         upDown.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, 1, 2),
-                ValueFilter.increasing()
+                ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)
         ));
         upDown.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, 1, 2),
-                ValueFilter.decreasing()
+                ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)
         ));
         List<PatternNode> pattern4 = new ArrayList<>();
         pattern4.add(new GroupNode(upDown, RepetitionFactor.range(2, 4)));
-        registerPattern(new PredefinedPattern(4, "Oscillating", "An oscillating pattern of repeated up-down movements", pattern4));
+        registerPattern(new PredefinedPattern(3, "Oscillating", "An oscillating pattern of repeated up-down movements", pattern4));
     }
     
     private static void registerPattern(PredefinedPattern pattern) {

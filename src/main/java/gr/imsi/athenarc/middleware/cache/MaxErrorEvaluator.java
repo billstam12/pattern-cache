@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.middleware.visual;
+package gr.imsi.athenarc.middleware.cache;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +52,7 @@ public class MaxErrorEvaluator {
             PixelColumn currentPixelColumn = pixelColumns.get(i);
             RangeSet<Integer> pixelColumnFalsePixels = TreeRangeSet.create();
             RangeSet<Integer> pixelColumnMissingPixels = TreeRangeSet.create();
-            
+
             // There are no data points or we have raw data points
             // Initialized means a time series span (created from the database) tried to add points to this column
             // If after that operation the column's count is still 0, it means that there are no data points in the range of the column

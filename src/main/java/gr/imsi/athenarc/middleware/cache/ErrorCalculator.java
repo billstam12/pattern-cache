@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.middleware.visual;
+package gr.imsi.athenarc.middleware.cache;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +17,7 @@ public class ErrorCalculator {
     private AggregateInterval pixelColumnInterval;
     private double error;
 
-    protected double calculateTotalError(List<PixelColumn> pixelColumns, ViewPort viewPort, AggregateInterval pixelColumnInterval, double accuracy) {
+    public double calculateTotalError(List<PixelColumn> pixelColumns, ViewPort viewPort, AggregateInterval pixelColumnInterval, double accuracy) {
         // Calculate errors using processed data
         maxErrorEvaluator = new MaxErrorEvaluator(viewPort, pixelColumns);
         this.pixelColumnInterval = pixelColumnInterval;
@@ -37,22 +37,22 @@ public class ErrorCalculator {
         return error;
     }
 
-    protected List<TimeInterval> getMissingIntervals() {
+    public List<TimeInterval> getMissingIntervals() {
         List<TimeInterval> missingIntervals = maxErrorEvaluator.getMissingRanges();
         missingIntervals = DateTimeUtil.groupIntervals(pixelColumnInterval, missingIntervals);
         LOG.info("Unable to Determine Errors: " + missingIntervals);
         return missingIntervals;
     }
 
-    protected List<RangeSet<Integer>> getMissingPixels() {
+    public List<RangeSet<Integer>> getMissingPixels() {
         return maxErrorEvaluator.getMissingPixels();
     }
 
-    protected List<RangeSet<Integer>> getFalsePixels() {
+    public List<RangeSet<Integer>> getFalsePixels() {
         return maxErrorEvaluator.getFalsePixels();
     }
 
-    protected boolean hasError(){
+    public boolean hasError(){
         return hasError;
     }
     

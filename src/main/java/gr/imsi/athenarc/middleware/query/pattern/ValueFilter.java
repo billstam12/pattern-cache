@@ -2,15 +2,15 @@ package gr.imsi.athenarc.middleware.query.pattern;
 
 /**
  * Represents filtering criteria for values in a pattern.
- * Primarily focused on slope filtering with bounds from -1 to 1.
+ * Primarily focused on angle filtering with bounds from -90 to 90 degrees.
  */
 public class ValueFilter {
     // Whether to consider any value
     private final boolean valueAny;
     
-    // Slope filters range from -1 (strong decrease) to 1 (strong increase)
-    private final float minSlope; // Minimum slope value (inclusive)
-    private final float maxSlope; // Maximum slope value (inclusive)
+    // Degree filters range from -90 (strong decrease) to 90 degrees (strong increase)
+    private final float minDegree; // Minimum degree value (inclusive)
+    private final float maxDegree; // Maximum degree value (inclusive)
     
     /**
      * Creates a value filter that accepts any value.
@@ -20,55 +20,69 @@ public class ValueFilter {
     }
     
     /**
-     * Creates a value filter for increasing trends (positive slopes)
+     * Creates a value filter for increasing trends (positive degrees)
      */
     public static ValueFilter increasing() {
-        return new ValueFilter(false, 0.2f, 1.0f);
+        return new ValueFilter(false, 20f, 90f);
+    }
+
+    /**
+     * Creates a value filter for moderate increasing trends
+     */
+    public static ValueFilter moderateIncrease(){
+        return new ValueFilter(false, 20f, 45f);
     }
     
     /**
-     * Creates a value filter for decreasing trends (negative slopes)
+     * Creates a value filter for decreasing trends (negative degrees)
      */
     public static ValueFilter decreasing() {
-        return new ValueFilter(false, -1.0f, -0.2f);
+        return new ValueFilter(false, -90f, -0.20f);
+    }
+
+     /**
+     * Creates a value filter for moderate decreasing trends
+     */
+    public static ValueFilter moderateDecrease(){
+        return new ValueFilter(false, -45f, -20f);
     }
     
     /**
-     * Creates a value filter for stable trends (slopes near zero)
+     * Creates a value filter for stable trends (degrees near zero)
      */
     public static ValueFilter stable() {
-        return new ValueFilter(false, -0.2f, 0.2f);
+        return new ValueFilter(false, -20f, 20f);
     }
     
     /**
-     * Creates a custom value filter with specific slope bounds
+     * Creates a custom value filter with specific degree bounds
      * 
-     * @param minSlope Minimum slope value (between -1 and 1)
-     * @param maxSlope Maximum slope value (between -1 and 1)
+     * @param minDegree Minimum degree value (between -1 and 1)
+     * @param maxDegree Maximum degree value (between -1 and 1)
      */
-    public static ValueFilter custom(float minSlope, float maxSlope) {
-        if (minSlope < -1 || minSlope > 1 || maxSlope < -1 || maxSlope > 1 || minSlope > maxSlope) {
-            throw new IllegalArgumentException("Slope values must be between -1 and 1, and min must be <= max");
+    public static ValueFilter custom(float minDegree, float maxDegree) {
+        if (minDegree < -1 || minDegree > 1 || maxDegree < -1 || maxDegree > 1 || minDegree > maxDegree) {
+            throw new IllegalArgumentException("Degree values must be between -1 and 1, and min must be <= max");
         }
-        return new ValueFilter(false, minSlope, maxSlope);
+        return new ValueFilter(false, minDegree, maxDegree);
     }
     
-    private ValueFilter(boolean valueAny, float minSlope, float maxSlope) {
+    private ValueFilter(boolean valueAny, float minDegree, float maxDegree) {
         this.valueAny = valueAny;
-        this.minSlope = minSlope;
-        this.maxSlope = maxSlope;
+        this.minDegree = minDegree;
+        this.maxDegree = maxDegree;
     }
     
     public boolean isValueAny() {
         return valueAny;
     }
     
-    public float getMinSlope() {
-        return minSlope;
+    public float getMinDegree() {
+        return minDegree;
     }
     
-    public float getMaxSlope() {
-        return maxSlope;
+    public float getMaxDegree() {
+        return maxDegree;
     }
     
     @Override
@@ -76,7 +90,7 @@ public class ValueFilter {
         if (valueAny) {
             return "ValueFilter: ANY";
         } else {
-            return String.format("ValueFilter: Slope[%.2f, %.2f]", minSlope, maxSlope);
+            return String.format("ValueFilter: Degree[%.2f, %.2f]", minDegree, maxDegree);
         }
     }
 }

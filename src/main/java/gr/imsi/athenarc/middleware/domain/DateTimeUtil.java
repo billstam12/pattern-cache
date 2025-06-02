@@ -26,20 +26,27 @@ public class DateTimeUtil {
     // Initialize the calendar intervals
     private static List<AggregateInterval> initializeCalendarIntervals() {
         List<AggregateInterval> intervals = new ArrayList<>();
+
         // Milliseconds
         for (int i = 1; i <= 500; i ++){
             if (1000 % i == 0) {
                 intervals.add(AggregateInterval.of(i, ChronoUnit.MILLIS));
             }
         }
-        // Seconds, Minutes
+        // Seconds
         for (int i = 1; i <= 30; i ++){
             if (60 % i == 0) {
                 intervals.add(AggregateInterval.of(i, ChronoUnit.SECONDS));
-                intervals.add(AggregateInterval.of(i, ChronoUnit.MINUTES));
             }
         }
         
+        // Minutes
+        for (int i = 1; i <= 30; i ++){
+            if (60 % i == 0) {
+                intervals.add(AggregateInterval.of(i, ChronoUnit.MINUTES));
+            }
+        }
+
         // Hours
         for (int i = 1; i <= 12; i ++){
             if (24 % i == 0) {
@@ -333,8 +340,9 @@ public class DateTimeUtil {
                         .toInstant().toEpochMilli();
             }
         } else {
-            // For multiples (e.g., 15 minutes), need special handling
             switch (chronoUnit) {
+                case SECONDS:
+                    return alignToMultipleOf(timestamp, 1000, multiplier, floor);
                 case MINUTES:
                     return alignToMultipleOf(timestamp, 60 * 1000, multiplier, floor);
                 case HOURS:

@@ -7,8 +7,8 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
+import gr.imsi.athenarc.middleware.domain.SlopeStats;
 import gr.imsi.athenarc.middleware.domain.Stats;
-import gr.imsi.athenarc.middleware.domain.StatsAggregator;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
 
@@ -18,12 +18,10 @@ import java.util.stream.IntStream;
 /**
  * A {@link DataPoints} implementation that aggregates a series of consecutive
  * raw data points based on the specified aggregation interval.
- * For each aggregation interval included we store 9 doubles,
- * i.e. the first, last, min and max aggregate values, 4 longs corresponding to their timestamp
- *  as well as the corresponding
- * non-missing value counts.
+ * For each aggregation interval included we store 5 doubles,
+ * i.e. the sum_x, sum_y, sum_xy, sum_x2 and the count.
  */
-public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
+public class SlopeAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
     private static final Logger LOG = LoggerFactory.getLogger(TimeSeriesSpan.class);
 
@@ -53,7 +51,7 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
      */
     private AggregateInterval aggregateInterval;
 
-    private static int AGG_SIZE = 9;
+    private static int AGG_SIZE = 5;
 
     private void initialize(long from, long to, AggregateInterval aggregateInterval, int measure) {
         this.size = DateTimeUtil.numberOfIntervals(from, to, aggregateInterval);
@@ -65,16 +63,20 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
         LOG.debug("Initializing time series span ({},{}) measure = {} with size {}, aggregate interval {}", getFromDate(), getToDate(), measure, size, aggregateInterval);
     }
 
-    protected M4AggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
+    protected SlopeAggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
         initialize(from, to, aggregateInterval, measure);
     }
 
     protected void addAggregatedDataPoint(AggregatedDataPoint aggregatedDataPoint) {
         int i = DateTimeUtil.indexInInterval(getFrom(), getTo(), aggregateInterval, aggregatedDataPoint.getTimestamp());
         Stats stats = aggregatedDataPoint.getStats();
-        if(!(stats instanceof StatsAggregator)){
-            throw new IllegalArgumentException("Stats must be an instance of StatsAggregator");
+
+        if(!(stats instanceof SlopeStats)) {
+            LOG.error("Expected SlopeStats but got {}", stats.getClass().getSimpleName());
+            return;
         }
+
+        SlopeStats slopeStats = (SlopeStats) stats;
 
         if (stats.getCount() == 0) {
             return;
@@ -93,27 +95,17 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
             return;
         }
         
-        long minTimestamp = stats.getMinTimestamp();
-        long maxTimestamp = stats.getMaxTimestamp();
-        long firstTimestamp = stats.getFirstTimestamp();
-        long lastTimestamp = stats.getLastTimestamp();
-
-        double minValue = stats.getMinValue();
-        double maxValue = stats.getMaxValue();
-        double firstValue = stats.getFirstValue();
-        double lastValue = stats.getLastValue();
+        double sum_x = slopeStats.getSumX();
+        double sum_y = slopeStats.getSumY();
+        double sum_xy = slopeStats.getSumXY();
+        double sum_x2 = slopeStats.getSumX2();
         
-        aggregates[i * AGG_SIZE] = Double.doubleToRawLongBits(minValue);
-        aggregates[i * AGG_SIZE + 1] = minTimestamp;
-        aggregates[i * AGG_SIZE + 2] = Double.doubleToRawLongBits(maxValue);
-        aggregates[i * AGG_SIZE + 3] = maxTimestamp;
-        // first and last values for the interval
-        aggregates[i * AGG_SIZE + 4] = Double.doubleToRawLongBits(firstValue);
-        aggregates[i * AGG_SIZE + 5] = Double.doubleToRawLongBits(lastValue);
-        aggregates[i * AGG_SIZE + 6] = firstTimestamp;
-        aggregates[i * AGG_SIZE + 7] = lastTimestamp;
-
-        aggregates[i * AGG_SIZE + 8] = aggregateCount;
+        // Store the slope statistics in the aggregates array
+        aggregates[i * AGG_SIZE] = Double.doubleToRawLongBits(sum_x);
+        aggregates[i * AGG_SIZE + 1] = Double.doubleToRawLongBits(sum_y);
+        aggregates[i * AGG_SIZE + 2] = Double.doubleToRawLongBits(sum_xy);
+        aggregates[i * AGG_SIZE + 3] = Double.doubleToRawLongBits(sum_x2);
+        aggregates[i * AGG_SIZE + 4] = aggregateCount;
     }
 
     /**
@@ -240,7 +232,7 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
      * @param targetInterval The target aggregation interval to roll up to
      * @return A new span with rolled-up data, or null if the operation isn't possible
      */
-    public M4StarAggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
+    public SlopeAggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
         // Check if the target interval is coarser than the current one
         if (targetInterval.toDuration().toMillis() <= aggregateInterval.toDuration().toMillis()) {
             LOG.warn("Cannot roll up to a finer or equal granularity interval");
@@ -260,7 +252,7 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
         int factor = (int) (targetMs / currentMs);
         
         // Create new span
-        M4StarAggregateTimeSeriesSpan rolledUpSpan = new M4StarAggregateTimeSeriesSpan(from, to, measure, targetInterval);
+        SlopeAggregateTimeSeriesSpan rolledUpSpan = new SlopeAggregateTimeSeriesSpan(from, to, measure, targetInterval);
         
         // Process groups of indices to aggregate them together
         int newSize = (size + factor - 1) / factor; // ceil(size/factor)
@@ -277,85 +269,52 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
                 break; // Shouldn't happen, but just to be safe
             }
             
-            // Initialize with values from first interval in the group
-            final double groupMinValue = Double.longBitsToDouble(aggregates[startIdx * AGG_SIZE]);
-            final long groupMinTimestamp = aggregates[startIdx * AGG_SIZE + 1];
-            final double groupMaxValue = Double.longBitsToDouble(aggregates[startIdx * AGG_SIZE + 2]);
-            final long groupMaxTimestamp = aggregates[startIdx * AGG_SIZE + 3];
-            final double groupFirstValue = Double.longBitsToDouble(aggregates[startIdx * AGG_SIZE + 4]);
+            // Sum up slope statistics across all intervals in the group
+            double total_sum_x = 0.0;
+            double total_sum_y = 0.0;
+            double total_sum_xy = 0.0;
+            double total_sum_x2 = 0.0;
+            int totalCount = 0;
             
-            // Get first timestamp from the first interval in the group
-            final long groupFirstTimestamp = aggregates[startIdx * AGG_SIZE + 6];
-            
-            // For last value and timestamp, use the last interval in the group
-            final int lastIntervalIdx = endIdx - 1;
-            final double groupLastValue = Double.longBitsToDouble(aggregates[lastIntervalIdx * AGG_SIZE + 5]);
-            final long groupLastTimestamp = aggregates[lastIntervalIdx * AGG_SIZE + 7];
-            
-            // Calculate total count for this group
-            int groupTotalCount = 0;
             for (int i = startIdx; i < endIdx; i++) {
-                groupTotalCount += (int) aggregates[i * AGG_SIZE + 8];
-            }
-            final int totalCount = groupTotalCount;
-            
-            // Find min/max values across all intervals in the group
-            double minValue = groupMinValue;
-            long minTimestamp = groupMinTimestamp;
-            double maxValue = groupMaxValue;
-            long maxTimestamp = groupMaxTimestamp;
-            
-            for (int i = startIdx + 1; i < endIdx; i++) {
-                double currentMin = Double.longBitsToDouble(aggregates[i * AGG_SIZE]);
-                long currentMinTs = aggregates[i * AGG_SIZE + 1];
-                double currentMax = Double.longBitsToDouble(aggregates[i * AGG_SIZE + 2]);
-                long currentMaxTs = aggregates[i * AGG_SIZE + 3];
-                
-                // Update min/max if needed
-                if (currentMin < minValue) {
-                    minValue = currentMin;
-                    minTimestamp = currentMinTs;
-                }
-                
-                if (currentMax > maxValue) {
-                    maxValue = currentMax;
-                    maxTimestamp = currentMaxTs;
+                if ((int) aggregates[i * AGG_SIZE + 4] > 0) {
+                    total_sum_x += Double.longBitsToDouble(aggregates[i * AGG_SIZE]);
+                    total_sum_y += Double.longBitsToDouble(aggregates[i * AGG_SIZE + 1]);
+                    total_sum_xy += Double.longBitsToDouble(aggregates[i * AGG_SIZE + 2]);
+                    total_sum_x2 += Double.longBitsToDouble(aggregates[i * AGG_SIZE + 3]);
+                    totalCount += (int) aggregates[i * AGG_SIZE + 4];
                 }
             }
             
-            final double finalMinValue = minValue;
-            final long finalMinTimestamp = minTimestamp;
-            final double finalMaxValue = maxValue;
-            final long finalMaxTimestamp = maxTimestamp;
-            final long finalFirstTimestamp = groupFirstTimestamp;
-            final long finalLastTimestamp = groupLastTimestamp;
+            // Skip if no valid data points
+            if (totalCount == 0) {
+                continue;
+            }
             
             // Calculate the timestamp for this new aggregated interval
             final long timestamp = from + (newIdx * targetInterval.toDuration().toMillis());
             
-            // Create a stats object for the aggregation
-            Stats aggStats = new Stats() {
+            final double finalSumX = total_sum_x;
+            final double finalSumY = total_sum_y;
+            final double finalSumXY = total_sum_xy;
+            final double finalSumX2 = total_sum_x2;
+            final int finalCount = totalCount;
+            
+            // Create a SlopeStats object for the aggregation
+            SlopeStats aggStats = new SlopeStats() {
                 @Override
-                public int getCount() { return totalCount; }
+                public int getCount() { return finalCount; }
                 @Override
-                public double getMinValue() { return finalMinValue; }
+                public double getSumX() { return finalSumX; }
                 @Override
-                public double getMaxValue() { return finalMaxValue; }
+                public double getSumY() { return finalSumY; }
                 @Override
-                public long getMinTimestamp() { return finalMinTimestamp; }
+                public double getSumXY() { return finalSumXY; }
                 @Override
-                public long getMaxTimestamp() { return finalMaxTimestamp; }
-                @Override
-                public double getFirstValue() { return groupFirstValue; }
-                @Override
-                public long getFirstTimestamp() { return finalFirstTimestamp; }
-                @Override
-                public double getLastValue() { return groupLastValue; }
-                @Override
-                public long getLastTimestamp() { return finalLastTimestamp; }
+                public double getSumX2() { return finalSumX2; }
             };
             
-            // Create an aggregated data point and add it to the new span
+            // Create a slope aggregated data point and add it to the new span
             AggregatedDataPoint aggPoint = new AggregatedDataPoint() {
                 @Override
                 public int getMeasure() { return measure; }
@@ -370,41 +329,13 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
                 @Override
                 public double getValue() { throw new UnsupportedOperationException(); }
                 @Override
-                public int getCount() { return totalCount; }
+                public int getCount() { return finalCount; }
             };
             
             rolledUpSpan.addAggregatedDataPoint(aggPoint);
         }
         
         return rolledUpSpan;
-    }
-    
-    /**
-     * Estimates the memory size reduction if this span is rolled up to the target interval.
-     * 
-     * @param targetInterval The target aggregation interval
-     * @return Approximate memory size reduction in bytes (negative if it would increase)
-     */
-    public long estimateRollUpMemorySavings(AggregateInterval targetInterval) {
-        long currentMs = aggregateInterval.toDuration().toMillis();
-        long targetMs = targetInterval.toDuration().toMillis();
-        
-        if (targetMs <= currentMs) {
-            return -1; // Can't roll up to a finer granularity
-        }
-        
-        long currentSize = calculateDeepMemorySize();
-        long factor = targetMs / currentMs;
-        int newArraySize = (int)((size + factor - 1) / factor); // ceil(size/factor)
-        
-        // Most of the memory is in the aggregates array
-        long newAggregatesSize = 24 + (newArraySize * AGG_SIZE * 8); // array overhead + elements
-        
-        // The rest of the fields are roughly the same
-        long baseSize = currentSize - (24 + (size * AGG_SIZE * 8));
-        
-        long newSize = baseSize + newAggregatesSize;
-        return currentSize - newSize;
     }
 
     private class TimeSeriesSpanIterator implements Iterator<AggregatedDataPoint>, AggregatedDataPoint {
@@ -434,62 +365,38 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
 
         @Override
         public int getCount() {
-            return (int) aggregates[currentIndex * AGG_SIZE + 8];
+            return (int) aggregates[currentIndex * AGG_SIZE + 4];
         }
 
         @Override
         public Stats getStats() {
-            return new Stats() {
+            return new SlopeStats() {
 
                 private int index = currentIndex;
 
                 @Override
                 public int getCount() {
-                    // Debug log to see what we're actually getting
-                    int count = (int) aggregates[index * AGG_SIZE + 8];
-                    return count;
+                    return (int) aggregates[index * AGG_SIZE + 4];
                 }
 
                 @Override
-                public double getMinValue() {
+                public double getSumX() {
                     return Double.longBitsToDouble(aggregates[index * AGG_SIZE]);
                 }
 
                 @Override
-                public double getMaxValue() {
+                public double getSumY() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 1]);
+                }
+
+                @Override
+                public double getSumXY() {
                     return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 2]);
                 }
 
                 @Override
-                public long getMinTimestamp() {
-                    return aggregates[index * AGG_SIZE + 1];
-                }
-
-                @Override
-                public long getMaxTimestamp() {
-                    return aggregates[index * AGG_SIZE + 3];
-                }
-
-                @Override
-                public double getFirstValue() {
-                    // return (getMinValue() + getMaxValue()) / 2;
-                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 4]);
-                }
-
-                @Override
-                public long getFirstTimestamp() {
-                    return aggregates[index * AGG_SIZE + 6];
-                }
-
-                @Override
-                public double getLastValue() {
-                    // return (getMinValue() + getMaxValue()) / 2;
-                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 5]);
-                }
-
-                @Override
-                public long getLastTimestamp() {
-                    return aggregates[index * AGG_SIZE + 7];
+                public double getSumX2() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 3]);
                 }
             };
         }

@@ -6,6 +6,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
 import gr.imsi.athenarc.middleware.query.pattern.RepetitionFactor;
@@ -269,7 +270,7 @@ public class SketchSearch {
             }
             
             // Only consider this match if there were no empty sketches and it meets value constraints
-            if (!hasEmptySketch && matchesComposite(composite, valueFilter)) {
+            if (!hasEmptySketch && composite.matches(valueFilter)) {
                 possibleMatches.add(segmentSketches);
             }
         }
@@ -277,18 +278,4 @@ public class SketchSearch {
         return possibleMatches;
     }
     
-    /**
-     * Computes the slope of a composite sketch against the ValueFilter of a segment.
-     * Returns true if the slope is within the filter's range.
-     */
-    private boolean matchesComposite(Sketch sketch, ValueFilter filter) {
-        if (filter.isValueAny()) {
-            return true;
-        }
-        double slope = sketch.getSlope();
-        double low = filter.getMinSlope();
-        double high = filter.getMaxSlope();
-        boolean match = (slope >= low && slope <= high);
-        return match;
-    }
 }

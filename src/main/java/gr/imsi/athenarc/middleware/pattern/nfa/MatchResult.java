@@ -2,7 +2,7 @@ package gr.imsi.athenarc.middleware.pattern.nfa;
 
 import java.util.List;
 
-import gr.imsi.athenarc.middleware.pattern.Sketch;
+import gr.imsi.athenarc.middleware.cache.Sketch;
 
 public class MatchResult {
     private final int consumedCount;
