@@ -1,9 +1,10 @@
-package gr.imsi.athenarc.middleware.pattern;
+package gr.imsi.athenarc.middleware.sketch;
+
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
@@ -46,9 +47,6 @@ public class OLSSketch implements Sketch {
         this.to = to;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
         this.aggregationType = aggregationType;
-        // if(!(aggregationType == AggregationType.OLS)) {
-        //     throw new IllegalArgumentException("OLSSketch can only be used with OLS aggregation type");
-        // }
     }
 
     /**
@@ -59,9 +57,35 @@ public class OLSSketch implements Sketch {
     @Override
     public void addAggregatedDataPoint(AggregatedDataPoint dp) {
         hasInitialized = true; // Mark as having underlying data
-        
         SlopeStats slopeStats = (SlopeStats) dp.getStats();
         slopeStatsAggregator.accept(slopeStats);
+    }
+    
+    /**
+     * Checks if this sketch can be combined with another sketch.
+     * 
+     * @param other The sketch to check compatibility with
+     * @return true if sketches can be combined, false otherwise
+     */
+    @Override
+    public boolean canCombineWith(Sketch other) {
+        if (other == null || other.isEmpty()) {
+            LOG.debug("Cannot combine with null or empty sketch");
+            return false;
+        }
+        
+        if (!(other instanceof OLSSketch)) {
+            LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
+            return false;
+        }
+        
+        if (this.getTo() != other.getFrom()) {
+            LOG.debug("Cannot combine non-consecutive sketches. Current sketch ends at {} but next sketch starts at {}", 
+                      this.getTo(), other.getFrom());
+            return false;
+        }
+        
+        return true;
     }
     
     /**
@@ -70,50 +94,28 @@ public class OLSSketch implements Sketch {
      * 
      * @param other The sketch to combine with this one
      * @return This sketch after combination (for method chaining)
-     * @throws IllegalArgumentException if the sketches are not consecutive
      */
     @Override
     public Sketch combine(Sketch other) {
         // Validate input
-        if (other == null) {
-            LOG.debug("Attempt to combine with null sketch, returning this sketch unchanged");
+        if (!canCombineWith(other)) {
+            LOG.debug("Cannot combine incompatible sketches");
             return this;
-        }
-        
-        if (other.isEmpty()) {
-            LOG.debug("Attempt to combine with empty sketch, returning this sketch unchanged");
-            return this;
-        }
-
-        if (!(other instanceof OLSSketch)) {
-            throw new IllegalArgumentException("Cannot combine sketches of different types: " + other.getClass());
         }
         
         OLSSketch otherSketch = (OLSSketch) other;
-        validateConsecutiveSketch(otherSketch);
         
         // Update time interval
         this.to = otherSketch.getTo();
-        
         slopeStatsAggregator.combine(otherSketch.getSlopeStatsAggregator());
         calculateAngle(); // update angle
 
         return this;
     }
     
-    /**
-     * Validates that the other sketch is consecutive to this one
-     * 
-     * @param other The sketch to validate against this one
-     * @throws IllegalArgumentException if sketches are not consecutive
-     */
-    private void validateConsecutiveSketch(OLSSketch other) {
-        if (this.getTo() != other.getFrom()) {
-            throw new IllegalArgumentException(
-                String.format("Cannot combine non-consecutive sketches. Current sketch ends at %d but next sketch starts at %d", 
-                              this.getTo(), other.getFrom())
-            );
-        }
+    @Override
+    public Optional<AggregateInterval> getOriginalAggregateInterval() {
+        return Optional.ofNullable(originalAggregateInterval);
     }
     
     /**
@@ -146,7 +148,7 @@ public class OLSSketch implements Sketch {
 
             // Calculate the angle in degrees
             this.angle = Math.toDegrees(Math.atan(slope));
-            LOG.info("Calculated angle: {}", this.angle);
+            LOG.info("Calculated angle for sketches: {} to {} - {}",this.getFromDate(), this.getToDate(),  this.angle);
         } catch (Exception e) {
             LOG.error("Error calculating angle", e);
             this.angle = Double.POSITIVE_INFINITY;

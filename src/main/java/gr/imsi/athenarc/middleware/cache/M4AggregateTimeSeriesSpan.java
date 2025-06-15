@@ -240,7 +240,7 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
      * @param targetInterval The target aggregation interval to roll up to
      * @return A new span with rolled-up data, or null if the operation isn't possible
      */
-    public M4StarAggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
+    public M4InfAggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
         // Check if the target interval is coarser than the current one
         if (targetInterval.toDuration().toMillis() <= aggregateInterval.toDuration().toMillis()) {
             LOG.warn("Cannot roll up to a finer or equal granularity interval");
@@ -260,7 +260,7 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
         int factor = (int) (targetMs / currentMs);
         
         // Create new span
-        M4StarAggregateTimeSeriesSpan rolledUpSpan = new M4StarAggregateTimeSeriesSpan(from, to, measure, targetInterval);
+        M4InfAggregateTimeSeriesSpan rolledUpSpan = new M4InfAggregateTimeSeriesSpan(from, to, measure, targetInterval);
         
         // Process groups of indices to aggregate them together
         int newSize = (size + factor - 1) / factor; // ceil(size/factor)

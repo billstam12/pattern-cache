@@ -22,7 +22,7 @@ import java.util.stream.IntStream;
  * i.e. the first, last, min and max aggregate values, as well as the corresponding
  * non-missing value counts.
  */
-public class M4StarAggregateTimeSeriesSpan implements TimeSeriesSpan {
+public class M4InfAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
     private static final Logger LOG = LoggerFactory.getLogger(TimeSeriesSpan.class);
 
@@ -64,7 +64,7 @@ public class M4StarAggregateTimeSeriesSpan implements TimeSeriesSpan {
         LOG.debug("Initializing time series span ({},{}) measure = {} with size {}, aggregate interval {}", getFromDate(), getToDate(), measure, size, aggregateInterval);
     }
 
-    protected M4StarAggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
+    protected M4InfAggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
         initialize(from, to, aggregateInterval, measure);
     }
 
@@ -234,7 +234,7 @@ public class M4StarAggregateTimeSeriesSpan implements TimeSeriesSpan {
      * @param targetInterval The target aggregation interval to roll up to
      * @return A new span with rolled-up data, or null if the operation isn't possible
      */
-    public M4StarAggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
+    public M4InfAggregateTimeSeriesSpan rollUp(AggregateInterval targetInterval) {
         // Check if the target interval is coarser than the current one
         if (targetInterval.toDuration().toMillis() <= aggregateInterval.toDuration().toMillis()) {
             LOG.warn("Cannot roll up to a finer or equal granularity interval");
@@ -254,7 +254,7 @@ public class M4StarAggregateTimeSeriesSpan implements TimeSeriesSpan {
         int factor = (int) (targetMs / currentMs);
         
         // Create new span
-        M4StarAggregateTimeSeriesSpan rolledUpSpan = new M4StarAggregateTimeSeriesSpan(from, to, measure, targetInterval);
+        M4InfAggregateTimeSeriesSpan rolledUpSpan = new M4InfAggregateTimeSeriesSpan(from, to, measure, targetInterval);
         
         // Process groups of indices to aggregate them together
         int newSize = (size + factor - 1) / factor; // ceil(size/factor)

@@ -1,14 +1,14 @@
-package gr.imsi.athenarc.middleware.pattern;
+package gr.imsi.athenarc.middleware.sketch;
+
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.Stats;
-import gr.imsi.athenarc.middleware.domain.StatsAggregator;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 /** Only for non timestampe stats = agg. time series spans */
@@ -19,9 +19,6 @@ public class MinMaxSketch implements Sketch {
     private long from;
     private long to;
 
-    // Store the stats from each interval
-    private StatsAggregator statsAggregator = new StatsAggregator();
-    
     // The aggregation type to use when adding data points
     private AggregationType aggregationType;
     
@@ -68,14 +65,39 @@ public class MinMaxSketch implements Sketch {
             // Track first and last data points for angle calculation
             if (firstDataPoint == null || dp.getFrom() < firstDataPoint.getFrom()) { 
                 firstDataPoint = new ReferenceDataPoint(
-                    dp.getFrom(), dp.getTo(), dp.getStats().getFirstValue(), dp.getStats().getMinValue(), dp.getStats().getMaxValue());  
+                    dp.getFrom(), dp.getTo(), dp.getStats().getFirstValue(), dp.getStats().getMinValue(), dp.getStats().getMaxValue()); 
             }
             if (lastDataPoint == null || dp.getFrom() > lastDataPoint.getFrom()) {
                 lastDataPoint = new ReferenceDataPoint(
                     dp.getFrom(), dp.getTo(), dp.getStats().getLastValue(), dp.getStats().getMinValue(), dp.getStats().getMaxValue());  
             }
-            statsAggregator.accept(dp);
         }
+    }
+    
+    /**
+     * Checks if this sketch can be combined with another sketch.
+     * 
+     * @param other The sketch to check compatibility with
+     * @return true if sketches can be combined, false otherwise
+     */
+   public boolean canCombineWith(Sketch other) {
+        if (other == null || other.isEmpty()) {
+            LOG.debug("Cannot combine with null or empty sketch");
+            return false;
+        }
+        
+        if (!(other instanceof MinMaxSketch)) {
+            LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
+            return false;
+        }
+        
+        if (this.getTo() != other.getFrom()) {
+            LOG.debug("Cannot combine non-consecutive sketches. Current sketch ends at {} but next sketch starts at {}", 
+                      this.getTo(), other.getFrom());
+            return false;
+        }
+        
+        return true;
     }
     
     /**
@@ -84,31 +106,20 @@ public class MinMaxSketch implements Sketch {
      * 
      * @param other The sketch to combine with this one
      * @return This sketch after combination (for method chaining)
-     * @throws IllegalArgumentException if the sketches are not consecutive
      */
     @Override
     public Sketch combine(Sketch other) {
         // Validate input
-        if (other == null) {
-            LOG.debug("Attempt to combine with null sketch, returning this sketch unchanged");
+        if (!canCombineWith(other)) {
+            LOG.debug("Cannot combine incompatible sketches");
             return this;
-        }
-        
-        if (other.isEmpty()) {
-            LOG.debug("Attempt to combine with empty sketch, returning this sketch unchanged");
-            return this;
-        }
-
-        if (!(other instanceof MinMaxSketch)) {
-            throw new IllegalArgumentException("Cannot combine sketches of different types: " + other.getClass());
         }
         
         MinMaxSketch otherSketch = (MinMaxSketch) other;
-        validateConsecutiveSketch(otherSketch);
-        validateCompatibleAggregationTypes(otherSketch);
 
         // Calculate angle between consecutive sketches before combining stats
         computeAngleBetweenConsecutiveSketches(this, otherSketch);
+        
         // Update time interval and duration
         this.to = otherSketch.getTo();
         
@@ -120,43 +131,19 @@ public class MinMaxSketch implements Sketch {
         }
         
         if (otherSketch.lastDataPoint != null) {
-            if (this.lastDataPoint == null || otherSketch.lastDataPoint.getFrom()  > this.lastDataPoint.getFrom() ) {
+            if (this.lastDataPoint == null || otherSketch.lastDataPoint.getFrom() > this.lastDataPoint.getFrom()) {
                 this.lastDataPoint = otherSketch.lastDataPoint;
             }
         }
-        
-        // Combine stats
-        this.statsAggregator.combine(otherSketch.getStatsAggregator());
+                
         return this;
     }
-    
-    /**
-     * Validates that the other sketch is consecutive to this one
-     * 
-     * @param other The sketch to validate against this one
-     * @throws IllegalArgumentException if sketches are not consecutive
-     */
-    private void validateConsecutiveSketch(Sketch other) {
-        if (this.getTo() != other.getFrom()) {
-            throw new IllegalArgumentException(
-                String.format("Cannot combine non-consecutive sketches. Current sketch ends at %d but next sketch starts at %d", 
-                              this.getTo(), other.getFrom())
-            );
-        }
+
+    @Override
+    public Optional<AggregateInterval> getOriginalAggregateInterval() {
+        return Optional.ofNullable(originalAggregateInterval);
     }
     
-    /**
-     * Validates that both sketches use compatible aggregation types
-     * 
-     * @param other The sketch to validate against this one
-     */
-    private void validateCompatibleAggregationTypes(Sketch other) {
-        if (this.aggregationType != other.getAggregationType()) {
-            LOG.warn("Combining sketches with different aggregation types: {} and {}", 
-                this.aggregationType, other.getAggregationType());
-        }
-    }
-   
     // Accessors and utility methods
     
     /**
@@ -212,7 +199,6 @@ public class MinMaxSketch implements Sketch {
 
     public Sketch clone() {
         MinMaxSketch sketch = new MinMaxSketch(this.from, this.to, this.aggregationType);
-        sketch.statsAggregator = this.statsAggregator.clone();
         sketch.hasInitialized = this.hasInitialized;
         sketch.angle = this.angle;
         sketch.minAngle = this.minAngle;
@@ -224,12 +210,10 @@ public class MinMaxSketch implements Sketch {
         return sketch;
     }
 
-    public StatsAggregator getStatsAggregator() {
-        return statsAggregator;
-    }
 
+    @Override
     public boolean isEmpty() {
-        return statsAggregator.getCount() == 0;
+        return firstDataPoint == null;
     }
 
     public boolean hasInitialized() {
@@ -281,10 +265,10 @@ public class MinMaxSketch implements Sketch {
         LOG.debug("Calculating angle between sketches from {} to {}", firstPoint, secondPoint);
         if (firstPoint == null || secondPoint == null) {
             LOG.debug("Insufficient data points to calculate angle between sketches");
-            this.angle = 0.0;
-            this.minAngle = 0.0;
-            this.maxAngle = 0.0;
-            this.angleErrorMargin = 0.0;
+            this.angle = Double.POSITIVE_INFINITY;;
+            this.minAngle = Double.POSITIVE_INFINITY;;
+            this.maxAngle = Double.POSITIVE_INFINITY;;
+            this.angleErrorMargin = Double.POSITIVE_INFINITY;;
             return;
         }
         // Calculate time change
@@ -292,10 +276,10 @@ public class MinMaxSketch implements Sketch {
 
         if (timeChange == 0) {
             LOG.warn("Zero time difference between reference points, setting angle to 0");
-            this.angle = 0.0;
-            this.minAngle = 0.0;
-            this.maxAngle = 0.0;
-            this.angleErrorMargin = 0.0;
+            this.angle = Double.POSITIVE_INFINITY;;
+            this.minAngle = Double.POSITIVE_INFINITY;;
+            this.maxAngle = Double.POSITIVE_INFINITY;;
+            this.angleErrorMargin = Double.POSITIVE_INFINITY;;
             return;
         }
         
@@ -325,18 +309,6 @@ public class MinMaxSketch implements Sketch {
                 return getFirstAddedDataPoint();
             case LAST_VALUE:
                 return getLastAddedDataPoint();
-            // case MIN_VALUE:
-            // case MAX_VALUE:
-            //     // For min/max, use the data point that would be selected by the aggregation type
-            //     if (isFirstInSequence) {
-            //         return sketch.aggregationType == AggregationType.MIN_VALUE ? 
-            //                sketch.getStatsAggregator().getMinDataPoint() :
-            //                sketch.getStatsAggregator().getMaxDataPoint();
-            //     } else {
-            //         return sketch.aggregationType == AggregationType.MIN_VALUE ?
-            //                sketch.getStatsAggregator().getMinDataPoint() :
-            //                sketch.getStatsAggregator().getMaxDataPoint();
-            //     }
             default:
                 // Default to first/last based on position in sequence
                 return getLastAddedDataPoint();
@@ -364,6 +336,9 @@ public class MinMaxSketch implements Sketch {
         // This is when the first point value is at its minimum and the second point is at its maximum
         double maxValueChange = secondPoint.getMaxValue() - firstPoint.getMinValue();
         
+        LOG.info("First point min-max values: {}-{} real value: {}, Second point min-max values: {}-{}real value: {}",
+            firstPoint.getMinValue(), firstPoint.getMaxValue(), firstPoint.getValue(),
+            secondPoint.getMinValue(), secondPoint.getMaxValue(), secondPoint.getValue());
         // Calculate the minimum possible value change (for min angle)
         // This is when the first point is at its maximum and the second point is at its minimum
         double minValueChange = secondPoint.getMinValue() - firstPoint.getMaxValue();

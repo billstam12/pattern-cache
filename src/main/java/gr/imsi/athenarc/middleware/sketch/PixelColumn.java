@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.middleware.cache;
+package gr.imsi.athenarc.middleware.sketch;
 
 import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.Range;
@@ -15,7 +15,6 @@ import gr.imsi.athenarc.middleware.domain.StatsAggregator;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
-import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,8 +26,8 @@ public class PixelColumn implements Sketch {
 
     private static final Logger LOG = LoggerFactory.getLogger(PixelColumn.class);
 
-    private final long from;
-    private final long to;
+    private long from;
+    private long to;
 
     private final ViewPort viewPort;
 
@@ -287,8 +286,43 @@ public class PixelColumn implements Sketch {
         return AggregationType.LAST_VALUE;
     }
 
+    /**
+     * Checks if this sketch can be combined with another sketch.
+     * 
+     * @param other The sketch to check
+     * @return true if sketches can be combined, false otherwise
+     */
+    @Override
+    public boolean canCombineWith(Sketch other) {
+        if (other == null || other.isEmpty()) {
+            LOG.debug("Cannot combine with null or empty sketch");
+            return false;
+        }
+        
+        if (!(other instanceof PixelColumn)) {
+            LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
+            return false;
+        }
+        
+        if (this.getTo() != other.getFrom()) {
+            LOG.debug("Cannot combine non-consecutive sketches. Current sketch ends at {} but next sketch starts at {}", 
+                      this.getTo(), other.getFrom());
+            return false;
+        }
+        
+        return true;
+    }
+
+    /**
+     * Combines this pixel column with another sketch.
+     */
     @Override
     public Sketch combine(Sketch other) {
+        if (!canCombineWith(other)) {
+            LOG.warn("Cannot combine incompatible sketches");
+            return this;
+        }
+
         if (other instanceof PixelColumn) {
             PixelColumn otherPixelColumn = (PixelColumn) other;
             if(other.isEmpty()) {
@@ -305,11 +339,15 @@ public class PixelColumn implements Sketch {
             this.right.addAll(otherPixelColumn.right.stream().map(ImmutableAggregatedDataPoint::fromAggregatedDataPoint).collect(Collectors.toList()));
             this.hasNoError = this.hasNoError && otherPixelColumn.hasNoError;
             this.hasInitialized = this.hasInitialized || otherPixelColumn.hasInitialized;
+            
+            // Update the end timestamp
+            this.to = otherPixelColumn.getTo();
+            
             return this; 
         } else {
             LOG.warn("Cannot combine PixelColumn with non-PixelColumn sketch: {}", other.getClass().getSimpleName());
         }
-        return null;
+        return this;
     }
 
     @Override
@@ -318,16 +356,9 @@ public class PixelColumn implements Sketch {
     }
 
     @Override
-    public boolean matches(ValueFilter filter) {
-        if (filter.isValueAny()) {
-            return true;
-        }
-        double angle = getAngle();
-        double low = filter.getMinDegree();
-        double high = filter.getMaxDegree();
-        return angle >= low && angle <= high;
+    public Optional<AggregateInterval> getOriginalAggregateInterval() {
+        return Optional.ofNullable(originalAggregateInterval);
     }
-
 
     public PixelColumn clone() {
         PixelColumn clone = new PixelColumn(this.from, this.to, this.viewPort);

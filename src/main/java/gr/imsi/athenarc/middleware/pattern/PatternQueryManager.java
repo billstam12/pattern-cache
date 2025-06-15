@@ -16,15 +16,15 @@ public class PatternQueryManager {
 
     private final DataSource dataSource;
     private final TimeSeriesCache cache;
+    private final String method;
 
-    private static final Set<String> AGGREGATE_FUNCTIONS = AggregationFunctionsConfig.getDefaultAggregateFunctions();
-
-    public PatternQueryManager(DataSource dataSource, TimeSeriesCache cache) {
+    public PatternQueryManager(DataSource dataSource, TimeSeriesCache cache, String method) {
         this.dataSource = dataSource;
         this.cache = cache;
+        this.method = method;
     }
 
     public PatternQueryResults executeQuery(PatternQuery query) {
-        return PatternUtils.executePatternQueryWithCache(query, dataSource, cache, AGGREGATE_FUNCTIONS);
+        return PatternUtils.executePatternQueryWithCache(query, dataSource, cache, method);
     }
 }

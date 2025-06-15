@@ -19,9 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Stopwatch;
 
-import gr.imsi.athenarc.middleware.cache.M4StarAggregateTimeSeriesSpan;
-import gr.imsi.athenarc.middleware.cache.ErrorCalculator;
-import gr.imsi.athenarc.middleware.cache.PixelColumn;
+import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
@@ -40,6 +38,8 @@ import gr.imsi.athenarc.middleware.domain.TimeRange;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
+import gr.imsi.athenarc.middleware.sketch.ErrorCalculator;
+import gr.imsi.athenarc.middleware.sketch.PixelColumn;
 
 public class QueryExecutor {
 
@@ -317,8 +317,8 @@ public class QueryExecutor {
             List<DataPoint> dataPointList = new ArrayList<>();
             
             for (TimeSeriesSpan span : spans) {
-                if (span instanceof M4StarAggregateTimeSeriesSpan) {
-                    Iterator<AggregatedDataPoint> it = ((M4StarAggregateTimeSeriesSpan) span).iterator();
+                if (span instanceof M4InfAggregateTimeSeriesSpan) {
+                    Iterator<AggregatedDataPoint> it = ((M4InfAggregateTimeSeriesSpan) span).iterator();
                     while (it.hasNext()) {
                         AggregatedDataPoint point = it.next();
                         Stats stats = point.getStats();

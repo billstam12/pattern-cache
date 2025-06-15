@@ -152,6 +152,8 @@ public class CacheManager {
         private CacheInitializationPolicy initializationPolicy = null;
         private Long maxMemoryBytes = null;
         private Double memoryUtilizationThreshold = null;
+        private String method = "m4_inf";
+        private boolean calendarAlignment = true;
 
         public Builder(DataSource dataSource) {
             this.dataSource = dataSource;
@@ -176,6 +178,16 @@ public class CacheManager {
         
         public Builder withPrefetchingFactor(int factor) {
             this.prefetchingFactor = factor;
+            return this;
+        }
+
+        public Builder withMethod(String method) {
+            this.method = method;
+            return this;
+        }
+
+        public Builder withCalendarAlignment(boolean calendarAlignment) {
+            this.calendarAlignment = calendarAlignment;
             return this;
         }
         
@@ -232,10 +244,10 @@ public class CacheManager {
             
             // Create a CacheManager that uses our unified cache
             PatternQueryManager patternQueryManager = 
-                new PatternQueryManager(dataSource, cache);
+                new PatternQueryManager(dataSource, cache, method);
                 
             VisualQueryManager visualQueryManager = 
-                new VisualQueryManager(dataSource, cache, dataReductionFactor, initialAggregationFactor, prefetchingFactor);
+                new VisualQueryManager(dataSource, cache, dataReductionFactor, initialAggregationFactor, prefetchingFactor, method, calendarAlignment);
                 
             CacheManager manager = new CacheManager(cache, dataSource, patternQueryManager, visualQueryManager, memoryManager);
             

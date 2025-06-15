@@ -8,7 +8,6 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.pattern.PatternQueryManager;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
@@ -17,6 +16,7 @@ import gr.imsi.athenarc.middleware.query.pattern.SegmentSpecification;
 import gr.imsi.athenarc.middleware.query.pattern.SingleNode;
 import gr.imsi.athenarc.middleware.query.pattern.TimeFilter;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
+import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 public class NFASketchSearch {
     private static final Logger LOG = LoggerFactory.getLogger(PatternQueryManager.class);
@@ -422,29 +422,29 @@ public class NFASketchSearch {
             List<Sketch> segmentSketches = new ArrayList<>();
             segmentSketches.add(allSketches.get(startIndex));
             
-            boolean hasEmptySketch = false;
+            boolean validComposite = true;
             
             for (int i = 1; i < count; i++) {
-                Sketch next = allSketches.get(startIndex + i);
+                Sketch nextSketch = allSketches.get(startIndex + i);
                 
                 // Skip this composite if we encounter a sketch with no data
-                if (next.isEmpty()) {
-                    hasEmptySketch = true;
+                 if (!composite.canCombineWith(nextSketch)) {
+                    validComposite = false;
                     break;
                 }
                 
                 try {
-                    composite.combine(next);
-                    segmentSketches.add(next);
+                    composite.combine(nextSketch);
+                    segmentSketches.add(nextSketch);
                 } catch (Exception e) {
                     LOG.error("Failed to combine sketch at index {}: {}", startIndex + i, e.getMessage());
-                    hasEmptySketch = true; // Consider combination failure as having an "empty" segment
+                    validComposite = false; // Consider combination failure as having an "empty" segment
                     break;
                 }
             }
     
             // Only consider this match if there were no empty sketches and it meets value constraints
-            if (!hasEmptySketch && composite.matches(valueFilter)) {
+            if (validComposite && composite.matches(valueFilter)) {
                 results.add(new MatchResult(count, segmentSketches));
             }
         }

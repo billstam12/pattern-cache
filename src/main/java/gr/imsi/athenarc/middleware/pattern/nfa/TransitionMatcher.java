@@ -2,7 +2,7 @@ package gr.imsi.athenarc.middleware.pattern.nfa;
 
 import java.util.List;
 
-import gr.imsi.athenarc.middleware.cache.Sketch;
+import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 @FunctionalInterface
     public interface TransitionMatcher {

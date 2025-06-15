@@ -53,14 +53,14 @@ public class PredefinedPattern {
         List<PatternNode> pattern2 = new ArrayList<>();
         pattern2.add(new SingleNode(
             new SegmentSpecification(
-                new TimeFilter(false, 2, 4),
+                new TimeFilter(false, 5, 5),
                 ValueFilter.moderateDecrease()
             ),
             RepetitionFactor.exactly(1)
         ));
         pattern2.add(new SingleNode(
             new SegmentSpecification(
-                new TimeFilter(false, 2, 4),
+                new TimeFilter(false, 5, 5),
                 ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)
@@ -71,21 +71,21 @@ public class PredefinedPattern {
         List<PatternNode> pattern3 = new ArrayList<>();
         pattern3.add(new SingleNode(
             new SegmentSpecification(
-                new TimeFilter(false, 1, 2),
+                new TimeFilter(false, 5, 5),
                 ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)
         ));
         pattern3.add(new SingleNode(
             new SegmentSpecification(
-                new TimeFilter(false, 3, 5),
+                new TimeFilter(false, 5, 5),
                 ValueFilter.stable()
             ),
             RepetitionFactor.exactly(1)
         ));
         pattern3.add(new SingleNode(
             new SegmentSpecification(
-                new TimeFilter(false, 1, 2),
+                new TimeFilter(false, 5, 5),
                 ValueFilter.moderateDecrease()
             ),
             RepetitionFactor.exactly(1)
@@ -96,14 +96,14 @@ public class PredefinedPattern {
         List<PatternNode> upDown = new ArrayList<>();
         upDown.add(new SingleNode(
             new SegmentSpecification(
-                new TimeFilter(false, 1, 2),
+                new TimeFilter(false, 5, 5),
                 ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)
         ));
         upDown.add(new SingleNode(
             new SegmentSpecification(
-                new TimeFilter(false, 1, 2),
+                new TimeFilter(false, 5, 5),
                 ValueFilter.moderateIncrease()
             ),
             RepetitionFactor.exactly(1)

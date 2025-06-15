@@ -77,7 +77,7 @@ public class TimeSeriesSpanFactory {
      * @param aggregateIntervalsPerMeasure aggregate intervals with which to fetch data for each measure
      * @return A list of AggregateTimeSeriesSpan for each measure
      */
-    public static Map<Integer, List<TimeSeriesSpan>> createM4StarAggregate(AggregatedDataPoints aggregatedDataPoints,
+    public static Map<Integer, List<TimeSeriesSpan>> createM4InfAggregate(AggregatedDataPoints aggregatedDataPoints,
                                                                      Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
                                                                      Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
         Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
@@ -90,7 +90,7 @@ public class TimeSeriesSpanFactory {
             
             for (TimeInterval range : missingIntervalsPerMeasure.get(measure)) {
                 int count = 0;
-                M4StarAggregateTimeSeriesSpan timeSeriesSpan = new M4StarAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+                M4InfAggregateTimeSeriesSpan timeSeriesSpan = new M4InfAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
                 while (true) {
                     // Get next point if needed
                     if (!changed && aggregatedDataPoint == null && it.hasNext()) {

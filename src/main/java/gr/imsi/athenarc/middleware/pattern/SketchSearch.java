@@ -6,7 +6,6 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
 import gr.imsi.athenarc.middleware.query.pattern.RepetitionFactor;
@@ -14,6 +13,7 @@ import gr.imsi.athenarc.middleware.query.pattern.SegmentSpecification;
 import gr.imsi.athenarc.middleware.query.pattern.SingleNode;
 import gr.imsi.athenarc.middleware.query.pattern.TimeFilter;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
+import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 /**
  * Demonstrates a recursive approach to match all segments of a PatternQuery
@@ -248,14 +248,20 @@ public class SketchSearch {
             List<Sketch> segmentSketches = new ArrayList<>();
             segmentSketches.add(sketches.get(startIndex));
             
-            boolean hasEmptySketch = false;
+            boolean validComposite = true;
             
             for (int i = 1; i < count; i++) {
                 Sketch nextSketch = sketches.get(startIndex + i);
                 
                 // Skip this composite if we encounter a sketch with no data
                 if (nextSketch.isEmpty()) {
-                    hasEmptySketch = true;
+                    validComposite = false;
+                    break;
+                }
+                
+                // Use the canCombineWith check before attempting to combine
+                if (!composite.canCombineWith(nextSketch)) {
+                    validComposite = false;
                     break;
                 }
                 
@@ -264,13 +270,13 @@ public class SketchSearch {
                     segmentSketches.add(nextSketch);
                 } catch (Exception e) {
                     LOG.error("Failed to combine sketches at index {}: {}", startIndex + i, e.getMessage());
-                    hasEmptySketch = true; // Consider combination failure as having an "empty" segment
+                    validComposite = false;
                     break;
                 }
             }
             
-            // Only consider this match if there were no empty sketches and it meets value constraints
-            if (!hasEmptySketch && composite.matches(valueFilter)) {
+            // Only consider this match if valid and it meets value constraints
+            if (validComposite && composite.matches(valueFilter)) {
                 possibleMatches.add(segmentSketches);
             }
         }

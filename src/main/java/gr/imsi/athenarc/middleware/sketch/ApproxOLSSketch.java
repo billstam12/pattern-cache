@@ -1,9 +1,8 @@
-package gr.imsi.athenarc.middleware.pattern;
+package gr.imsi.athenarc.middleware.sketch;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
@@ -12,17 +11,17 @@ import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression;
-import org.apache.commons.math3.distribution.TDistribution;
+import java.util.Optional;
 
 /** Only for non timestampe stats = agg. time series spans */
 public class ApproxOLSSketch implements Sketch {
 
-    private static final Logger LOG = LoggerFactory.getLogger(M4Sketch.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ApproxOLSSketch.class);
 
     private long from;
     private long to;
-    
+    private int windowId;
+
     // The aggregation type to use when adding data points
     private AggregationType aggregationType;
     
@@ -38,25 +37,31 @@ public class ApproxOLSSketch implements Sketch {
     // Track all data points for linear programming solution
     private List<ReferenceDataPoint> allDataPoints = new ArrayList<>();
 
-    // The interval this sketch represents. If it is combined it is the interval of its sub-sketches that created it.
-    // Used in angle calculation.
-    private AggregateInterval originalAggregateInterval; 
-
-    // Confidence level for the angle error calculation (95%)
-    private static final double CONFIDENCE_LEVEL = 0.5;
+    private AggregateInterval originalAggregateInterval;
 
     /**
      * Creates a new sketch with the specified aggregation type.
      *
      * @param from The start timestamp of this sketch
      * @param to The end timestamp of this sketch
-     * @param aggregationType The function that gets the representative data point
+     * @param windowId The window id of this sketch, used to calculate the angle
      */
-    public ApproxOLSSketch(long from, long to, AggregationType aggregationType) {
+    public ApproxOLSSketch(long from, long to, int windowId) {
         this.from = from;
         this.to = to;
-        this.aggregationType = aggregationType;
+        this.windowId = windowId;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
+    }
+
+    /**
+     * Sets the aggregation type for this sketch.
+     *
+     * @param aggregationType The aggregation type to use
+     * @return This sketch instance for method chaining
+     */
+    public ApproxOLSSketch setAggregationType(AggregationType aggregationType) {
+        this.aggregationType = aggregationType;
+        return this;
     }
 
     /**
@@ -64,17 +69,48 @@ public class ApproxOLSSketch implements Sketch {
      *
      * @param dp The aggregated data point to add
      */
+    @Override
     public void addAggregatedDataPoint(AggregatedDataPoint dp) {
         hasInitialized = true; // Mark as having underlying data
         Stats stats = dp.getStats();
         if (stats.getCount() > 0) {
             // Create and store reference data point
+            double fromPositionRelativeToSketch = windowId + (dp.getFrom() - this.from) / (double) originalAggregateInterval.toDuration().toMillis();
+            double toPositionRelativeToSketch = windowId + (dp.getTo() - this.from) / (double) originalAggregateInterval.toDuration().toMillis();
             ReferenceDataPoint refPoint = new ReferenceDataPoint(
-                dp.getFrom(), dp.getTo(), dp.getStats().getMinValue(), dp.getStats().getMaxValue());
+                fromPositionRelativeToSketch, toPositionRelativeToSketch, dp.getStats().getMinValue(), dp.getStats().getMaxValue());
             
             // Add to all data points list for LP calculation
             allDataPoints.add(refPoint);
         }
+    }
+    
+    /**
+     * Checks if this sketch can be combined with another one.
+     * The sketches must be consecutive (this.to == other.from) and have compatible aggregation types.
+     * 
+     * @param other The sketch to check for compatibility
+     * @return true if sketches can be combined, false otherwise
+     */
+    @Override
+    public boolean canCombineWith(Sketch other) {
+        if (other == null || other.isEmpty()) {
+            LOG.debug("Cannot combine with null or empty sketch");
+            return false;
+        }
+        
+        if (!(other instanceof ApproxOLSSketch)) {
+            LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
+            return false;
+        }
+        
+        if (this.getTo() != other.getFrom()) {
+            LOG.debug("Cannot combine non-consecutive sketches. Current sketch ends at {} but next sketch starts at {}", 
+                      this.getTo(), other.getFrom());
+            return false;
+        }
+        
+        return true;
     }
     
     /**
@@ -83,69 +119,31 @@ public class ApproxOLSSketch implements Sketch {
      * 
      * @param other The sketch to combine with this one
      * @return This sketch after combination (for method chaining)
-     * @throws IllegalArgumentException if the sketches are not consecutive
+     * @throws IllegalArgumentException if the sketches are not compatible
      */
     @Override
     public Sketch combine(Sketch other) {
-        // Validate input
-        if (other == null) {
-            LOG.debug("Attempt to combine with null sketch, returning this sketch unchanged");
-            return this;
-        }
-        
-        if (other.isEmpty()) {
-            LOG.debug("Attempt to combine with empty sketch, returning this sketch unchanged");
-            return this;
-        }
-
-        if (!(other instanceof ApproxOLSSketch)) {
-            throw new IllegalArgumentException("Cannot combine sketches of different types: " + other.getClass());
+        // Validate input using canCombineWith
+        if (!canCombineWith(other)) {
+            throw new IllegalArgumentException("Cannot combine incompatible sketches");
         }
         
         ApproxOLSSketch otherSketch = (ApproxOLSSketch) other;
-        validateConsecutiveSketch(otherSketch);
-        validateCompatibleAggregationTypes(otherSketch);
         
         // Update time interval and duration
         this.to = otherSketch.getTo();
         
         // Calculate angle between consecutive sketches before combining stats
         computeAngleBetweenConsecutiveSketches(this, otherSketch);
-    
         
         // Combine all data points for LP calculations
+        // The original window IDs in the reference points are preserved
         this.allDataPoints.addAll(otherSketch.allDataPoints);
     
         return this;
     }
     
-    /**
-     * Validates that the other sketch is consecutive to this one
-     * 
-     * @param other The sketch to validate against this one
-     * @throws IllegalArgumentException if sketches are not consecutive
-     */
-    private void validateConsecutiveSketch(Sketch other) {
-        if (this.getTo() != other.getFrom()) {
-            throw new IllegalArgumentException(
-                String.format("Cannot combine non-consecutive sketches. Current sketch ends at %d but next sketch starts at %d", 
-                              this.getTo(), other.getFrom())
-            );
-        }
-    }
-    
-    /**
-     * Validates that both sketches use compatible aggregation types
-     * 
-     * @param other The sketch to validate against this one
-     */
-    private void validateCompatibleAggregationTypes(Sketch other) {
-        if (this.aggregationType != other.getAggregationType()) {
-            LOG.warn("Combining sketches with different aggregation types: {} and {}", 
-                this.aggregationType, other.getAggregationType());
-        }
-    }
-   
+
     // Accessors and utility methods
     
     /**
@@ -199,26 +197,36 @@ public class ApproxOLSSketch implements Sketch {
         return angleErrorMargin;
     }
 
+
+
+    @Override
     public Sketch clone() {
-        ApproxOLSSketch sketch = new ApproxOLSSketch(this.from, this.to, this.aggregationType);
+        ApproxOLSSketch sketch = new ApproxOLSSketch(this.from, this.to, this.windowId);
         sketch.hasInitialized = this.hasInitialized;
         sketch.angle = this.angle;
         sketch.minAngle = this.minAngle;
         sketch.maxAngle = this.maxAngle;
         sketch.angleErrorMargin = this.angleErrorMargin;
-        sketch.originalAggregateInterval = this.originalAggregateInterval;
         sketch.allDataPoints = new ArrayList<>(this.allDataPoints);
+        sketch.aggregationType = this.aggregationType;
+        sketch.originalAggregateInterval = this.originalAggregateInterval;
         return sketch;
     }
-
+    
+    @Override
     public boolean isEmpty() {
-        return allDataPoints.size() == 0;
+        return allDataPoints.isEmpty();
     }
 
+    @Override
     public boolean hasInitialized() {
         return hasInitialized;
     }
     
+    @Override
+    public Optional<AggregateInterval> getOriginalAggregateInterval() {
+        return Optional.ofNullable(originalAggregateInterval);
+    }
     
     /**
      * Computes the slope of a composite sketch against the ValueFilter of a segment.
@@ -258,13 +266,14 @@ public class ApproxOLSSketch implements Sketch {
         // Calculate the slope and its confidence bounds using interval regression
         calculateAngleWithErrorBounds(combinedPoints);
         
-        LOG.debug("Calculated angle between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
-                first, second, this.angle, this.minAngle, this.maxAngle, this.angleErrorMargin);
+        LOG.info("Calculated angle between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
+                first.getFromDate(), second.getToDate(), this.angle, this.minAngle, this.maxAngle, this.angleErrorMargin);
     }
     
     /**
      * Calculates the slope (angle) and its error bounds using interval regression technique.
      * This implements the NM (new method) interval regression from the Python reference code.
+     * Also calculates standard errors of the regression coefficients.
      * 
      * @param dataPoints The list of reference data points to use for calculation
      */
@@ -278,55 +287,33 @@ public class ApproxOLSSketch implements Sketch {
         }
         
         // Extract x values (times), midpoints and ranges
-        double[] xValues = new double[dataPoints.size()];
+        double[] xMidValues = new double[dataPoints.size()];
+        double[] xRangeValues = new double[dataPoints.size()];
         double[] midPoints = new double[dataPoints.size()];
         double[] ranges = new double[dataPoints.size()];
         
         for (int i = 0; i < dataPoints.size(); i++) {
             ReferenceDataPoint point = dataPoints.get(i);
-            xValues[i] = (point.getTo() - this.getFrom()) / (double)(this.getTo() - this.getFrom()); // Use middle of time interval as x-coordinate
+            // This places each data point at the appropriate position based on its window
+            xMidValues[i] = (point.getTo() + point.getFrom()) / 2.0; // Midpoint of the time interval
+            xRangeValues[i]= (point.getTo() - point.getFrom()) / 2.0; // Half the range of the time interval
             midPoints[i] = (point.getMaxValue() + point.getMinValue()) / 2.0; // Midpoint between min and max
-            ranges[i] = (point.getMaxValue() - point.getMinValue()) / 2.0; // Half - Range (max - min) / 2
+            ranges[i] = (point.getMaxValue() - point.getMinValue()) / 2.0; // Range (max - min) / 2
         }
+
+        // Calculate regression with standard errors for midpoints
+        RegressionResult midResult = calculateRegressionWithStdErrors(xMidValues, midPoints);
+        double bMid = midResult.slope; // Slope for midpoints
+        double midpointSlopeStdErr = midResult.slopeStdErr;
         
-        // Perform midpoint regression (y_mid = a_mid + b_mid * x)
-        OLSMultipleLinearRegression midRegression = new OLSMultipleLinearRegression();
-        double[][] xDesign = createDesignMatrix(xValues);
-        midRegression.newSampleData(midPoints, xDesign);
-        double[] midParams = midRegression.estimateRegressionParameters();
-        double[] midStdErrors = midRegression.estimateRegressionParametersStandardErrors();
-        double aMid = midParams[0]; // Intercept
-        double bMid = midParams[1]; // Slope
-        double saMid = midStdErrors[0]; // Standard error of intercept
-        double sbMid = midStdErrors[1]; // Standard error of slope
-        
-        // Perform range regression (y_range = a_range + b_range * x)
-        OLSMultipleLinearRegression rangeRegression = new OLSMultipleLinearRegression();
-        rangeRegression.newSampleData(ranges, xDesign);
-        double[] rangeParams = rangeRegression.estimateRegressionParameters();
-        double[] rangeStdErrors = rangeRegression.estimateRegressionParametersStandardErrors();
-        double aRange = rangeParams[0]; // Intercept
-        double bRange = rangeParams[1]; // Slope
-        double saRange = rangeStdErrors[0]; // Standard error of intercept
-        double sbRange = rangeStdErrors[1]; // Standard error of slope
+        // Calculate regression with standard errors for ranges
+        RegressionResult rangeResult = calculateRegressionWithStdErrors(xMidValues, ranges);
+        double bRange = rangeResult.slope; // Slope for ranges
+        double rangeSlopeStdErr = rangeResult.slopeStdErr;
         
         // Calculate bounds for slope
-        double bLo = bMid - bRange; // based on the paper
-        double bHi = bMid + bRange; // based on the paper
-
-        // double sCommon = Math.sqrt(sbMid * sbMid + 0.25 * sbRange * sbRange);
-        // Critical value from t-distribution
-        // int degreesOfFreedom = dataPoints.size() - 2;
-        // TDistribution tDist = new TDistribution(degreesOfFreedom);
-        // double tCrit = tDist.inverseCumulativeProbability(1 - (1 - CONFIDENCE_LEVEL) / 2);
-        
-        // // Calculate confidence intervals for lower and upper bounds of slope
-        // double[] ciLo = new double[] {bLo - tCrit * sCommon, bLo + tCrit * sCommon};
-        // double[] ciHi = new double[] {bHi - tCrit * sCommon, bHi + tCrit * sCommon};
-        
-        // Calculate final slope bounds as the min/max of the confidence intervals
-        // double slopeMin = Math.min(ciLo[0], ciHi[0]);
-        // double slopeMax = Math.max(ciLo[1], ciHi[1]);
+        double bLo = bMid - rangeSlopeStdErr; // based on the paper
+        double bHi = bMid + rangeSlopeStdErr; // based on the paper
 
         double slopeMin = Math.min(bLo, bHi);
         double slopeMax = Math.max(bLo, bHi);
@@ -336,23 +323,76 @@ public class ApproxOLSSketch implements Sketch {
         this.maxAngle = Math.toDegrees(Math.atan(slopeMax));
         this.angle = (this.minAngle + this.maxAngle) / 2.0; // Average angle
         this.angleErrorMargin = (this.maxAngle - this.minAngle) / 180.0;
-        
-        LOG.info("Calculated angle: {} degrees (min: {} degrees, max: {} degrees, error margin: {}, from {} data points)", 
-                this.angle, this.minAngle, this.maxAngle, this.angleErrorMargin, dataPoints.size());
     }
     
     /**
-     * Creates a design matrix for linear regression with a constant term (intercept)
+     * Calculates simple linear regression coefficients and their standard errors
      * 
-     * @param x The array of x values
-     * @return A 2D array with the design matrix
+     * @param x Independent variable array
+     * @param y Dependent variable array
+     * @return RegressionResult containing slope, intercept and their standard errors
      */
-    private double[][] createDesignMatrix(double[] x) {
-        double[][] design = new double[x.length][1];
-        for (int i = 0; i < x.length; i++) {
-            design[i][0] = x[i]; // x value
+    private RegressionResult calculateRegressionWithStdErrors(double[] x, double[] y) {
+        int n = x.length;
+        if (n <= 2) {
+            // Not enough data points for meaningful standard error calculation
+            return new RegressionResult(0, 0, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY);
         }
-        return design;
+        
+        // Calculate means
+        double meanX = 0.0;
+        double meanY = 0.0;
+        for (int i = 0; i < n; i++) {
+            meanX += x[i];
+            meanY += y[i];
+        }
+        meanX /= n;
+        meanY /= n;
+        
+        // Calculate slope and intercept
+        double sumXY = 0.0;
+        double sumXX = 0.0;
+        for (int i = 0; i < n; i++) {
+            double xDiff = x[i] - meanX;
+            sumXY += xDiff * (y[i] - meanY);
+            sumXX += xDiff * xDiff;
+        }
+        
+        double slope = sumXX != 0 ? sumXY / sumXX : 0.0;
+        double intercept = meanY - slope * meanX;
+        
+        // Calculate residuals and residual sum of squares
+        double rss = 0.0;
+        for (int i = 0; i < n; i++) {
+            double yPred = intercept + slope * x[i];
+            double residual = y[i] - yPred;
+            rss += residual * residual;
+        }
+        
+        // Calculate standard errors
+        // Degrees of freedom = n - 2 (we estimated 2 parameters: slope and intercept)
+        double mse = rss / (n - 2);
+        double slopeStdErr = Math.sqrt(mse / sumXX);
+        double interceptStdErr = Math.sqrt(mse * (1.0/n + meanX*meanX/sumXX));
+        
+        return new RegressionResult(intercept, slope, interceptStdErr, slopeStdErr);
+    }
+    
+    /**
+     * Container class for regression results including standard errors
+     */
+    private static class RegressionResult {
+        public final double intercept;
+        public final double slope;
+        public final double interceptStdErr;
+        public final double slopeStdErr;
+        
+        public RegressionResult(double intercept, double slope, double interceptStdErr, double slopeStdErr) {
+            this.intercept = intercept;
+            this.slope = slope;
+            this.interceptStdErr = interceptStdErr;
+            this.slopeStdErr = slopeStdErr;
+        }
     }
     
     /**
@@ -365,23 +405,23 @@ public class ApproxOLSSketch implements Sketch {
     }
 
     private class ReferenceDataPoint {  
-        private final long from;
-        private final long to;
+        private final double from;
+        private final double to;
         private final double maxValue;
         private final double minValue;
 
-        public ReferenceDataPoint(long from, long to, double minValue, double maxValue) {
+        public ReferenceDataPoint(double from, double to, double minValue, double maxValue) {
             this.from = from;
             this.to = to;
             this.minValue = minValue;
             this.maxValue = maxValue;
         }
 
-        public long getFrom() {
+        public double getFrom() {
             return from;
         }
 
-        public long getTo(){
+        public double getTo(){
             return to;
         }
 
@@ -397,7 +437,7 @@ public class ApproxOLSSketch implements Sketch {
         public String toString() {
             return "ReferenceDataPoint{" +
                     "from=" + from +
-                    "to=" + to +
+                    ", to=" + to +
                     ", minValue=" + minValue +
                     ", maxValue=" + maxValue +
                     '}';

@@ -8,7 +8,7 @@ import java.util.Set;
 public class AggregationFunctionsConfig {
     
     private static final Set<String> MIN_MAX_FUNCTIONS = Set.of("min", "max");
-    private static final Set<String> M4STAR_FUNCTIONS = Set.of("min", "max", "first", "last");
+    private static final Set<String> M4INF_FUNCTIONS = Set.of("min", "max", "first", "last");
     
     /**
      * Gets the appropriate set of aggregate functions based on the specified type.
@@ -19,21 +19,11 @@ public class AggregationFunctionsConfig {
     public static Set<String> getAggregateFunctions(String type) {
         if ("minmax".equalsIgnoreCase(type)) {
             return MIN_MAX_FUNCTIONS;
-        } else if ("m4*".equalsIgnoreCase(type)) {
-            return M4STAR_FUNCTIONS;
+        } else if ("m4Inf".equalsIgnoreCase(type)) {
+            return M4INF_FUNCTIONS;
         } else {
             // Default to M4* functions
-            return M4STAR_FUNCTIONS;
+            return M4INF_FUNCTIONS;
         }
     }
-    
-    /**
-     * Gets the default M4* aggregate functions.
-     * 
-     * @return Set of M4* aggregation function names
-     */
-    public static Set<String> getDefaultAggregateFunctions() {
-        return MIN_MAX_FUNCTIONS;
-    }
-    
 }

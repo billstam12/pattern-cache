@@ -3,7 +3,7 @@ package gr.imsi.athenarc.middleware.cache.initialization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.M4StarAggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
@@ -150,7 +150,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         AggregatedDataPoints missingDataPoints = 
             dataSource.getAggregatedDataPoints(startTimestamp, endTimestamp, missingIntervalsPerMeasure, aggregateIntervals, aggregateFunctions);
 
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createM4StarAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
         
         for(List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
             cache.addToCache(spans);
@@ -191,7 +191,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         final int REF_SIZE = 4;
 
 
-        long aggregatesMemory = REF_SIZE + ARRAY_OVERHEAD + M4StarAggregateTimeSeriesSpan.getAggSize() * (REF_SIZE + ARRAY_OVERHEAD + ((long)  M4StarAggregateTimeSeriesSpan.getAggSize() * LONG_SIZE));
+        long aggregatesMemory = REF_SIZE + ARRAY_OVERHEAD + M4InfAggregateTimeSeriesSpan.getAggSize() * (REF_SIZE + ARRAY_OVERHEAD + ((long)  M4InfAggregateTimeSeriesSpan.getAggSize() * LONG_SIZE));
 
         long countsMemory = REF_SIZE + ARRAY_OVERHEAD + ((long) INT_SIZE);
 

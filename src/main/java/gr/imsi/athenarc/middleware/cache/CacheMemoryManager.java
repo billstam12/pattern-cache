@@ -373,8 +373,8 @@ public class CacheMemoryManager {
                 TimeSeriesSpan span = farAwaySpans.get(i);
                 
                 // Only AggregateTimeSeriesSpan can be rolled up
-                if (span instanceof M4StarAggregateTimeSeriesSpan) {
-                    M4StarAggregateTimeSeriesSpan aggSpan = (M4StarAggregateTimeSeriesSpan) span;
+                if (span instanceof M4InfAggregateTimeSeriesSpan) {
+                    M4InfAggregateTimeSeriesSpan aggSpan = (M4InfAggregateTimeSeriesSpan) span;
                     
                     // Try to roll up to twice the current interval
                     AggregateInterval targetInterval = getNextLargerInterval(aggSpan.getAggregateInterval());
@@ -387,7 +387,7 @@ public class CacheMemoryManager {
                             // Remove the original span
                             if (cache.removeSpan(span)) {
                                 // Create and add the rolled up span
-                                M4StarAggregateTimeSeriesSpan rolledUpSpan = aggSpan.rollUp(targetInterval);
+                                M4InfAggregateTimeSeriesSpan rolledUpSpan = aggSpan.rollUp(targetInterval);
                                 if (rolledUpSpan != null) {
                                     LOG.debug("Rolled up far away span for measure {}: {} to {} from interval {} to {}, saving {} bytes", 
                                             measure, span.getFromDate(), span.getToDate(), 
@@ -442,8 +442,8 @@ public class CacheMemoryManager {
                 TimeSeriesSpan span = overlappingInappropriateGranularity.get(i);
                 
                 // See if we can roll up the span to a more appropriate interval
-                if (span instanceof M4StarAggregateTimeSeriesSpan) {
-                    M4StarAggregateTimeSeriesSpan aggSpan = (M4StarAggregateTimeSeriesSpan) span;
+                if (span instanceof M4InfAggregateTimeSeriesSpan) {
+                    M4InfAggregateTimeSeriesSpan aggSpan = (M4InfAggregateTimeSeriesSpan) span;
                     
                     // Find the most appropriate target interval for this span
                     AggregateInterval bestTargetInterval = findBestRollUpInterval(aggSpan, explorationContexts);
@@ -456,7 +456,7 @@ public class CacheMemoryManager {
                             // Remove the original span
                             if (cache.removeSpan(span)) {
                                 // Create and add the rolled up span
-                                M4StarAggregateTimeSeriesSpan rolledUpSpan = aggSpan.rollUp(bestTargetInterval);
+                                M4InfAggregateTimeSeriesSpan rolledUpSpan = aggSpan.rollUp(bestTargetInterval);
                                 if (rolledUpSpan != null) {
                                     LOG.debug("Rolled up overlap span for measure {}: {} to {} from interval {} to {}, saving {} bytes", 
                                             measure, span.getFromDate(), span.getToDate(), 
@@ -523,7 +523,7 @@ public class CacheMemoryManager {
      * @param contexts The current exploration contexts
      * @return The best target interval, or null if none is suitable
      */
-    private AggregateInterval findBestRollUpInterval(M4StarAggregateTimeSeriesSpan span, List<TimeRangeContext> contexts) {
+    private AggregateInterval findBestRollUpInterval(M4InfAggregateTimeSeriesSpan span, List<TimeRangeContext> contexts) {
         AggregateInterval currentInterval = span.getAggregateInterval();
         long currentMs = currentInterval.toDuration().toMillis();
         

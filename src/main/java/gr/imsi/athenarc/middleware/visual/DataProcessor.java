@@ -1,5 +1,6 @@
 package gr.imsi.athenarc.middleware.visual;
 
+import org.checkerframework.checker.units.qual.t;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -7,15 +8,17 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
-import gr.imsi.athenarc.middleware.cache.M4StarAggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.MinMaxAggregateTimeSeriesSpan;
-import gr.imsi.athenarc.middleware.cache.PixelColumn;
 import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
 import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.*;
+import gr.imsi.athenarc.middleware.sketch.PixelColumn;
+import gr.imsi.athenarc.middleware.sketch.Utils;
 
 import java.util.*;
 
@@ -23,15 +26,17 @@ public class DataProcessor {
 
     private final DataSource dataSource;
     private final int dataReductionRatio;
-
-    public DataProcessor(DataSource dataSource, int dataReductionRatio){
+    private final String method;
+    private final boolean calendarAlignment;
+    
+    public DataProcessor(DataSource dataSource, int dataReductionRatio, String method, boolean calendarAlignment) {
         this.dataSource = dataSource;
         this.dataReductionRatio = dataReductionRatio;
+        this.method = method;
+        this.calendarAlignment = calendarAlignment;
     }
 
     private static final Logger LOG = LoggerFactory.getLogger(DataProcessor.class);
-
-    private static final Set<String> aggregateFunctions = AggregationFunctionsConfig.getDefaultAggregateFunctions();
     
     public RangeSet<Long> getRawTimeSeriesSpanRanges(List<TimeSeriesSpan> timeSeriesSpans) {
         RangeSet<Long> rangeSet = TreeRangeSet.create();
@@ -58,8 +63,6 @@ public class DataProcessor {
      */
     public void processDatapoints(long from, long to, ViewPort viewPort,
                                    List<PixelColumn> pixelColumns, List<TimeSeriesSpan> timeSeriesSpans) {
-
-
         // Get the ranges from raw time series spans
         RangeSet<Long> rawSpanRanges = getRawTimeSeriesSpanRanges(timeSeriesSpans);
         
@@ -76,21 +79,28 @@ public class DataProcessor {
                 Iterator<DataPoint> iterator = ((RawTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     DataPoint dataPoint = iterator.next();
-                    addDataPointToPixelColumns(from, to, viewPort, pixelColumns, dataPoint);
+                    Utils.addDataPointToPixelColumns(from, to, viewPort, pixelColumns, dataPoint);
                 }
-            } else if (span instanceof M4StarAggregateTimeSeriesSpan) {
+            } else if (span instanceof M4InfAggregateTimeSeriesSpan) {
                 // Add aggregated data points to pixel columns with errors
-                Iterator<AggregatedDataPoint> iterator = ((M4StarAggregateTimeSeriesSpan) span).iterator(from, to);
+                Iterator<AggregatedDataPoint> iterator = ((M4InfAggregateTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     AggregatedDataPoint aggregatedDataPoint = iterator.next();
-                    addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                    Utils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                } 
+            } else if (span instanceof M4AggregateTimeSeriesSpan) {
+                // Add aggregated data points to pixel columns with errors
+                Iterator<AggregatedDataPoint> iterator = ((M4AggregateTimeSeriesSpan) span).iterator(from, to);
+                while (iterator.hasNext()) {
+                    AggregatedDataPoint aggregatedDataPoint = iterator.next();
+                    Utils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
                 } 
             } else if (span instanceof MinMaxAggregateTimeSeriesSpan) {
                 // Add aggregated data points to pixel columns with errors
                 Iterator<AggregatedDataPoint> iterator = ((MinMaxAggregateTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     AggregatedDataPoint aggregatedDataPoint = iterator.next();
-                    addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                    Utils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
                 } 
              } else {
                 throw new IllegalArgumentException("Time Series Span Read Error");
@@ -185,7 +195,7 @@ public class DataProcessor {
             for (int measure : aggregateMissingIntervals.keySet()) {
                 int noOfGroups = aggFactors.get(measure) * viewPort.getWidth();
                 long interval = (to - from) / noOfGroups;
-                AggregateInterval aggInterval = DateTimeUtil.roundDownToCalendarBasedInterval(interval);
+                AggregateInterval aggInterval = calendarAlignment ? DateTimeUtil.roundDownToCalendarBasedInterval(interval) : AggregateInterval.fromMillis(interval);
                 LOG.info("Rounded {} down to calendar based interval: {}", interval + "ms", aggInterval);
                 aggIntervals.put(measure, aggInterval);
             }
@@ -194,19 +204,26 @@ public class DataProcessor {
             Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = 
                 DateTimeUtil.alignIntervalsToTimeUnitBoundary(aggregateMissingIntervals, aggIntervals);
             
-            long start = System.currentTimeMillis();
-            
-            AggregatedDataPoints aggDataPoints = 
-                dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, aggregateFunctions);
-
+            AggregatedDataPoints aggDataPoints = null;
             Map<Integer, List<TimeSeriesSpan>> aggTimeSeriesSpans = null;
-            
-            if(aggregateFunctions.contains("first")){
-                aggTimeSeriesSpans = TimeSeriesSpanFactory.createM4StarAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
-            } else {
+
+            if (method.equalsIgnoreCase("m4Inf")) {
+                // For M4 methods, we fetch the data points with the specified aggregation functions
+                aggDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, AggregationFunctionsConfig.getAggregateFunctions(method));
+                aggTimeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
+            } else if(method.equalsIgnoreCase("minmax")){
+                // For min-max aggregation, we use the min-max aggregate functions
+                aggDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, AggregationFunctionsConfig.getAggregateFunctions(method));
                 aggTimeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
             }
-
+            else if(method.equalsIgnoreCase("m4")){
+                // For min-max aggregation, we use the min-max aggregate functions
+                aggDataPoints = dataSource.getM4DataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals);
+                aggTimeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
+            } else {
+                throw new IllegalArgumentException("Unknown aggregation method: " + method);
+            }
+                    
             // Merge aggregate time series spans with the result
             for (Map.Entry<Integer, List<TimeSeriesSpan>> entry : aggTimeSeriesSpans.entrySet()) {
                 int measure = entry.getKey();
@@ -219,31 +236,5 @@ public class DataProcessor {
         }
         
         return timeSeriesSpans;
-    }
-
-    private int getPixelColumnForTimestamp(long timestamp, long from, long to, int width) {
-        long aggregateInterval = (to - from) / width;
-        return (int) ((timestamp - from) / aggregateInterval);
-    }
-
-    private void addAggregatedDataPointToPixelColumns(long from, long to, ViewPort viewPort, List<PixelColumn> pixelColumns, AggregatedDataPoint aggregatedDataPoint) {
-        int pixelColumnIndex = getPixelColumnForTimestamp(aggregatedDataPoint.getFrom(), from, to, viewPort.getWidth());
-        if (pixelColumnIndex < viewPort.getWidth() 
-        && !pixelColumns.get(pixelColumnIndex).hasNoError()) {
-            pixelColumns.get(pixelColumnIndex).addAggregatedDataPoint(aggregatedDataPoint);
-        }
-        // Since we only consider spans with intervals smaller than the pixel column interval, we know that the data point will not overlap more than two pixel columns.
-        if (pixelColumnIndex <  viewPort.getWidth() - 1 && pixelColumns.get(pixelColumnIndex + 1).overlaps(aggregatedDataPoint) 
-            && !pixelColumns.get(pixelColumnIndex + 1).hasNoError()) {
-            // If the next pixel column overlaps the data point, then we need to add the data point to the next pixel column as well.
-            pixelColumns.get(pixelColumnIndex + 1).addAggregatedDataPoint(aggregatedDataPoint);
-        }
-    }
-
-    private void addDataPointToPixelColumns(long from, long to, ViewPort viewPort, List<PixelColumn> pixelColumns, DataPoint dataPoint){
-        int pixelColumnIndex = getPixelColumnForTimestamp(dataPoint.getTimestamp(), from, to, viewPort.getWidth());
-        if (pixelColumnIndex < viewPort.getWidth()) {
-            pixelColumns.get(pixelColumnIndex).addDataPoint(dataPoint);
-        }
     }
 }

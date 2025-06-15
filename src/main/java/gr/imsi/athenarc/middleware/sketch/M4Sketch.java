@@ -1,9 +1,10 @@
-package gr.imsi.athenarc.middleware.pattern;
+package gr.imsi.athenarc.middleware.sketch;
+
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import gr.imsi.athenarc.middleware.cache.Sketch;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
@@ -64,71 +65,65 @@ public class M4Sketch implements Sketch {
     }
     
     /**
+     * Checks if this sketch can be combined with another sketch.
+     * 
+     * @param other The sketch to check compatibility with
+     * @return true if sketches can be combined, false otherwise
+     */
+    public boolean canCombineWith(Sketch other) {
+        if (other == null || other.isEmpty()) {
+            LOG.debug("Cannot combine with null or empty sketch");
+            return false;
+        }
+        
+        if (!(other instanceof M4Sketch)) {
+            LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
+            return false;
+        }
+        
+        if (this.getTo() != other.getFrom()) {
+            LOG.debug("Cannot combine non-consecutive sketches. Current sketch ends at {} but next sketch starts at {}", 
+                      this.getTo(), other.getFrom());
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
      * Combines this sketch with another one, extending the time interval and updating stats.
      * The sketches must be consecutive (this.to == other.from).
      * 
      * @param other The sketch to combine with this one
      * @return This sketch after combination (for method chaining)
-     * @throws IllegalArgumentException if the sketches are not consecutive
      */
     @Override
     public Sketch combine(Sketch other) {
         // Validate input
-        if (other == null) {
-            LOG.debug("Attempt to combine with null sketch, returning this sketch unchanged");
+        if (!canCombineWith(other)) {
+            LOG.debug("Cannot combine incompatible sketches");
             return this;
-        }
-        
-        if (other.isEmpty()) {
-            LOG.debug("Attempt to combine with empty sketch, returning this sketch unchanged");
-            return this;
-        }
-
-        if (!(other instanceof M4Sketch)) {
-            throw new IllegalArgumentException("Cannot combine sketches of different types: " + other.getClass());
         }
         
         M4Sketch otherSketch = (M4Sketch) other;
-        validateConsecutiveSketch(otherSketch);
-        validateCompatibleAggregationTypes(otherSketch);
-
+        
         // Calculate angle between consecutive sketches before combining stats
         computeAngleBetweenConsecutiveSketches(this, otherSketch);
+        
         // Update time interval and duration
         this.to = otherSketch.getTo();        
+        
         // Combine stats
         this.statsAggregator.combine(otherSketch.getStatsAggregator());
         
         return this;
     }
     
-    /**
-     * Validates that the other sketch is consecutive to this one
-     * 
-     * @param other The sketch to validate against this one
-     * @throws IllegalArgumentException if sketches are not consecutive
-     */
-    private void validateConsecutiveSketch(Sketch other) {
-        if (this.getTo() != other.getFrom()) {
-            throw new IllegalArgumentException(
-                String.format("Cannot combine non-consecutive sketches. Current sketch ends at %d but next sketch starts at %d", 
-                              this.getTo(), other.getFrom())
-            );
-        }
+    @Override
+    public Optional<AggregateInterval> getOriginalAggregateInterval() {
+        return Optional.ofNullable(originalAggregateInterval);
     }
-    
-    /**
-     * Validates that both sketches use compatible aggregation types
-     * 
-     * @param other The sketch to validate against this one
-     */
-    private void validateCompatibleAggregationTypes(Sketch other) {
-        if (this.aggregationType != other.getAggregationType()) {
-            LOG.warn("Combining sketches with different aggregation types: {} and {}", 
-                this.aggregationType, other.getAggregationType());
-        }
-    }
-   
+
     // Accessors and utility methods
     
     /**
@@ -202,15 +197,16 @@ public class M4Sketch implements Sketch {
         DataPoint firstPoint = first.getReferencePointFromSketch();
         DataPoint secondPoint = second.getReferencePointFromSketch();
         LOG.debug("Calculating angle between sketches from {} to {}", firstPoint, secondPoint);
+        
         if (firstPoint == null || secondPoint == null) {
-            LOG.debug("Insufficient data points to calculate angle between sketches");
+            LOG.warn("Insufficient data points to calculate angle between sketches");
             this.angle = Double.POSITIVE_INFINITY;
             return;
         }
         // Calculate value change
         double valueChange = secondPoint.getValue() - firstPoint.getValue();
         // Calculate time change
-        long timeChange = (second.getFrom() - first.getFrom()) / (originalAggregateInterval.toDuration().toMillis());
+        long timeChange = (second.getStatsAggregator().getLastTimestamp() - first.getStatsAggregator().getLastTimestamp()) / (originalAggregateInterval.toDuration().toMillis());
 
         // Check for zero time difference before division
         if (timeChange == 0) {
@@ -234,7 +230,7 @@ public class M4Sketch implements Sketch {
         
         switch (aggregationType) {
             case FIRST_VALUE:
-                return statsAggregator.getLastDataPoint();
+                return statsAggregator.getFirstDataPoint();
             case LAST_VALUE:
                 return statsAggregator.getLastDataPoint();
             case MIN_VALUE:

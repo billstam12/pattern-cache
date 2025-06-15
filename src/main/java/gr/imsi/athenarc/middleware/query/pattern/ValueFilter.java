@@ -32,12 +32,19 @@ public class ValueFilter {
     public static ValueFilter moderateIncrease(){
         return new ValueFilter(false, 20f, 45f);
     }
+
+    /**
+     * Creates a value filter for large increasing trends
+     */
+    public static ValueFilter largeIncrease(){
+        return new ValueFilter(false, 60f, 90f);
+    }
     
     /**
      * Creates a value filter for decreasing trends (negative degrees)
      */
     public static ValueFilter decreasing() {
-        return new ValueFilter(false, -90f, -0.20f);
+        return new ValueFilter(false, -90f, -20f);
     }
 
      /**
@@ -45,6 +52,13 @@ public class ValueFilter {
      */
     public static ValueFilter moderateDecrease(){
         return new ValueFilter(false, -45f, -20f);
+    }
+
+     /**
+     * Creates a value filter for large decreasing trends
+     */
+    public static ValueFilter largeDecrease(){
+        return new ValueFilter(false, -90f, -60f);
     }
     
     /**

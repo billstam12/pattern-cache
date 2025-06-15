@@ -16,15 +16,18 @@ public class VisualQueryManager {
     private final DataProcessor dataProcessor;
     private final PrefetchManager prefetchManager;
     private final DataSource dataSource;
+    private final String method;
 
     public VisualQueryManager(DataSource dataSource, TimeSeriesCache cache,
-                             int dataReductionFactor, int initialAggregationFactor, double prefetchingFactor) {
+                             int dataReductionFactor, int initialAggregationFactor, double prefetchingFactor, 
+                             String method, boolean calendarAlignment) {
         this.cache = cache;
         this.dataSource = dataSource;
         // Initialize components for visual queries
-        this.dataProcessor = new DataProcessor(dataSource, dataReductionFactor);
+        this.dataProcessor = new DataProcessor(dataSource, dataReductionFactor, method, calendarAlignment);
         this.queryExecutor = new QueryExecutor(dataSource, initialAggregationFactor);
         this.prefetchManager = new PrefetchManager(dataSource, prefetchingFactor, cache, dataProcessor);
+        this.method = method;
     }
 
     public VisualQueryResults executeQuery(VisualQuery query) {

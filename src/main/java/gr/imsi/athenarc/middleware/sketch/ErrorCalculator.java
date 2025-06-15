@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.middleware.cache;
+package gr.imsi.athenarc.middleware.sketch;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +31,7 @@ public class ErrorCalculator {
                 error += pixelColumnError;
             }
         }
-        LOG.info("Valid columns: {}", validColumns);
+        LOG.debug("Valid columns: {}", validColumns);
         error /= validColumns;
         hasError = validColumns > Math.floor(viewPort.getHeight() /  2) && error > 1 - accuracy;
         return error;
@@ -40,7 +40,7 @@ public class ErrorCalculator {
     public List<TimeInterval> getMissingIntervals() {
         List<TimeInterval> missingIntervals = maxErrorEvaluator.getMissingRanges();
         missingIntervals = DateTimeUtil.groupIntervals(pixelColumnInterval, missingIntervals);
-        LOG.info("Unable to Determine Errors: " + missingIntervals);
+        LOG.debug("Unable to Determine Errors: " + missingIntervals);
         return missingIntervals;
     }
 
