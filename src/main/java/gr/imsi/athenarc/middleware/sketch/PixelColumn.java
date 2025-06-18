@@ -210,12 +210,29 @@ public class PixelColumn implements Sketch {
         double tEnd = Math.min(to, Math.max(t1, t2));
 
         // Calculate the values at the start and end timestamps
-        double vStart = Math.max(viewPortStats.getMinValue(), slope * tStart + yIntercept);
-        double vEnd = Math.min(viewPortStats.getMaxValue(), slope * tEnd + yIntercept);
+        // IMPORTANT: Clamp values to the min/max range of viewPortStats
+        double calculatedVStart = slope * tStart + yIntercept;
+        double calculatedVEnd = slope * tEnd + yIntercept;
+        
+        // Ensure values are within the valid range
+        double vStart = Math.max(viewPortStats.getMinValue(), Math.min(viewPortStats.getMaxValue(), calculatedVStart));
+        double vEnd = Math.max(viewPortStats.getMinValue(), Math.min(viewPortStats.getMaxValue(), calculatedVEnd));
+        
+        // Log if we had to clamp values that were outside the valid range
+        if (calculatedVStart != vStart || calculatedVEnd != vEnd) {
+            LOG.debug("Line values were clamped to viewport range. Original: [{}, {}], Clamped: [{}, {}]", 
+                      calculatedVStart, calculatedVEnd, vStart, vEnd);
+        }
 
         // Convert the values to pixel ids       
         int pixelIdStart = viewPort.getPixelId(vStart, viewPortStats);
         int pixelIdEnd = viewPort.getPixelId(vEnd, viewPortStats);
+
+        if(pixelIdEnd < 0 || pixelIdStart < 0 || pixelIdEnd >= viewPort.getHeight() || pixelIdStart >= viewPort.getHeight()) {
+            LOG.error("Calculated pixel IDs are out of bounds: start={}, end={}, height={}", pixelIdStart, pixelIdEnd, viewPort.getHeight());
+            throw new IllegalStateException("Calculated pixel IDs are out of bounds: start=" + pixelIdStart + ", end=" + pixelIdEnd + ", height=" + viewPort.getHeight());
+        }
+        
         // Create a range from the pixel ids and return it
         return Range.closed(Math.min(pixelIdStart, pixelIdEnd), Math.max(pixelIdStart, pixelIdEnd));
     }

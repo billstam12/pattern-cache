@@ -9,7 +9,6 @@ import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.domain.*;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
-import gr.imsi.athenarc.middleware.sketch.ErrorCalculator;
 import gr.imsi.athenarc.middleware.sketch.PixelColumn;
 
 import java.util.ArrayList;

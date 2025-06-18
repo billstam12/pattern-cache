@@ -186,6 +186,10 @@ public class M4Sketch implements Sketch {
         return match;
     }
 
+    public void addDataPoint(DataPoint dp){
+        throw new UnsupportedOperationException("This sketch does not support adding individual data points directly. Use addAggregatedDataPoint instead.");
+    }
+
     /**
      * Calculates the angle between two consecutive sketches based on their first or last data points,
      * depending on aggregation type.

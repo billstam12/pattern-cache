@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
+import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
@@ -402,6 +403,10 @@ public class ApproxOLSSketch implements Sketch {
      */
     public List<ReferenceDataPoint> getAllDataPoints() {
         return new ArrayList<>(allDataPoints);
+    }
+
+    public void addDataPoint(DataPoint dp){
+        throw new UnsupportedOperationException("This sketch does not support adding individual data points directly. Use addAggregatedDataPoint instead.");
     }
 
     private class ReferenceDataPoint {  

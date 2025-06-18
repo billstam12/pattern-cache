@@ -19,9 +19,12 @@ import javax.xml.crypto.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.influxdb.client.domain.Query;
+
 import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.MinMaxAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.CacheUtils;
 import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.SlopeAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
@@ -191,11 +194,10 @@ public class PatternUtils {
         long endTime = System.currentTimeMillis();
         long executionTime = endTime - startTime;
         LOG.info("Pattern query with cache executed in {} ms", executionTime);
-
-        // Log matches to file
-        logMatchesToFile(matches, "cache-" + method, params, dataSource, executionTime);
-
-        return new PatternQueryResults();
+        PatternQueryResults patternQueryResults = new PatternQueryResults();
+        patternQueryResults.setMatches(matches);
+        patternQueryResults.setExecutionTime(executionTime);
+        return patternQueryResults;
     }
     
     /**
@@ -240,11 +242,11 @@ public class PatternUtils {
         long endTime = System.currentTimeMillis();
         long executionTime = endTime - startTime;
         LOG.info("Pattern query executed in {} ms", executionTime);
-
-        // Log matches to file
-        logMatchesToFile(matches, "ground_truth", params, dataSource, executionTime);
         
-        return new PatternQueryResults();
+        PatternQueryResults patternQueryResults = new PatternQueryResults();
+        patternQueryResults.setMatches(matches);
+        patternQueryResults.setExecutionTime(executionTime);
+        return patternQueryResults;
     }
     
     /**
@@ -319,33 +321,6 @@ public class PatternUtils {
         }
     }
 
-    private static Map<Integer, List<TimeSeriesSpan>> fetchTimeSeriesSpans(DataSource dataSource, 
-            int measure, long from, long to, 
-            Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure, 
-            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, String method) {
-
-        // Fetch missing data
-        AggregatedDataPoints newDataPoints = null;
-                        
-        // Create spans and add to cache
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = null;
-
-        if(method.equalsIgnoreCase("m4")) {
-            newDataPoints = dataSource.getM4DataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-            return TimeSeriesSpanFactory.createM4Aggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        }
-        else if(method.equalsIgnoreCase("m4Inf")) {
-            newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        } else if(method.equalsIgnoreCase("minmax")){
-            newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            timeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        } else {
-            throw new IllegalArgumentException("Unsupported method for fetching data: " + method);
-        }
-        return timeSeriesSpans;
-    }
-    
     /**
      * Fetch missing data from data source and update cache.
      */
@@ -377,7 +352,7 @@ public class PatternUtils {
                 DateTimeUtil.alignIntervalsToTimeUnitBoundary(missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
             
             Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
-                fetchTimeSeriesSpans(dataSource, measure, alignedFrom, alignedTo, 
+                CacheUtils.fetchTimeSeriesSpans(dataSource, alignedFrom, alignedTo, 
                                      alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, method);
 
             for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
@@ -415,7 +390,7 @@ public class PatternUtils {
         
         // Create spans and add to cache
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans =  
-                fetchTimeSeriesSpans(dataSource, measure, alignedFrom, alignedTo, 
+                CacheUtils.fetchTimeSeriesSpans(dataSource, alignedFrom, alignedTo, 
                                      intervalsPerMeasure, aggregateIntervalsPerMeasure, method);
 
         // Fill the sketches with the data
@@ -485,21 +460,27 @@ public class PatternUtils {
     /**
      * Log pattern matches to a file for later comparison
      */
-    private static void logMatchesToFile(List<List<List<Sketch>>> matches, String prefix, QueryParams params, DataSource dataSource, long executionTime) {
+    public static void logMatchesToFile(PatternQuery query, PatternQueryResults patternQueryResults, String prefix, DataSource dataSource, String outputFolder) {
+
+        QueryParams params = extractQueryParams(query);
+        List<List<List<Sketch>>> matches = patternQueryResults.getMatches();
+        long executionTime = patternQueryResults.getExecutionTime();
+
         try {
+            
             // Create matches directory if it doesn't exist
-            Path patternMatchesDir = Paths.get("pattern_matches");
+            Path patternMatchesDir = Paths.get(outputFolder,"pattern_matches");
             if (!Files.exists(patternMatchesDir)) {
                 Files.createDirectories(patternMatchesDir);
             }
 
-            Path datasetDir = Paths.get("pattern_matches", dataSource.getDataset().getTableName());
+            Path datasetDir = Paths.get(outputFolder, "pattern_matches", dataSource.getDataset().getTableName());
             if (!Files.exists(datasetDir)) {
                 Files.createDirectories(datasetDir);
             }
 
             // Create specific directory if it doesn't exist
-            Path logDir = Paths.get("pattern_matches",  dataSource.getDataset().getTableName(), prefix);
+            Path logDir = Paths.get(outputFolder,"pattern_matches",  dataSource.getDataset().getTableName(), prefix);
             if (!Files.exists(logDir)) {
                 Files.createDirectories(logDir);
             }

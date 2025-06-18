@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
+import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.SlopeStats;
 import gr.imsi.athenarc.middleware.domain.SlopeStatsAggregator;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
@@ -156,8 +157,12 @@ public class OLSSketch implements Sketch {
 
     }
     
+
+    public void addDataPoint(DataPoint dp){
+        throw new UnsupportedOperationException("This sketch does not support adding individual data points directly. Use addAggregatedDataPoint instead.");
+    }
+   
     // Accessors and utility methods
-    
     @Override
     public AggregationType getAggregationType() {
         return aggregationType;

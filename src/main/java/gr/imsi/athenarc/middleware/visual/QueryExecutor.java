@@ -38,7 +38,6 @@ import gr.imsi.athenarc.middleware.domain.TimeRange;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
-import gr.imsi.athenarc.middleware.sketch.ErrorCalculator;
 import gr.imsi.athenarc.middleware.sketch.PixelColumn;
 
 public class QueryExecutor {
@@ -137,20 +136,23 @@ public class QueryExecutor {
 
             // --- 2. Process overlapping spans ----------------------------------
             for (TimeSeriesSpan span : overlappingSpans) {
-                double spanMs = span.getAggregateInterval().toDuration().toMillis();
                 if(span instanceof RawTimeSeriesSpan) continue;              // skip raw data
-
+                
+                int spanFactor = (int) Math.ceil(((span.getTo() - span.getFrom()) / viewPort.getWidth()) / span.getAggregateInterval().toDuration().toMillis());
                 double w = span.percentage(query);                // weight ∈ [0,1]
-                double factor = pixelColumnIntervalInMillis / spanMs;                 // now a double
-                weightedSum += w * factor;
-                weightSum += w;
+                // weightedSum += w * spanFactor;
+                // weightSum += w;
+                weightedSum += spanFactor;
+                weightSum += 1;
             }
 
             // --- 3. Process missing intervals ----------------------------------
             for (TimeInterval missing : missingIntervalsForMeasure) {
                 double w = missing.percentage(query);
-                weightedSum += w * initialAggFactor;
-                weightSum += w;
+                // weightedSum += w * initialAggFactor;
+                // weightSum += w;
+                weightedSum += initialAggFactor;
+                weightSum += 1;
             }
 
             // --- 4. Compute ceiled mean safely --------------------------------

@@ -103,7 +103,7 @@ public class CacheManager {
      */
     public void initializeCache(CacheInitializationPolicy policy) {
         LOG.info("Initializing cache using policy: {}", policy.getDescription());
-        policy.initialize(cache, dataSource);
+        policy.initialize(this);
     }
     
     /**
@@ -250,11 +250,11 @@ public class CacheManager {
                 new VisualQueryManager(dataSource, cache, dataReductionFactor, initialAggregationFactor, prefetchingFactor, method, calendarAlignment);
                 
             CacheManager manager = new CacheManager(cache, dataSource, patternQueryManager, visualQueryManager, memoryManager);
-            
+
             // Apply initialization policy if one was specified
             if (initializationPolicy != null) {
                 LOG.info("Applying cache initialization policy: {}", initializationPolicy.getDescription());
-                initializationPolicy.initialize(cache, dataSource);
+                initializationPolicy.initialize(manager);
                 
                 // After initialization, update memory usage tracking
                 if (memoryManager != null) {
@@ -281,6 +281,4 @@ public class CacheManager {
     public DataSource getDataSource() {
         return dataSource;
     }
-
-    
 }

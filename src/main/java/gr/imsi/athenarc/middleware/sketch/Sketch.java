@@ -3,6 +3,7 @@ package gr.imsi.athenarc.middleware.sketch;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
+import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
@@ -14,6 +15,8 @@ import java.util.Optional;
  */
 public interface Sketch extends TimeInterval {
     
+    public void addDataPoint(DataPoint dp);
+
     /**
      * Adds an aggregated data point to this sketch
      * 
@@ -51,20 +54,6 @@ public interface Sketch extends TimeInterval {
      * @return A new sketch with the same properties
      */
     Sketch clone();
-    
-    /**
-     * Gets the start timestamp of this sketch
-     * 
-     * @return Start timestamp in epoch milliseconds
-     */
-    long getFrom();
-    
-    /**
-     * Gets the end timestamp of this sketch
-     * 
-     * @return End timestamp in epoch milliseconds
-     */
-    long getTo();
     
     /**
      * Gets the angle (slope) calculated for this sketch
@@ -136,8 +125,7 @@ public interface Sketch extends TimeInterval {
         double high = filter.getMaxDegree();
         return getAngle() >= low && getAngle() <= high;
     }
-    
-    
+      
     /**
      * Gets the original time interval used in this sketch
      * 

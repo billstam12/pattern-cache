@@ -42,4 +42,8 @@ public class VisualQueryManager {
     public DataSource getDataSource() {
         return dataSource;
     }
+
+    public String getMethod() {
+        return method;
+    }
 }

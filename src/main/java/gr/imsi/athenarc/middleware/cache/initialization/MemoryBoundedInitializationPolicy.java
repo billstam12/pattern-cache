@@ -3,14 +3,18 @@ package gr.imsi.athenarc.middleware.cache.initialization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.cache.CacheManager;
+import gr.imsi.athenarc.middleware.cache.CacheUtils;
 import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
+import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
 
@@ -85,8 +89,8 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
     }
     
     @Override
-    public void initialize(TimeSeriesCache cache, DataSource dataSource) {
-        initialize(cache, dataSource, null);
+    public void initialize(CacheManager cacheManager) {
+        initialize(cacheManager, null);
     }
     
     /**
@@ -95,16 +99,20 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
      * @param cache The time series cache to initialize
      * @param measures List of measures to initialize (null means use all measures)
      */
-    public void initialize(TimeSeriesCache cache, DataSource dataSource, List<Integer> measures) {
+    public void initialize(CacheManager cacheManager, List<Integer> measures) {
         if (lookbackPercentage == null) {
             LOG.info("Initializing cache with full dataset using memory-bounded approach (limit: {} bytes, utilization: {}%)", 
                     maxMemoryBytes, memoryUtilizationTarget * 100);
         } else {
             LOG.info("Initializing cache with recent data for {}% of the dataset using memory-bounded approach (limit: {} bytes, utilization: {}%)", 
-                lookbackPercentage, maxMemoryBytes, memoryUtilizationTarget * 100);
+                lookbackPercentage * 100, maxMemoryBytes, memoryUtilizationTarget * 100);
         }
-                
+        
+        DataSource dataSource = cacheManager.getDataSource();
         AbstractDataset dataset = dataSource.getDataset();
+        TimeSeriesCache cache = cacheManager.getCache();
+
+
         // Determine time range based on mode (full or recent data)
         long endTimestamp = dataset.getTimeRange().getTo();
         long startTimestamp = dataset.getTimeRange().getFrom();
@@ -135,23 +143,23 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         LOG.info("Memory budget per measure: {} bytes", perMeasureBytes);
         Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure = new HashMap<>();
         // Determine appropriate aggregation intervals
-        Map<Integer, AggregateInterval> aggregateIntervals = calculateOptimalAggregationIntervals(
+        Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = calculateOptimalAggregationIntervals(
             measureList, perMeasureBytes, datasetTimeRange);
     
-                
         for (int measure : measureList){
             List<TimeInterval> missingIntervals = new ArrayList<>();
             missingIntervals.add(new TimeRange(startTimestamp, endTimestamp));
             missingIntervalsPerMeasure.put(measure, missingIntervals);
         }
         
-        Set<String> aggregateFunctions = new HashSet<>(Arrays.asList("min", "max", "first", "last"));
+        String method = cacheManager.getVisualQueryManager().getMethod();
 
-        AggregatedDataPoints missingDataPoints = 
-            dataSource.getAggregatedDataPoints(startTimestamp, endTimestamp, missingIntervalsPerMeasure, aggregateIntervals, aggregateFunctions);
+        Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = 
+                DateTimeUtil.alignIntervalsToTimeUnitBoundary(missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+                                       
+        // Create spans and add to cache
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = CacheUtils.fetchTimeSeriesSpans(dataSource, startTimestamp, endTimestamp, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, method);
 
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
-        
         for(List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
             cache.addToCache(spans);
         }
@@ -223,7 +231,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
             long minIntervalMs = datasetTimeRange / maxDataPoints;
             
             // Round up to a sensible interval (1min, 5min, 15min, 1hr, etc.)
-            AggregateInterval interval = selectAppropriateInterval(minIntervalMs);
+            AggregateInterval interval = DateTimeUtil.roundDownToCalendarBasedInterval(minIntervalMs);
             
             intervals.put(measureId, interval);
             LOG.info("Measure {}: Can store ~{} points, using interval {}", 
@@ -231,48 +239,5 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         }
         
         return intervals;
-    }
-    
-    /**
-     * Select an appropriate standard interval based on a minimum millisecond value.
-     */
-    private AggregateInterval selectAppropriateInterval(long minIntervalMs) {
-        AggregateInterval[] standardIntervals = {
-            // minutes
-            AggregateInterval.of(1, ChronoUnit.MINUTES),
-            AggregateInterval.of(2, ChronoUnit.MINUTES),
-            AggregateInterval.of(3, ChronoUnit.MINUTES),
-            AggregateInterval.of(4, ChronoUnit.MINUTES),
-            AggregateInterval.of(5, ChronoUnit.MINUTES),
-            AggregateInterval.of(6, ChronoUnit.MINUTES),
-            AggregateInterval.of(10, ChronoUnit.MINUTES),
-            AggregateInterval.of(12, ChronoUnit.MINUTES),
-            AggregateInterval.of(15, ChronoUnit.MINUTES),
-            AggregateInterval.of(20, ChronoUnit.MINUTES),
-            AggregateInterval.of(30, ChronoUnit.MINUTES),
-
-            //hours
-            AggregateInterval.of(1, ChronoUnit.HOURS),
-            AggregateInterval.of(2, ChronoUnit.HOURS),
-            AggregateInterval.of(3, ChronoUnit.HOURS),
-            AggregateInterval.of(4, ChronoUnit.HOURS),
-            AggregateInterval.of(6, ChronoUnit.HOURS),
-            AggregateInterval.of(8, ChronoUnit.HOURS),
-            AggregateInterval.of(12, ChronoUnit.HOURS),
-
-            //days/weeks
-            AggregateInterval.of(1, ChronoUnit.DAYS),
-            AggregateInterval.of(1, ChronoUnit.WEEKS)
-        };
-        
-        // Find smallest standard interval that's larger than our minimum
-        for (AggregateInterval interval : standardIntervals) {
-            if (interval.toDuration().toMillis() >= minIntervalMs) {
-                return interval;
-            }
-        }
-
-        // By default return the largest interval (1 week)
-        return AggregateInterval.of(1, ChronoUnit.WEEKS);
     }
 }

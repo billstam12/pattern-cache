@@ -1,7 +1,6 @@
 package gr.imsi.athenarc.middleware.cache.initialization;
 
-import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
-import gr.imsi.athenarc.middleware.datasource.DataSource;
+import gr.imsi.athenarc.middleware.cache.CacheManager;
 
 /**
  * Interface for different cache initialization strategies.
@@ -12,9 +11,9 @@ public interface CacheInitializationPolicy {
     /**
      * Initialize the cache according to the specific policy.
      * 
-     * @param cache The cache to initialize
+     * @param cacheManager The cache to initialize
      */
-    void initialize(TimeSeriesCache cache, DataSource dataSource);
+    void initialize(CacheManager cacheManager);
     
     /**
      * Gets a human-readable description of the initialization policy.

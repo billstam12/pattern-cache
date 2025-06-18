@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
-import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
