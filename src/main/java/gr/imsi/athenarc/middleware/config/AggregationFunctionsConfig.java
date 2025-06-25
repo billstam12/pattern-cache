@@ -2,6 +2,8 @@ package gr.imsi.athenarc.middleware.config;
 
 import java.util.Set;
 
+import gr.imsi.athenarc.middleware.domain.AggregationType;
+
 /**
  * Central configuration for aggregation functions used across the application.
  */
@@ -21,9 +23,25 @@ public class AggregationFunctionsConfig {
             return MIN_MAX_FUNCTIONS;
         } else if ("m4Inf".equalsIgnoreCase(type)) {
             return M4INF_FUNCTIONS;
-        } else {
-            // Default to M4* functions
+        } else if ("m4".equalsIgnoreCase(type)) {
             return M4INF_FUNCTIONS;
+        }
+        else {
+            throw new IllegalArgumentException("Unsupported type: " + type);
+        }
+    }
+
+    public static Set<String> getAggregateFunctions(AggregationType aggregationType) {
+        if (aggregationType == AggregationType.FIRST_VALUE) {
+            return Set.of("first");
+        } else if (aggregationType == AggregationType.LAST_VALUE) {
+            return Set.of("last");
+        } else if (aggregationType == AggregationType.MAX_VALUE) {
+            return Set.of("max");
+        } else if (aggregationType == AggregationType.MIN_VALUE) {
+            return Set.of("min");
+        } else {
+            throw new IllegalArgumentException("Unsupported aggregation type: " + aggregationType);
         }
     }
 }

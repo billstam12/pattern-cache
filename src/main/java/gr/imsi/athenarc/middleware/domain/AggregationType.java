@@ -7,6 +7,5 @@ public enum AggregationType {
     FIRST_VALUE,  // Use the first value from each interval
     MIN_VALUE,    // Use the minimum value from each interval
     MAX_VALUE,    // Use the maximum value from each interval
-    AVERAGE_VALUE, // Use the average value from each interval
     OLS,
 }

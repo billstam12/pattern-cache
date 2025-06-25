@@ -15,10 +15,13 @@ import java.util.Map;
 public class InfluxDBM4DataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
 
     private final Map<String, Integer> measuresMap;
+    private final int noOfAggregates;
 
-    public InfluxDBM4DataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap) {
+    public InfluxDBM4DataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap, int noOfAggregates) {
         super(tables);
         this.measuresMap = measuresMap;
+        this.noOfAggregates = noOfAggregates;
+
     }
 
     @Override
@@ -26,7 +29,7 @@ public class InfluxDBM4DataPointsIterator extends InfluxDBIterator<AggregatedDat
         StatsAggregator statsAggregator = new StatsAggregator();
         String measureName = "";
 
-        for (int i = 0; i < 4 && current < currentSize; i++) {
+        for (int i = 0; i < noOfAggregates && current < currentSize; i++) {
             FluxRecord record = currentRecords.get(current);
             measureName = record.getField();
             Object value = record.getValue();
@@ -58,7 +61,7 @@ public class InfluxDBM4DataPointsIterator extends InfluxDBIterator<AggregatedDat
             statsAggregator
         );
 
-        // logAggregatedPoint(point, statsAggregator);
+        logAggregatedPoint(point, statsAggregator);
         startGroupTimestamp = endGroupTimestamp;
         
         return point;

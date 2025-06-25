@@ -16,6 +16,7 @@ import java.util.Set;
 
 import javax.xml.crypto.Data;
 
+import org.checkerframework.checker.units.qual.t;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +37,7 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
+import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -48,6 +50,7 @@ import gr.imsi.athenarc.middleware.sketch.ApproxOLSSketch;
 import gr.imsi.athenarc.middleware.sketch.M4Sketch;
 import gr.imsi.athenarc.middleware.sketch.MinMaxSketch;
 import gr.imsi.athenarc.middleware.sketch.OLSSketch;
+import gr.imsi.athenarc.middleware.sketch.SingleValueSketch;
 import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 public class PatternUtils {
@@ -76,9 +79,11 @@ public class PatternUtils {
             long sketchEnd = Math.min(sketchStart + unitDurationMs, to);
             Sketch sketch = null;
             switch(type){
-                case "m4":
-                    sketch = new M4Sketch(sketchStart, sketchEnd, aggregationType);
+                case "single":
+                case "singleInf":
+                    sketch = new SingleValueSketch(sketchStart, sketchEnd, aggregationType);
                     break;
+                case "m4":
                 case "m4Inf":
                     sketch = new M4Sketch(sketchStart, sketchEnd, aggregationType);
                     break;
@@ -113,6 +118,17 @@ public class PatternUtils {
         return combinedSketch;
     }
 
+    private static void populateSketchesFromDataPoints(Iterator<AggregatedDataPoint> dataPoints, 
+                                                List<Sketch> sketches, 
+                                                long from, 
+                                                long to, 
+                                                AggregateInterval timeUnit, 
+                                                ViewPort viewPort) {
+        while (dataPoints != null && dataPoints.hasNext()) {
+            AggregatedDataPoint point = dataPoints.next();
+            addAggregatedDataPointToSketches(from, to, timeUnit, sketches, point, viewPort);
+        }
+    }
     /** 
      * Populate sketches with data from a TimeSeriesSpan.
      */
@@ -127,25 +143,9 @@ public class PatternUtils {
                     // Skip raw spans as they're not useful for pattern detection
                     continue;
             }
-                    
             Iterator<AggregatedDataPoint> dataPoints = null;
-            
-            // Extract the appropriate iterator based on span type
-            if (span instanceof M4InfAggregateTimeSeriesSpan) {
-                dataPoints = ((M4InfAggregateTimeSeriesSpan) span).iterator(from, to);
-            } else if (span instanceof M4AggregateTimeSeriesSpan) {
-                dataPoints = ((M4AggregateTimeSeriesSpan) span).iterator(from, to);
-            } else if (span instanceof MinMaxAggregateTimeSeriesSpan) {
-                dataPoints = ((MinMaxAggregateTimeSeriesSpan) span).iterator(from, to);
-            } else {
-                throw new IllegalArgumentException("Unsupported span type for cached patterns: " + span.getClass());
-            }
-            
-            // Process all data points from the span
-            while (dataPoints != null && dataPoints.hasNext()) {
-                AggregatedDataPoint point = dataPoints.next();
-                addAggregatedDataPointToSketches(from, to, timeUnit, sketches, point, viewPort);
-            }
+            dataPoints = span.iterator(from, to);
+            populateSketchesFromDataPoints(dataPoints, sketches, from, to, timeUnit, viewPort);
         }
     }
 
@@ -163,7 +163,7 @@ public class PatternUtils {
                                                                   TimeSeriesCache cache, String method) {        
         long startTime = System.currentTimeMillis();
 
-        Set<String> aggregateFunctions = AggregationFunctionsConfig.getAggregateFunctions("method");
+        Set<String> aggregateFunctions = AggregationFunctionsConfig.getAggregateFunctions(method);
 
         // Extract query parameters
         QueryParams params = extractQueryParams(query);
@@ -225,14 +225,24 @@ public class PatternUtils {
                 sketches.size(), params.timeUnit);
 
         if(method.equals("ols")){
-            fetchSlopeDataFromDataSource(
+            executePatternQueryForSlopeMethod(
                 sketches, dataSource, params.measure,
                 params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
         }
-        else {
-            fetchMissingDataFromDataSource(
+        else if(method.equals("m4Inf") 
+            || method.equals("m4") 
+            || method.equals("minmax")) {
+            executePatternQueryForAggregateMethod(
                 sketches, dataSource, params.measure,
                 params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort, method);
+        } else if(method.equals("singleInf") 
+                || method.equals("single")) {
+            executePatternQueryForSingleAggregateMethod(
+                sketches, dataSource, params.measure,
+                params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort, query.getAggregationType(), method);    
+        } 
+        else {
+            throw new IllegalArgumentException("Unsupported method for pattern query: " + method);
         }
         
         
@@ -249,6 +259,33 @@ public class PatternUtils {
         return patternQueryResults;
     }
     
+    private static void executePatternQueryForSingleAggregateMethod(List<Sketch> sketches, DataSource dataSource,
+            int measure, long from, long to, AggregateInterval timeUnit, ViewPort viewPort,
+            AggregationType aggregationType, String method) {
+        Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
+        Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
+        List<TimeInterval> intervals = new ArrayList<>();
+        intervals.add(new TimeRange(from, to));
+        intervalsPerMeasure.put(measure, intervals);
+        aggregateIntervalsPerMeasure.put(measure, timeUnit);
+        Set<String> aggregateFunctions = AggregationFunctionsConfig.getAggregateFunctions(aggregationType);
+        AggregatedDataPoints dataPoints;
+        switch (method) {
+            case "singleInf":
+                dataPoints = dataSource.getAggregatedDataPoints(
+                    from, to, intervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
+                break;
+            case "single":
+                dataPoints = dataSource.getAggregatedDataPointsWithTimestamps(
+                    from, to, intervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported method for single aggregate pattern query: " + method);
+        }
+        populateSketchesFromDataPoints(dataPoints.iterator(), sketches, 
+            from, to, timeUnit, viewPort); 
+    }
+
     /**
      * Helper class to store query parameters extracted from a PatternQuery
      */
@@ -373,7 +410,7 @@ public class PatternUtils {
      * Fetch all required data directly from data source (no caching).
      * Used by the non-cached pattern query execution.
      */
-    private static void fetchMissingDataFromDataSource(List<Sketch> sketches, DataSource dataSource, 
+    private static void executePatternQueryForAggregateMethod(List<Sketch> sketches, DataSource dataSource, 
                                                int measure, long alignedFrom, long alignedTo, 
                                                AggregateInterval timeUnit, ViewPort viewPort, String method) {
         // Create a time range for the pattern query (entire range)
@@ -388,7 +425,7 @@ public class PatternUtils {
         Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
         aggregateIntervalsPerMeasure.put(measure, timeUnit);
         
-        // Create spans and add to cache
+        // Create spans 
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans =  
                 CacheUtils.fetchTimeSeriesSpans(dataSource, alignedFrom, alignedTo, 
                                      intervalsPerMeasure, aggregateIntervalsPerMeasure, method);
@@ -399,7 +436,7 @@ public class PatternUtils {
         }
     }
 
-    private static void fetchSlopeDataFromDataSource(List<Sketch> sketches, DataSource dataSource, 
+    private static void executePatternQueryForSlopeMethod(List<Sketch> sketches, DataSource dataSource, 
                                                int measure, long alignedFrom, long alignedTo, 
                                                AggregateInterval timeUnit, ViewPort viewPort) {
         // Create a time range for the pattern query (entire range)
@@ -460,7 +497,7 @@ public class PatternUtils {
     /**
      * Log pattern matches to a file for later comparison
      */
-    public static void logMatchesToFile(PatternQuery query, PatternQueryResults patternQueryResults, String prefix, DataSource dataSource, String outputFolder) {
+    public static void logMatchesToFile(PatternQuery query, PatternQueryResults patternQueryResults, String method, DataSource dataSource, String outputFolder) {
 
         QueryParams params = extractQueryParams(query);
         List<List<List<Sketch>>> matches = patternQueryResults.getMatches();
@@ -473,21 +510,26 @@ public class PatternUtils {
             if (!Files.exists(patternMatchesDir)) {
                 Files.createDirectories(patternMatchesDir);
             }
+          
+            Path methodDir = Paths.get(outputFolder, "pattern_matches", method);
+            if (!Files.exists(methodDir)) {
+                Files.createDirectories(methodDir);
+            }
 
-            Path datasetDir = Paths.get(outputFolder, "pattern_matches", dataSource.getDataset().getTableName());
-            if (!Files.exists(datasetDir)) {
-                Files.createDirectories(datasetDir);
+            Path dbDir = Paths.get(outputFolder, "pattern_matches", method, "influx");
+            if (!Files.exists(dbDir)) {
+                Files.createDirectories(dbDir);
             }
 
             // Create specific directory if it doesn't exist
-            Path logDir = Paths.get(outputFolder,"pattern_matches",  dataSource.getDataset().getTableName(), prefix);
+            Path logDir = Paths.get(outputFolder,"pattern_matches", method, "influx", dataSource.getDataset().getTableName());
             if (!Files.exists(logDir)) {
                 Files.createDirectories(logDir);
             }
             
             // Create a unique filename with timestamp
-            String filename = String.format("%s_%s_%s_%d_%s.log", 
-                prefix, params.from, params.to, params.measure, params.timeUnit.toString());
+            String filename = String.format("%s_%s_%d_%s.log", 
+                params.from, params.to, params.measure, params.timeUnit.toString());
             
             File logFile = new File(logDir.toFile(), filename);
             
@@ -561,6 +603,8 @@ public class PatternUtils {
         }
         // Get the appropriate sketch and add the data point
         if (index >= 0 && index < sketches.size()) {
+            LOG.debug("Adding aggregated data point with timestamp {} to sketch at index {}", 
+                    timestamp, index);
             sketches.get(index).addAggregatedDataPoint(aggregatedDataPoint);
         } else {
             LOG.error("Index calculation error: Computed index {} for timestamp {} is out of bounds (sketches size: {})", 

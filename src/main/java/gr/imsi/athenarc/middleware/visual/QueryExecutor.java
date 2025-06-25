@@ -1,5 +1,6 @@
 package gr.imsi.athenarc.middleware.visual;
 
+import java.sql.Time;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,6 +85,7 @@ public class QueryExecutor {
         AggregateInterval pixelColumnInterval = AggregateInterval.of(pixelColumnIntervalInMillis, ChronoUnit.MILLIS);
         double queryTime = 0;
         long ioCount = 0;
+        double cacheMissRatio = 0;
         Stopwatch stopwatch = Stopwatch.createUnstarted();
         stopwatch.start();
         List<Integer> measures = Optional.ofNullable(query.getMeasures()).orElse(dataset.getMeasures());
@@ -192,7 +194,10 @@ public class QueryExecutor {
         for(int measureWithMiss : missingTimeSeriesSpansPerMeasure.keySet()) {
             List<PixelColumn> pixelColumns = pixelColumnsPerMeasure.get(measureWithMiss);
             List<TimeSeriesSpan> timeSeriesSpans = missingTimeSeriesSpansPerMeasure.get(measureWithMiss);
-            ioCount += timeSeriesSpans.stream().mapToLong(TimeSeriesSpan::getCount).sum();
+            for(TimeSeriesSpan span : timeSeriesSpans){
+                ioCount += span.getCount();
+                cacheMissRatio += span.percentage(query);
+            }
             // Add to pixel columns
             dataProcessor.processDatapoints(from, to, viewPort, pixelColumns, timeSeriesSpans);
 
@@ -260,6 +265,7 @@ public class QueryExecutor {
             measureStatsMap.put(measure, measureStats);
             resultData.put(measure, dataPoints);
         }
+        cacheMissRatio /= measures.size();
         queryTime = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
         stopwatch.stop();
 
@@ -273,6 +279,7 @@ public class QueryExecutor {
         queryResults.setQueryTime(queryTime);
         queryResults.setTimeRange(new TimeRange(startPixelColumn, endPixelColumn));
         queryResults.setIoCount(ioCount);
+        queryResults.setCacheHitRatio(1 - cacheMissRatio);
         return queryResults;
     }
 

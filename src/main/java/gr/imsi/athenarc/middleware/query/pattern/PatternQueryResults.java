@@ -10,6 +10,8 @@ public class PatternQueryResults implements QueryResults, Serializable {
 
     List<List<List<Sketch>>> matches;
     long executionTime;
+    double cacheHitRatio = 0.0;
+    long ioCount = 0;
     
     public void setMatches(List<List<List<Sketch>>> matches) {
         this.matches = matches;
@@ -25,5 +27,22 @@ public class PatternQueryResults implements QueryResults, Serializable {
 
     public long getExecutionTime() {
         return executionTime;
+    }
+
+    public void setCacheHitRatio(double cacheHitRatio) {
+        this.cacheHitRatio = cacheHitRatio;
+    }
+    public void setIoCount(long ioCount) {
+        this.ioCount = ioCount;
+    }
+
+    @Override   
+    public double getCacheHitRatio() {
+        return cacheHitRatio;
+    }
+
+    @Override
+    public long getIoCount() {
+        return ioCount;
     }
 }

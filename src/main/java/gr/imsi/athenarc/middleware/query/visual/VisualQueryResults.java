@@ -29,6 +29,8 @@ public class VisualQueryResults implements QueryResults, Serializable {
 
     private double queryTime = 0;
 
+    private double cacheHitRatio = 0;
+
     private double progressiveQueryTime = 0;
 
 
@@ -55,13 +57,23 @@ public class VisualQueryResults implements QueryResults, Serializable {
     public void setMeasureStats(Map<Integer, DoubleSummaryStatistics> measureStats) {
         this.measureStats = measureStats;
     }
-    
+
+    @Override
     public long getIoCount() {
         return ioCount;
     }
 
     public void setIoCount(long ioCount) {
         this.ioCount = ioCount;
+    }
+
+    @Override
+    public double getCacheHitRatio() {
+        return cacheHitRatio;
+    }
+
+    public void setCacheHitRatio(double cacheHitRatio) {
+        this.cacheHitRatio = cacheHitRatio;
     }
 
     public void toCsv(String path) {

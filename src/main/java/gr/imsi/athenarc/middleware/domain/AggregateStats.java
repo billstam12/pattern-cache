@@ -16,11 +16,9 @@ public class AggregateStats implements Stats, Serializable {
     private Double firstValue;
     private Double lastValue;
 
-
     public AggregateStats() {
 
     }
-
 
     @Override
     public long getMinTimestamp() {

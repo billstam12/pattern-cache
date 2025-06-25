@@ -29,10 +29,11 @@ public class InfluxDBDatasource implements DataSource {
     }
 
     @Override
-    public AggregatedDataPoints getM4DataPoints(long from, long to,
+    public AggregatedDataPoints getAggregatedDataPointsWithTimestamps(long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
-        return new InfluxDBM4Datapoints(influxDBQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure,
+            Set<String> aggregateFunctions) {
+        return new InfluxDBM4Datapoints(influxDBQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
     }
 
     @Override

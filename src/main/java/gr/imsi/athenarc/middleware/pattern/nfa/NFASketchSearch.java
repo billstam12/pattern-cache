@@ -421,12 +421,10 @@ public class NFASketchSearch {
             Sketch composite = allSketches.get(startIndex).clone();
             List<Sketch> segmentSketches = new ArrayList<>();
             segmentSketches.add(allSketches.get(startIndex));
-            
             boolean validComposite = true;
             
             for (int i = 1; i < count; i++) {
                 Sketch nextSketch = allSketches.get(startIndex + i);
-                
                 // Skip this composite if we encounter a sketch with no data
                  if (!composite.canCombineWith(nextSketch)) {
                     validComposite = false;

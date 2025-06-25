@@ -218,7 +218,7 @@ public class DataProcessor {
             }
             else if(method.equalsIgnoreCase("m4")){
                 // For min-max aggregation, we use the min-max aggregate functions
-                aggDataPoints = dataSource.getM4DataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals);
+                aggDataPoints = dataSource.getAggregatedDataPointsWithTimestamps(from, to, alignedIntervalsPerMeasure, aggIntervals, AggregationFunctionsConfig.getAggregateFunctions(method));
                 aggTimeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
             } else {
                 throw new IllegalArgumentException("Unknown aggregation method: " + method);

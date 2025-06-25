@@ -23,7 +23,7 @@ public class CacheUtils {
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = null;
 
         if(method.equalsIgnoreCase("m4")) {
-            newDataPoints = dataSource.getM4DataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+            newDataPoints = dataSource.getAggregatedDataPointsWithTimestamps(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
             return TimeSeriesSpanFactory.createM4Aggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
         }
         else if(method.equalsIgnoreCase("m4Inf")) {
@@ -32,7 +32,8 @@ public class CacheUtils {
         } else if(method.equalsIgnoreCase("minmax")){
             newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
             timeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        } else {
+        }  
+        else {
             throw new IllegalArgumentException("Unsupported method for fetching data: " + method);
         }
         return timeSeriesSpans;

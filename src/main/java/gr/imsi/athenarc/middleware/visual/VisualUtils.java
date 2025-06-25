@@ -13,6 +13,7 @@ import com.google.common.base.Stopwatch;
 import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
+import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
@@ -48,7 +49,7 @@ public class VisualUtils {
         }
 
         AggregatedDataPoints missingDataPoints = 
-            dataSource.getM4DataPoints(startPixelColumn, endPixelColumn, missingIntervalsPerMeasure, aggregateIntervals);
+            dataSource.getAggregatedDataPointsWithTimestamps(startPixelColumn, endPixelColumn, missingIntervalsPerMeasure, aggregateIntervals, AggregationFunctionsConfig.getAggregateFunctions("m4"));
         
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
         for (Integer measure : query.getMeasures()) {

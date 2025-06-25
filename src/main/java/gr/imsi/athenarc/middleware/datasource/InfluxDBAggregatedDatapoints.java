@@ -150,42 +150,27 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
             }
         }
         
-        // Now build the single union for all aggregations
-        fluxQuery.append("union(\n")
-               .append("    tables: [\n");
-        
-        // Reset counter for second pass
-        dataSourceCounter = 0;
-        
-        // Second pass - create aggregations for all data sources
-        for (int measureIdx : missingIntervalsPerMeasure.keySet()) {
-            AggregateInterval aggregateInterval = aggregateIntervalsPerMeasure.get(measureIdx);
-            String measureFluxTimeInterval = getFluxTimeInterval(aggregateInterval);
-            List<TimeInterval> missingIntervals = missingIntervalsPerMeasure.get(measureIdx);
+        // Check if we need a union (only when there's more than one aggregate function)
+        if (aggregateFunctions.size() > 1) {
+            // Build the union for multiple aggregations
+            fluxQuery.append("union(\n")
+                   .append("    tables: [\n");
             
-            if (missingIntervals == null || missingIntervals.isEmpty()) {
-                // Calculate offset based on the from time
-                long offset = from % (aggregateInterval.getMultiplier() * 
-                                     getChronoUnitMillis(aggregateInterval.getChronoUnit()));
+            // Reset counter for second pass
+            dataSourceCounter = 0;
+            
+            // Second pass - create aggregations for all data sources
+            for (int measureIdx : missingIntervalsPerMeasure.keySet()) {
+                AggregateInterval aggregateInterval = aggregateIntervalsPerMeasure.get(measureIdx);
+                String measureFluxTimeInterval = getFluxTimeInterval(aggregateInterval);
+                List<TimeInterval> missingIntervals = missingIntervalsPerMeasure.get(measureIdx);
                 
-                // Add all specified aggregation functions
-                for (String aggFunction : aggregateFunctions) {
-                    fluxQuery.append("        data_").append(dataSourceCounter)
-                            .append("() |> aggregate(agg: ").append(aggFunction)
-                            .append(", name: \"").append(aggFunction).append("\", offset: ")
-                            .append(offset).append("ms,")
-                            .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
-                }
-                
-                dataSourceCounter++;
-            } else {
-                // Process each missing interval
-                for (TimeInterval interval : missingIntervals) {
-                    // Calculate offset based on the interval start time
-                    long offset = interval.getFrom() % (aggregateInterval.getMultiplier() * 
-                                                     getChronoUnitMillis(aggregateInterval.getChronoUnit()));
+                if (missingIntervals == null || missingIntervals.isEmpty()) {
+                    // Calculate offset based on the from time
+                    long offset = from % (aggregateInterval.getMultiplier() * 
+                                         getChronoUnitMillis(aggregateInterval.getChronoUnit()));
                     
-                    // Add all specified aggregation functions for each interval
+                    // Add all specified aggregation functions
                     for (String aggFunction : aggregateFunctions) {
                         fluxQuery.append("        data_").append(dataSourceCounter)
                                 .append("() |> aggregate(agg: ").append(aggFunction)
@@ -195,13 +180,60 @@ final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
                     }
                     
                     dataSourceCounter++;
+                } else {
+                    // Process each missing interval
+                    for (TimeInterval interval : missingIntervals) {
+                        // Calculate offset based on the interval start time
+                        long offset = interval.getFrom() % (aggregateInterval.getMultiplier() * 
+                                                         getChronoUnitMillis(aggregateInterval.getChronoUnit()));
+                        
+                        // Add all specified aggregation functions for each interval
+                        for (String aggFunction : aggregateFunctions) {
+                            fluxQuery.append("        data_").append(dataSourceCounter)
+                                    .append("() |> aggregate(agg: ").append(aggFunction)
+                                    .append(", name: \"").append(aggFunction).append("\", offset: ")
+                                    .append(offset).append("ms,")
+                                    .append("aggregateInterval:").append(measureFluxTimeInterval).append("),\n");
+                        }
+                        
+                        dataSourceCounter++;
+                    }
                 }
             }
+            
+            // Remove the trailing comma and close the union
+            fluxQuery.delete(fluxQuery.length() - 2, fluxQuery.length());
+            fluxQuery.append("\n    ]\n)");
+        } else {
+            // For single aggregate function, avoid using union
+            String aggFunction = aggregateFunctions.iterator().next();
+            
+            // Direct aggregation without union
+            fluxQuery.append("data_0() |> aggregate(agg: ").append(aggFunction)
+                    .append(", name: \"").append(aggFunction).append("\", offset: ");
+            
+            // Get the first measure's interval for simplicity
+            // (This is fine since we typically use the same aggregation interval for all measures)
+            int firstMeasureIdx = missingIntervalsPerMeasure.keySet().iterator().next();
+            AggregateInterval aggregateInterval = aggregateIntervalsPerMeasure.get(firstMeasureIdx);
+            String measureFluxTimeInterval = getFluxTimeInterval(aggregateInterval);
+            
+            // Calculate appropriate offset
+            long offset = from % (aggregateInterval.getMultiplier() * 
+                                 getChronoUnitMillis(aggregateInterval.getChronoUnit()));
+            
+            fluxQuery.append(offset).append("ms,")
+                    .append("aggregateInterval:").append(measureFluxTimeInterval).append(")");
+            
+            // Additional measures need to be processed with join operations if there are multiple measures
+            int remainingMeasures = dataSourceCounter - 1;
+            for (int i = 1; i <= remainingMeasures; i++) {
+                fluxQuery.append("\n|> union(tables: data_").append(i).append("() |> aggregate(agg: ")
+                        .append(aggFunction).append(", name: \"").append(aggFunction).append("\", offset: ")
+                        .append(offset).append("ms,")
+                        .append("aggregateInterval:").append(measureFluxTimeInterval).append("))");
+            }
         }
-        
-        // Remove the trailing comma and close the union
-        fluxQuery.delete(fluxQuery.length() - 2, fluxQuery.length());
-        fluxQuery.append("\n    ]\n)");
         
         // Add final operations for grouping and sorting
         fluxQuery.append("\n|> group(columns: [\"_field\", \"_start\", \"_stop\"])")

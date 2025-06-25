@@ -5,28 +5,23 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
-import gr.imsi.athenarc.middleware.domain.Stats;
-import gr.imsi.athenarc.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.middleware.domain.ImmutableDataPoint;
+import gr.imsi.athenarc.middleware.domain.StatsUtils;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 /** Only for non timestamped aggregate stats = agg. time series spans */
-public class M4Sketch implements Sketch {
+public class SingleValueSketch implements Sketch {
 
-    private static final Logger LOG = LoggerFactory.getLogger(M4Sketch.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SingleValueSketch.class);
 
     private long from;
     private long to;
 
-    // Store the stats from each interval
-    private StatsAggregator statsAggregator = new StatsAggregator();
-    
-    // The aggregation type to use when adding data points
-    private AggregationType aggregationType;
-    
     private double angle;
 
     // used for fetching data from the db
@@ -37,6 +32,9 @@ public class M4Sketch implements Sketch {
     // Used in angle calculation.
     private AggregateInterval originalAggregateInterval; 
 
+    private DataPoint dataPoint;
+
+    private AggregationType aggregationType;
     /**
      * Creates a new sketch with the specified aggregation type.
      *
@@ -44,11 +42,11 @@ public class M4Sketch implements Sketch {
      * @param to The end timestamp of this sketch
      * @param aggregationType The function that gets the representative data point
      */
-    public M4Sketch(long from, long to, AggregationType aggregationType) {
+    public SingleValueSketch(long from, long to, AggregationType aggregationType) {
         this.from = from;
         this.to = to;
-        this.aggregationType = aggregationType;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
+        this.aggregationType = aggregationType;
     }
 
     /**
@@ -57,11 +55,35 @@ public class M4Sketch implements Sketch {
      * @param dp The aggregated data point to add
      */
     public void addAggregatedDataPoint(AggregatedDataPoint dp) {
-        hasInitialized = true; // Mark as having underlying data
-        Stats stats = dp.getStats();
-        if (stats.getCount() > 0) {
-            statsAggregator.accept(dp);
+        this.hasInitialized = true;
+        if(dp == null) {
+            throw new IllegalArgumentException("Cannot add null aggregated data point to sketch.");
         }
+        if(this.dataPoint != null){
+            throw new IllegalStateException("Cannot add aggregated data point to a sketch that already has one.");
+        }
+        long firstTimestamp = StatsUtils.getFirstTimestampSafely(dp.getStats(), dp.getFrom());
+        long lastTimestamp = StatsUtils.getLastTimestampSafely(dp.getStats(), dp.getTo());
+        long maxTimestamp = StatsUtils.getMaxTimestampSafely(dp.getStats(), (dp.getFrom() + dp.getTo()) / 2);
+        long minTimestamp = StatsUtils.getMinTimestampSafely(dp.getStats(), (dp.getFrom() + dp.getTo()) / 2);
+        switch(aggregationType) {
+            case FIRST_VALUE:
+                this.dataPoint = new ImmutableDataPoint(firstTimestamp, dp.getStats().getFirstValue());
+                break;
+            case LAST_VALUE:
+                this.dataPoint = new ImmutableDataPoint(lastTimestamp, dp.getStats().getLastValue());
+                break;
+            case MIN_VALUE:
+                this.dataPoint = new ImmutableDataPoint(minTimestamp, dp.getStats().getMinValue());
+                break;
+            case MAX_VALUE:
+                this.dataPoint = new ImmutableDataPoint(maxTimestamp, dp.getStats().getMaxValue());
+                break;
+            default:
+                LOG.error("Unknown aggregation type: {}", aggregationType);
+                throw new IllegalStateException("Unknown aggregation type: " + aggregationType);
+        }
+        LOG.debug("Added aggregated data point to sketch: {}", this.dataPoint);
     }
     
     /**
@@ -71,12 +93,17 @@ public class M4Sketch implements Sketch {
      * @return true if sketches can be combined, false otherwise
      */
     public boolean canCombineWith(Sketch other) {
-        if (other == null || other.isEmpty()) {
-            LOG.debug("Cannot combine with null or empty sketch");
+        if (other == null ) {
+            LOG.debug("Cannot combine with null sketch");
+            return false;
+        }
+
+        if (other.isEmpty()) {
+            LOG.debug("Cannot combine with empty sketch");
             return false;
         }
         
-        if (!(other instanceof M4Sketch)) {
+        if (!(other instanceof SingleValueSketch)) {
             LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
             return false;
         }
@@ -105,17 +132,14 @@ public class M4Sketch implements Sketch {
             return this;
         }
         
-        M4Sketch otherSketch = (M4Sketch) other;
+        SingleValueSketch otherSketch = (SingleValueSketch) other;
         
         // Calculate angle between consecutive sketches before combining stats
         computeAngleBetweenConsecutiveSketches(this, otherSketch);
         
         // Update time interval and duration
         this.to = otherSketch.getTo();        
-        
-        // Combine stats
-        this.statsAggregator.combine(otherSketch.getStatsAggregator());
-        
+        this.dataPoint = otherSketch.dataPoint; 
         return this;
     }
     
@@ -125,16 +149,6 @@ public class M4Sketch implements Sketch {
     }
 
     // Accessors and utility methods
-    
-    /**
-     * Gets the aggregation type used by this sketch.
-     *
-     * @return The aggregation type
-     */
-    public AggregationType getAggregationType() {
-        return aggregationType;
-    }
-
     @Override
     public long getFrom() {
         return from;
@@ -151,20 +165,20 @@ public class M4Sketch implements Sketch {
     }
     
     public Sketch clone() {
-        M4Sketch sketch = new M4Sketch(this.from, this.to, this.aggregationType);
-        sketch.statsAggregator = this.statsAggregator.clone();
+        SingleValueSketch sketch = new SingleValueSketch(this.from, this.to, this.aggregationType);
         sketch.hasInitialized = this.hasInitialized;
         sketch.angle = this.angle;
         sketch.originalAggregateInterval = this.originalAggregateInterval;
+        sketch.dataPoint = this.dataPoint != null ? new ImmutableDataPoint(this.dataPoint.getTimestamp(), this.dataPoint.getValue()) : null;
         return sketch;
     }
 
-    public StatsAggregator getStatsAggregator() {
-        return statsAggregator;
+    public AggregationType getAggregationType() {
+        return aggregationType;
     }
 
     public boolean isEmpty() {
-        return statsAggregator.getCount() == 0;
+        return dataPoint == null;
     }
 
     public boolean hasInitialized() {
@@ -197,10 +211,9 @@ public class M4Sketch implements Sketch {
      * @param first The first sketch in sequence
      * @param second The second sketch in sequence (consecutive to first)
      */
-    private void computeAngleBetweenConsecutiveSketches(M4Sketch first, M4Sketch second) {
+    private void computeAngleBetweenConsecutiveSketches(SingleValueSketch first, SingleValueSketch second) {
         DataPoint firstPoint = first.getReferencePointFromSketch();
         DataPoint secondPoint = second.getReferencePointFromSketch();
-        LOG.debug("Calculating angle between sketches from {} to {}", firstPoint, secondPoint);
         
         if (firstPoint == null || secondPoint == null) {
             LOG.warn("Insufficient data points to calculate angle between sketches");
@@ -211,7 +224,7 @@ public class M4Sketch implements Sketch {
         double valueChange = secondPoint.getValue() - firstPoint.getValue();
         
         // Calculate time change
-        long timeChange = (second.getStatsAggregator().getLastTimestamp() - first.getStatsAggregator().getLastTimestamp()) / (originalAggregateInterval.toDuration().toMillis());
+        long timeChange = (secondPoint.getTimestamp() - firstPoint.getTimestamp()) / (originalAggregateInterval.toDuration().toMillis());
 
         // Check for zero time difference before division
         if (timeChange == 0) {
@@ -229,22 +242,11 @@ public class M4Sketch implements Sketch {
     }
     
     private DataPoint getReferencePointFromSketch() {
-        if (isEmpty()) {
+        if (dataPoint == null) {
+            LOG.warn("No aggregated data point available in sketch to get reference point");
             return null;
         }
-        
-        switch (aggregationType) {
-            case FIRST_VALUE:
-                return statsAggregator.getFirstDataPoint();
-            case LAST_VALUE:
-                return statsAggregator.getLastDataPoint();
-            case MIN_VALUE:
-                return statsAggregator.getMinDataPoint();
-            case MAX_VALUE:
-                return statsAggregator.getMaxDataPoint();
-            default:
-                throw new IllegalArgumentException("Unsupported aggregation type: " + aggregationType);
-        }
+        return dataPoint;
     }
     
     @Override

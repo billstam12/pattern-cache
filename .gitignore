@@ -2,3 +2,7 @@ target/
 .vscode/
 Icon
 Icon?
+dataset_cache/
+figures/
+output*/
+logs*

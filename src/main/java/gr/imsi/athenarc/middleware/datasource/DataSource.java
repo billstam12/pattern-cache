@@ -20,7 +20,7 @@ public interface DataSource {
     DataPoints getDataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure);
 
     /**
-     * Returns an {@link AggregatedDataPoints} instance to access first, last, min, max data points (with timestamps) for multiple measures,
+     * Returns an {@link AggregatedDataPoints} instance to access aggregated data points (with timestamps) for multiple measures,
      * each with its own missing intervals and aggregate interval.
      * @param from global start timestamp
      * @param to global end timestamp
@@ -28,8 +28,8 @@ public interface DataSource {
      * @param aggregateIntervalsPerMeasure list of measure-specific aggregation intervals
      * @return aggregated data points
      */
-    AggregatedDataPoints getM4DataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
-                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure);
+    AggregatedDataPoints getAggregatedDataPointsWithTimestamps(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
+                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, Set<String> aggregateFunctions);
                                                 
     /**
      * Returns an {@link AggregatedDataPoints} instance to access aggregated data points (without timestamps) for multiple measures,
