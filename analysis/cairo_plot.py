@@ -160,6 +160,29 @@ def plot(df, measure, name, width, height, queryFrom, queryTo):
     # Finally, write the rendered image to a PNG file.
     surface.write_to_png(name + '.png')
 
+def get_pixel_grid(image_path):
+    """
+    Load an image and return its pixel grid as a NumPy array.
+
+    Parameters
+    ----------
+    image_path : str
+        Path to the image file.
+
+    Returns
+    -------
+    numpy.ndarray
+        2D array containing the pixel values of the image in grayscale.
+        For grayscale images, values range from 0 (black) to 255 (white).
+    """
+    # Read the image and convert to grayscale
+    img = Image.open(image_path).convert('L')
+    
+    # Convert to NumPy array
+    pixel_grid = np.array(img, dtype=np.uint8)
+    
+    return pixel_grid
+
 # Example DataFrame
 df = pd.DataFrame({
     'timestamp': np.arange(10) * 1000,   # Simulate timestamps spaced by 1000

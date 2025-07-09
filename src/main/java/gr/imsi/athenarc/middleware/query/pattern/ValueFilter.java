@@ -8,7 +8,6 @@ public class ValueFilter {
     // Whether to consider any value
     private final boolean valueAny;
     
-    // Degree filters range from -90 (strong decrease) to 90 degrees (strong increase)
     private final float minDegree; // Minimum degree value (inclusive)
     private final float maxDegree; // Maximum degree value (inclusive)
     
@@ -23,49 +22,49 @@ public class ValueFilter {
      * Creates a value filter for increasing trends (positive degrees)
      */
     public static ValueFilter increasing() {
-        return new ValueFilter(false, 20f, 90f);
+        return new ValueFilter(false, 10f, 80f);
     }
 
     /**
      * Creates a value filter for moderate increasing trends
      */
     public static ValueFilter moderateIncrease(){
-        return new ValueFilter(false, 20f, 45f);
+        return new ValueFilter(false, 10f, 45f);
     }
 
     /**
      * Creates a value filter for large increasing trends
      */
     public static ValueFilter largeIncrease(){
-        return new ValueFilter(false, 60f, 90f);
+        return new ValueFilter(false, 45f, 80f);
     }
     
     /**
      * Creates a value filter for decreasing trends (negative degrees)
      */
     public static ValueFilter decreasing() {
-        return new ValueFilter(false, -90f, -20f);
+        return new ValueFilter(false, -80f, -10f);
     }
 
      /**
      * Creates a value filter for moderate decreasing trends
      */
     public static ValueFilter moderateDecrease(){
-        return new ValueFilter(false, -45f, -20f);
+        return new ValueFilter(false, -45f, -10f);
     }
 
      /**
      * Creates a value filter for large decreasing trends
      */
     public static ValueFilter largeDecrease(){
-        return new ValueFilter(false, -90f, -60f);
+        return new ValueFilter(false, -80f, -45f);
     }
     
     /**
      * Creates a value filter for stable trends (degrees near zero)
      */
     public static ValueFilter stable() {
-        return new ValueFilter(false, -20f, 20f);
+        return new ValueFilter(false, -10f, 10f);
     }
     
     /**

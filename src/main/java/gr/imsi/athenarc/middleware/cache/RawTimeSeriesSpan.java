@@ -239,4 +239,8 @@ public class RawTimeSeriesSpan implements TimeSeriesSpan {
             };
         }
     }
+    
+     public boolean isInit() {
+        return false;
+    }
 }

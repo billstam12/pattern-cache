@@ -54,6 +54,8 @@ public class MinMaxAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
     private static int AGG_SIZE = 3;
 
+    private boolean isInit = false;
+
     private void initialize(long from, long to, AggregateInterval aggregateInterval, int measure) {
         this.size = DateTimeUtil.numberOfIntervals(from, to, aggregateInterval);
         this.from = from;
@@ -429,12 +431,12 @@ public class MinMaxAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public long getMinTimestamp() {
-                    return (from + to) / 2;
+                    return (getFrom() + getTo()) / 2;
                 }
 
                 @Override
                 public long getMaxTimestamp() {
-                    return (from + to) / 2;
+                    return (getFrom() + getTo()) / 2;
                 }
 
                 @Override
@@ -444,7 +446,7 @@ public class MinMaxAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public long getFirstTimestamp() {
-                    return timestamp + 1;
+                    return getFrom() + 1;
                 }
 
                 @Override
@@ -490,4 +492,11 @@ public class MinMaxAggregateTimeSeriesSpan implements TimeSeriesSpan {
     }
 
 
+    public boolean isInit() {
+        return isInit;
+    }
+
+    public void setInit(boolean init) {
+        isInit = init;
+    }
 }

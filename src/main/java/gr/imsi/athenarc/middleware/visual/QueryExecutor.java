@@ -1,6 +1,5 @@
 package gr.imsi.athenarc.middleware.visual;
 
-import java.sql.Time;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Stopwatch;
 
+import gr.imsi.athenarc.middleware.cache.AggregationFactorService;
 import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
@@ -46,22 +46,20 @@ public class QueryExecutor {
     private static final Logger LOG = LoggerFactory.getLogger(QueryExecutor.class);
     private final DataSource dataSource;
     private final AbstractDataset dataset;
-    private final Map<Integer, Integer> aggFactors;
+    private final AggregationFactorService aggFactorService;
 
     private final int initialAggFactor;
 
     protected QueryExecutor(DataSource dataSource, int aggFactor) {
         this.dataSource = dataSource;
         this.dataset = dataSource.getDataset();
-        this.aggFactors = new HashMap<>(dataset.getMeasures().size());
         this.initialAggFactor = aggFactor;
-        for(int measure : dataset.getMeasures()) aggFactors.put(measure, aggFactor);
-    }
-
-    void updateAggFactor(int measure){
-        int prevAggFactor = aggFactors.get(measure);
-        int newAggFactor = (int) Math.floor(prevAggFactor * 2.0);
-        aggFactors.put(measure, newAggFactor);
+        this.aggFactorService = AggregationFactorService.getInstance();
+        
+        // Initialize both local and service aggregation factors
+        for(int measure : dataset.getMeasures()) {
+            aggFactorService.initializeAggFactor(measure, aggFactor);
+        }
     }
 
     protected VisualQueryResults executeQuery(VisualQuery query, TimeSeriesCache cache,
@@ -138,23 +136,23 @@ public class QueryExecutor {
 
             // --- 2. Process overlapping spans ----------------------------------
             for (TimeSeriesSpan span : overlappingSpans) {
-                if(span instanceof RawTimeSeriesSpan) continue;              // skip raw data
+                if(span instanceof RawTimeSeriesSpan || span.isInit()) continue;              // skip raw data and spans used for initialization
                 
-                int spanFactor = (int) Math.ceil(((span.getTo() - span.getFrom()) / viewPort.getWidth()) / span.getAggregateInterval().toDuration().toMillis());
+                int spanFactor = (int) Math.ceil(((query.getTo() - query.getFrom()) / viewPort.getWidth()) / span.getAggregateInterval().toDuration().toMillis());
                 double w = span.percentage(query);                // weight ∈ [0,1]
-                // weightedSum += w * spanFactor;
-                // weightSum += w;
-                weightedSum += spanFactor;
-                weightSum += 1;
+                weightedSum += w * spanFactor;
+                weightSum += w;
+                // weightedSum += spanFactor;
+                // weightSum += 1;
             }
 
             // --- 3. Process missing intervals ----------------------------------
             for (TimeInterval missing : missingIntervalsForMeasure) {
                 double w = missing.percentage(query);
-                // weightedSum += w * initialAggFactor;
-                // weightSum += w;
-                weightedSum += initialAggFactor;
-                weightSum += 1;
+                weightedSum += w * initialAggFactor;
+                weightSum += w;
+                // weightedSum += initialAggFactor;
+                // weightSum += 1;
             }
 
             // --- 4. Compute ceiled mean safely --------------------------------
@@ -163,14 +161,15 @@ public class QueryExecutor {
                 double mean = weightedSum / weightSum;
                 meanAggFactor = (int) Math.ceil(mean);          
             } else {
-                meanAggFactor = aggFactors.getOrDefault(measure, initialAggFactor);
+                meanAggFactor = aggFactorService.getAggFactor(measure);
             }
 
-            aggFactors.put(measure, meanAggFactor);
-
+            // Update the centralized service as well
+            aggFactorService.setAggFactor(measure, meanAggFactor);
+            
             // Update aggFactor if there is an error
             if(errorCalculator.hasError()){
-                updateAggFactor(measure);
+                aggFactorService.updateAggFactor(measure);
                 // Initialize ranges and measures to get all errored data.
                 missingIntervalsForMeasure = new ArrayList<>();
                 missingIntervalsForMeasure.add(new TimeRange(from, to));
@@ -182,12 +181,12 @@ public class QueryExecutor {
         }
         
         LOG.info("Errors: {}", errorPerMeasure);
-        LOG.info("Agg factors: {}", aggFactors);
+        LOG.info("Agg factors: {}", aggFactorService.getAllAggFactors());
 
         // Fetch the missing data from the data source.
         // Give the measures with misses, their intervals and their respective agg factors.
         Map<Integer, List<TimeSeriesSpan>> missingTimeSeriesSpansPerMeasure = missingIntervalsPerMeasure.size() > 0 ?
-                dataProcessor.getMissing(from, to, missingIntervalsPerMeasure, aggFactors, viewPort) : new HashMap<>(measures.size());
+                dataProcessor.getMissing(from, to, missingIntervalsPerMeasure, aggFactorService.getAllAggFactors(), viewPort) : new HashMap<>(measures.size());
 
         List<Integer> measuresWithError = new ArrayList<>();
         // For each measure with a miss, add the fetched data points to the pixel columns and recalculate the error.
@@ -218,7 +217,7 @@ public class QueryExecutor {
         }
         // Fetch errored measures with M4
         if(!measuresWithError.isEmpty()) {
-            LOG.info("Error cannot be satisfied for measures {}, using M4", measuresWithError);
+            LOG.info("Error {} cannot be satisfied for measures {}, using M4", errorPerMeasure, measuresWithError);
             VisualQuery m4Query = new VisualQuery(from, to, measuresWithError, viewPort.getWidth(), viewPort.getHeight(), 1.0f);
             VisualQueryResults m4QueryResults = VisualUtils.executeM4Query(m4Query, dataSource);
             long timeStart = System.currentTimeMillis();
@@ -241,7 +240,7 @@ public class QueryExecutor {
             double min = Double.MAX_VALUE;
             double sum = 0;
             List<PixelColumn> pixelColumns = pixelColumnsPerMeasure.get(measure);
-
+            
             List<DataPoint> dataPoints = new ArrayList<>();
             for (PixelColumn pixelColumn : pixelColumns) {
                 Stats pixelColumnStats = pixelColumn.getStats();
@@ -270,7 +269,7 @@ public class QueryExecutor {
         stopwatch.stop();
 
         // Prefetching
-        prefetchManager.prefetch(query, aggFactors);
+        prefetchManager.prefetch(query, aggFactorService.getAllAggFactors());
 
         resultData.forEach((k, v) -> v.sort(Comparator.comparingLong(DataPoint::getTimestamp)));
         queryResults.setData(resultData);

@@ -7,7 +7,7 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
-import gr.imsi.athenarc.middleware.domain.SlopeStats;
+import gr.imsi.athenarc.middleware.domain.OLSSlopeStats;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -51,6 +51,9 @@ public class SlopeAggregateTimeSeriesSpan implements TimeSeriesSpan {
      */
     private AggregateInterval aggregateInterval;
 
+
+    private boolean isInit = false;
+
     private static int AGG_SIZE = 5;
 
     private void initialize(long from, long to, AggregateInterval aggregateInterval, int measure) {
@@ -71,12 +74,12 @@ public class SlopeAggregateTimeSeriesSpan implements TimeSeriesSpan {
         int i = DateTimeUtil.indexInInterval(getFrom(), getTo(), aggregateInterval, aggregatedDataPoint.getTimestamp());
         Stats stats = aggregatedDataPoint.getStats();
 
-        if(!(stats instanceof SlopeStats)) {
+        if(!(stats instanceof OLSSlopeStats)) {
             LOG.error("Expected SlopeStats but got {}", stats.getClass().getSimpleName());
             return;
         }
 
-        SlopeStats slopeStats = (SlopeStats) stats;
+        OLSSlopeStats slopeStats = (OLSSlopeStats) stats;
 
         if (stats.getCount() == 0) {
             return;
@@ -301,7 +304,7 @@ public class SlopeAggregateTimeSeriesSpan implements TimeSeriesSpan {
             final int finalCount = totalCount;
             
             // Create a SlopeStats object for the aggregation
-            SlopeStats aggStats = new SlopeStats() {
+            OLSSlopeStats aggStats = new OLSSlopeStats() {
                 @Override
                 public int getCount() { return finalCount; }
                 @Override
@@ -370,7 +373,7 @@ public class SlopeAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
         @Override
         public Stats getStats() {
-            return new SlopeStats() {
+            return new OLSSlopeStats() {
 
                 private int index = currentIndex;
 
@@ -429,6 +432,14 @@ public class SlopeAggregateTimeSeriesSpan implements TimeSeriesSpan {
         public double getValue() {
             throw new UnsupportedOperationException();
         }
+    }
+
+    public boolean isInit() {
+        return isInit;
+    }
+
+    public void setInit(boolean init) {
+        isInit = init;
     }
 
 

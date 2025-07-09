@@ -3,38 +3,136 @@ package gr.imsi.athenarc.middleware.domain;
 import java.io.Serializable;
 import java.util.function.Consumer;
 
-/**
- * A representation of statistics required to compute the OLS slope for multi-variate time series data points.
- */
-public class SlopeStatsAggregator implements Consumer<SlopeStats>, Stats, Serializable {
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+
+public class SlopeStatsAggregator implements Consumer<AggregatedDataPoint>, Stats, Serializable {
+
+    private static final Logger LOG = LoggerFactory.getLogger(SlopeStatsAggregator.class);
+    private static final long serialVersionUID = 1L;
+
+    protected int count;
+    protected double firstValue;
+    protected long firstTimestamp;
+    protected double lastValue;
+    protected long lastTimestamp;
+
+    public SlopeStatsAggregator() {
+        clear();
+    }
+
+    public void clear() {
+        count = 0;
+        firstTimestamp =  Long.MAX_VALUE;
+        lastTimestamp = -1L;
+    }
+
+    @Override
+    public void accept(AggregatedDataPoint dataPoint) {
+        if (dataPoint == null || dataPoint.getStats() == null) {
+            LOG.warn("Null aggregated data point or stats encountered, skipping");
+            return;
+        }
+        
+        Stats stats = dataPoint.getStats();
+        if (dataPoint.getCount() > 0) {
+            if (firstTimestamp > stats.getFirstTimestamp()) {
+                firstValue = stats.getFirstValue();
+                firstTimestamp = stats.getFirstTimestamp();
+            }
+            if (lastTimestamp < stats.getLastTimestamp()) {
+                lastValue = stats.getLastValue();
+                lastTimestamp = stats.getLastTimestamp();
+            }
+            count += dataPoint.getCount();
+        }
+    }
+
     
-    private double sumX;
-    private double sumY;
-    private double sumXY;
-    private double sumX2;
-    private int count;
-
-    
-    public SlopeStatsAggregator() {    }
-
-    public double getSumX(){
-        return sumX;
+    /**
+     * Combines the state of a {@code Stats} instance into this
+     * StatsAggregator.
+     *
+     * @param other another {@code Stats}
+     * @throws IllegalArgumentException if the other Stats instance does not have the same measures as this StatsAggregator
+     */
+    public void combine(Stats other) {
+        if (other == null) {
+            LOG.warn("Null stats encountered in combine operation, skipping");
+            return;
+        }
+        
+        if(other.getCount() > 0) {
+            if (firstTimestamp > other.getFirstTimestamp()) {
+                firstValue = other.getFirstValue();
+                firstTimestamp = other.getFirstTimestamp();
+            }
+            if (lastTimestamp < other.getLastTimestamp()) {
+                lastValue = other.getLastValue();
+                lastTimestamp = other.getLastTimestamp();
+            }
+            count += other.getCount();
+        }
     }
-    
-    public double getSumY(){
-        return sumY;
-    }
 
-    public double getSumXY(){
-        return sumXY;
-    }
 
-    public double getSumX2(){
-        return sumX2;
-    }
-
-    public int getCount(){
+    @Override
+    public int getCount() {
         return count;
+    }
+
+
+    @Override
+    public double getFirstValue() {
+        if (count == 0) {
+            throw new IllegalStateException("No data points added to this stats aggregator yet.");
+        }
+        return firstValue;
+    }
+
+    @Override
+    public long getFirstTimestamp() {
+        if (count == 0) {
+            throw new IllegalStateException("No data points added to this stats aggregator yet.");
+        }
+        return firstTimestamp;
+    }
+
+    @Override
+    public double getLastValue() {
+        if (count == 0) {
+            throw new IllegalStateException("No data points added to this stats aggregator yet.");
+        }
+        return lastValue;
+    }
+
+    @Override
+    public long getLastTimestamp() {
+        if (count == 0) {
+            throw new IllegalStateException("No data points added to this stats aggregator yet.");
+        }
+        return lastTimestamp;
+    }
+
+    public SlopeStatsAggregator clone() {
+        SlopeStatsAggregator statsAggregator = new SlopeStatsAggregator();
+        statsAggregator.combine(this);
+        return statsAggregator;
+    }
+
+    public void setCount(int count) {
+        this.count = count;
+    }
+
+    @Override
+    public String toString() {
+        if (count == 0) {
+            return "No data points";
+        }
+        return "Stats{count=" + count + 
+               ", first=" + firstValue +
+               ", last=" + lastValue + "}";
     }
 
     @Override
@@ -55,58 +153,5 @@ public class SlopeStatsAggregator implements Consumer<SlopeStats>, Stats, Serial
     @Override
     public long getMaxTimestamp() {
         throw new UnsupportedOperationException("Unimplemented method 'getMaxTimestamp'");
-    }
-
-    @Override
-    public double getFirstValue() {
-        throw new UnsupportedOperationException("Unimplemented method 'getFirstValue'");
-    }
-
-    @Override
-    public long getFirstTimestamp() {
-        throw new UnsupportedOperationException("Unimplemented method 'getFirstTimestamp'");
-    }
-
-    @Override
-    public double getLastValue() {
-        throw new UnsupportedOperationException("Unimplemented method 'getLastValue'");
-    }
-
-    @Override
-    public long getLastTimestamp() {
-        throw new UnsupportedOperationException("Unimplemented method 'getLastTimestamp'");
-    }
-
-    @Override
-    public void accept(SlopeStats t) {
-        if (t == null) {
-            throw new IllegalArgumentException("Cannot accept null SlopeStats");
-        }
-        this.sumX += t.getSumX();
-        this.sumY += t.getSumY();
-        this.sumXY += t.getSumXY();
-        this.sumX2 += t.getSumX2();
-        this.count += t.getCount();
-    }
-
-    public void combine(SlopeStatsAggregator slopeStatsAggregator) {
-        if (slopeStatsAggregator == null) {
-            throw new IllegalArgumentException("Cannot combine with null SlopeStatsAggregator");
-        }
-        this.sumX += slopeStatsAggregator.getSumX();
-        this.sumY += slopeStatsAggregator.getSumY();
-        this.sumXY += slopeStatsAggregator.getSumXY();
-        this.sumX2 += slopeStatsAggregator.getSumX2();
-        this.count += slopeStatsAggregator.getCount();
-    }
-
-    public SlopeStatsAggregator clone(){
-        SlopeStatsAggregator clone = new SlopeStatsAggregator();
-        clone.sumX = this.sumX;
-        clone.sumY = this.sumY;
-        clone.sumXY = this.sumXY;
-        clone.sumX2 = this.sumX2;
-        clone.count = this.count;
-        return clone;
     }
 }

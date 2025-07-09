@@ -22,22 +22,22 @@ public class AggregateStats implements Stats, Serializable {
 
     @Override
     public long getMinTimestamp() {
-        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
+        return ( from + to ) / 2; 
     }
 
     @Override
     public long getMaxTimestamp() {
-        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
+        return ( from + to ) / 2; 
     }
 
     @Override
     public long getFirstTimestamp() {
-        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
+        return from + 1;
     }
 
     @Override
     public long getLastTimestamp() {
-        throw new UnsupportedOperationException("getMinTimestamp() is not supported for NonTimestampedStats");
+        return to - 1;
     }
 
 
@@ -117,7 +117,7 @@ public class AggregateStats implements Stats, Serializable {
 
     @Override
     public String toString() {
-        return "NonTimestampedStatsAggregator [from=" + from + ", to=" + to 
+        return "AggregateStats [from=" + from + ", to=" + to 
                 + ", minValue=" + minValue + ", maxValue=" + maxValue + "]";
     }
 

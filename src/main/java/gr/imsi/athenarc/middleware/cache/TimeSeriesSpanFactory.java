@@ -28,7 +28,6 @@ public class TimeSeriesSpanFactory {
         Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
         Iterator<DataPoint> it = dataPoints.iterator();
         DataPoint dataPoint = null;
-        LOG.info("{}", missingIntervalsPerMeasure);
         for (Integer measure : missingIntervalsPerMeasure.keySet()) {
             List<TimeSeriesSpan> timeSeriesSpansForMeasure = new ArrayList<>();
             boolean changed = false;
@@ -54,7 +53,7 @@ public class TimeSeriesSpanFactory {
                     }
                     else {
                         changed = false;
-                        // LOG.info("Adding {} between {}-{}", dataPoint.getTimestamp(), range.getFrom(), range.getTo());
+                        LOG.debug("Adding {} between {}-{}", dataPoint.getTimestamp(), range.getFrom(), range.getTo());
                         dataPointsList.add(dataPoint);
                         // Clear current point and get next one in next iteration
                         dataPoint = null;
@@ -236,7 +235,7 @@ public class TimeSeriesSpanFactory {
                         aggregatedDataPoint = null;
                     }
                 }
-                LOG.debug("Created aggregate time series span for measure {} : {}", measure, timeSeriesSpan.getSize());
+                LOG.info("Created aggregate time series span for measure {} : {}", measure, timeSeriesSpan.getSize());
 
                 timeSeriesSpansForMeasure.add(timeSeriesSpan);
             }

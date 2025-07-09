@@ -1,12 +1,11 @@
 package gr.imsi.athenarc.experiments.util;
 
-import java.security.SecureRandom;
 import java.util.Map;
 import java.util.Random;
 
 public final class MarkovUtils {
 
-    private static final Random RNG = new SecureRandom();   // or new Random() if crypto-strength isn’t needed
+       // or new Random() if crypto-strength isn’t needed
 
     /**
      * Picks one {@code UserOpType} at random, weighted by the probabilities in {@code transitions}.
@@ -16,7 +15,7 @@ public final class MarkovUtils {
      * @return a randomly chosen key, according to its weight.
      * @throws IllegalArgumentException if the map is empty or contains no positive probability.
      */
-    public static UserOpType pickRandomOp(Map<UserOpType, Double> transitions) {
+    public static UserOpType pickRandomOp(Map<UserOpType, Double> transitions, Random mainRandom) {
         if (transitions == null || transitions.isEmpty()) {
             throw new IllegalArgumentException("Transition map is empty.");
         }
@@ -34,7 +33,7 @@ public final class MarkovUtils {
         }
 
         // 2. Draw a number uniformly in [0, total)
-        double r = RNG.nextDouble() * total;
+        double r = mainRandom.nextDouble() * total;
 
         // 3. Walk through the cumulative distribution
         double cumulative = 0.0;

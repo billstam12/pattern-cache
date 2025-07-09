@@ -7,10 +7,9 @@ import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
-import gr.imsi.athenarc.middleware.domain.SlopeStats;
-import gr.imsi.athenarc.middleware.domain.SlopeStatsAggregator;
+import gr.imsi.athenarc.middleware.domain.OLSSlopeStats;
+import gr.imsi.athenarc.middleware.domain.OLSSlopeStatsAggregator;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 /** 
@@ -32,9 +31,8 @@ public class OLSSketch implements Sketch {
     // The interval this sketch represents
     private AggregateInterval originalAggregateInterval;
     
-    private SlopeStatsAggregator slopeStatsAggregator = new SlopeStatsAggregator();
+    private OLSSlopeStatsAggregator slopeStatsAggregator = new OLSSlopeStatsAggregator();
 
-    private AggregationType aggregationType = AggregationType.OLS;
 
     /**
      * Creates a new OLS sketch with the specified aggregation type.
@@ -43,11 +41,10 @@ public class OLSSketch implements Sketch {
      * @param to The end timestamp of this sketch
      * @param aggregationType The function that gets the representative data point
      */
-    public OLSSketch(long from, long to, AggregationType aggregationType) {
+    public OLSSketch(long from, long to) {
         this.from = from;
         this.to = to;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
-        this.aggregationType = aggregationType;
     }
 
     /**
@@ -58,7 +55,7 @@ public class OLSSketch implements Sketch {
     @Override
     public void addAggregatedDataPoint(AggregatedDataPoint dp) {
         hasInitialized = true; // Mark as having underlying data
-        SlopeStats slopeStats = (SlopeStats) dp.getStats();
+        OLSSlopeStats slopeStats = (OLSSlopeStats) dp.getStats();
         slopeStatsAggregator.accept(slopeStats);
     }
     
@@ -149,7 +146,7 @@ public class OLSSketch implements Sketch {
 
             // Calculate the angle in degrees
             this.angle = Math.toDegrees(Math.atan(slope));
-            LOG.info("Calculated angle for sketches: {} to {} - {}",this.getFromDate(), this.getToDate(),  this.angle);
+            LOG.debug("Calculated angle for sketches: {} to {} - {}",this.getFromDate(), this.getToDate(),  this.angle);
         } catch (Exception e) {
             LOG.error("Error calculating angle", e);
             this.angle = Double.POSITIVE_INFINITY;
@@ -162,12 +159,6 @@ public class OLSSketch implements Sketch {
         throw new UnsupportedOperationException("This sketch does not support adding individual data points directly. Use addAggregatedDataPoint instead.");
     }
    
-    // Accessors and utility methods
-    @Override
-    public AggregationType getAggregationType() {
-        return aggregationType;
-    }
-
     @Override
     public long getFrom() {
         return from;
@@ -185,7 +176,7 @@ public class OLSSketch implements Sketch {
 
     @Override
     public Sketch clone() {
-        OLSSketch sketch = new OLSSketch(this.from, this.to, this.aggregationType);
+        OLSSketch sketch = new OLSSketch(this.from, this.to);
         sketch.hasInitialized = this.hasInitialized;
         sketch.angle = this.angle;
         sketch.originalAggregateInterval = this.originalAggregateInterval;
@@ -215,7 +206,7 @@ public class OLSSketch implements Sketch {
     }
 
    
-    public SlopeStatsAggregator getSlopeStatsAggregator() {
+    public OLSSlopeStatsAggregator getSlopeStatsAggregator() {
         return slopeStatsAggregator;
     }
 

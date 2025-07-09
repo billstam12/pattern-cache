@@ -54,6 +54,8 @@ public class M4InfAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
     private static int AGG_SIZE = 5;
 
+    private boolean isInit = false;
+
     private void initialize(long from, long to, AggregateInterval aggregateInterval, int measure) {
         this.size = DateTimeUtil.numberOfIntervals(from, to, aggregateInterval);
         this.from = from;
@@ -422,7 +424,6 @@ public class M4InfAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public int getCount() {
-                    // Debug log to see what we're actually getting
                     int count = (int) aggregates[index * AGG_SIZE + 4];
                     return count;
                 }
@@ -439,12 +440,12 @@ public class M4InfAggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public long getMinTimestamp() {
-                    return (from + to) / 2;
+                    return (getFrom() + getTo()) / 2;
                 }
 
                 @Override
                 public long getMaxTimestamp() {
-                    return (from + to) / 2;
+                    return (getFrom() + getTo()) / 2;
                 }
 
                 @Override
@@ -499,5 +500,11 @@ public class M4InfAggregateTimeSeriesSpan implements TimeSeriesSpan {
         }
     }
 
+    public boolean isInit() {
+        return isInit;
+    }
 
+    public void setInit(boolean init) {
+        isInit = init;
+    }
 }

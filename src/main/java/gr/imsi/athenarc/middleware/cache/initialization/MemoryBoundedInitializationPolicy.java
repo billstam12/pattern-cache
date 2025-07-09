@@ -8,24 +8,17 @@ import gr.imsi.athenarc.middleware.cache.CacheUtils;
 import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
-import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
-import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
-import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
 
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A cache initialization policy that attempts to load data within memory constraints.
@@ -41,34 +34,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
     
     private final long maxMemoryBytes;
     private final double memoryUtilizationTarget; // between 0.0 and 1.0
-    private final Double lookbackPercentage; // null means full dataset range, otherwise a value between 0.0 and 1.0
-    
-    /**
-     * Creates a memory-bounded initialization policy for recent data only,
-     * using a percentage of the dataset's time range, with parallel execution.
-     * 
-     * @param maxMemoryBytes Maximum memory in bytes to utilize for cache
-     * @param memoryUtilizationTarget Target memory utilization (0.0-1.0)
-     * @param lookbackPercentage Percentage of dataset's time range to load (0.0-1.0)
-     * @param useParallelExecution Whether to use parallel execution
-     * @param maxThreads Maximum number of threads for parallel execution
-     */
-    public MemoryBoundedInitializationPolicy(
-            long maxMemoryBytes, 
-            double memoryUtilizationTarget,
-            double lookbackPercentage) {
-        this.maxMemoryBytes = maxMemoryBytes;
-        this.memoryUtilizationTarget = memoryUtilizationTarget;
-        this.lookbackPercentage = lookbackPercentage;
-
-        if (memoryUtilizationTarget <= 0.0 || memoryUtilizationTarget > 1.0) {
-            throw new IllegalArgumentException("Memory utilization target must be between 0.0 and 1.0");
-        }
-        
-        if (lookbackPercentage <= 0.0 || lookbackPercentage > 1.0) {
-            throw new IllegalArgumentException("Lookback percentage must be between 0.0 and 1.0");
-        }
-    }
+   
     
     /**
      * Creates a memory-bounded initialization policy with full configuration.
@@ -81,7 +47,6 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
             double memoryUtilizationTarget) {
         this.maxMemoryBytes = maxMemoryBytes;
         this.memoryUtilizationTarget = memoryUtilizationTarget;
-        this.lookbackPercentage = null;
 
         if (memoryUtilizationTarget <= 0.0 || memoryUtilizationTarget > 1.0) {
             throw new IllegalArgumentException("Memory utilization target must be between 0.0 and 1.0");
@@ -100,13 +65,8 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
      * @param measures List of measures to initialize (null means use all measures)
      */
     public void initialize(CacheManager cacheManager, List<Integer> measures) {
-        if (lookbackPercentage == null) {
-            LOG.info("Initializing cache with full dataset using memory-bounded approach (limit: {} bytes, utilization: {}%)", 
-                    maxMemoryBytes, memoryUtilizationTarget * 100);
-        } else {
-            LOG.info("Initializing cache with recent data for {}% of the dataset using memory-bounded approach (limit: {} bytes, utilization: {}%)", 
-                lookbackPercentage * 100, maxMemoryBytes, memoryUtilizationTarget * 100);
-        }
+        LOG.info("Initializing cache with recent data for the dataset using memory-bounded approach (limit: {} bytes, utilization: {}%)", 
+                maxMemoryBytes, memoryUtilizationTarget * 100);
         
         DataSource dataSource = cacheManager.getDataSource();
         AbstractDataset dataset = dataSource.getDataset();
@@ -115,20 +75,8 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
 
         // Determine time range based on mode (full or recent data)
         long endTimestamp = dataset.getTimeRange().getTo();
-        long startTimestamp = dataset.getTimeRange().getFrom();
-        long datasetDuration = endTimestamp - startTimestamp;
-        
-        if (lookbackPercentage != null) {
-            long lookbackDuration = (long)(datasetDuration * lookbackPercentage);
-            long recentStartTimestamp = endTimestamp - lookbackDuration;
-            // Ensure we don't go before the dataset start
-            startTimestamp = Math.max(recentStartTimestamp, dataset.getTimeRange().getFrom());
-            LOG.info("Loading data from {} to {} (recent data mode with {}% of dataset)", 
-                    startTimestamp, endTimestamp, lookbackPercentage * 100);
-        } else {
-            LOG.info("Loading data from {} to {} (full dataset mode)", startTimestamp, endTimestamp);
-        }
-        
+        long startTimestamp = dataset.getTimeRange().getFrom();        
+    
         long datasetTimeRange = endTimestamp - startTimestamp;
         
         // Use specific measures if provided, otherwise use all dataset measures
@@ -158,7 +106,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
                 DateTimeUtil.alignIntervalsToTimeUnitBoundary(missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
                                        
         // Create spans and add to cache
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = CacheUtils.fetchTimeSeriesSpans(dataSource, startTimestamp, endTimestamp, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, method);
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = CacheUtils.fetchTimeSeriesSpansForInitialization(dataSource, startTimestamp, endTimestamp, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, method);
 
         for(List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
             cache.addToCache(spans);
@@ -176,13 +124,8 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
     
     @Override
     public String getDescription() {
-        if (lookbackPercentage != null) {
-            return String.format("Memory-bounded recent data initialization for the last %.1f%% of dataset (limit: %d bytes, target: %.0f%%)", 
-                    lookbackPercentage * 100, maxMemoryBytes, memoryUtilizationTarget * 100);
-        } else {
-            return String.format("Memory-bounded recent data initialization for the whole dataset (limit: %d bytes, target: %.0f%%)", 
-                maxMemoryBytes, memoryUtilizationTarget * 100);
-        }
+       return String.format("Memory-bounded recent data initialization for the whole dataset (limit: %d bytes, target: %.0f%%)", 
+            maxMemoryBytes, memoryUtilizationTarget * 100);
     }
 
 

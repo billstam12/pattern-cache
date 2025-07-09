@@ -146,7 +146,7 @@ public class CacheManager {
     public static class Builder {
         private final DataSource dataSource;
         private TimeSeriesCache cache = new TimeSeriesCache();
-        private int dataReductionFactor = 6;
+        private int dataReductionFactor = 4;
         private int initialAggregationFactor = 4;
         private int prefetchingFactor = 0;
         private CacheInitializationPolicy initializationPolicy = null;

@@ -86,11 +86,11 @@ public class InfluxDBAggregateDataPointsIterator extends InfluxDBIterator<Aggreg
     }
 
     private void logAggregatedPoint(AggregatedDataPoint point, AggregateStats stats) {
-        LOG.debug("Created aggregate Datapoint {} - {} first: {}, last {}, min: {}, max: {}, for measure: {}",
+        LOG.debug("Created aggregate Datapoint {} - {} min: {}, max: {}, for measure: {}",
             DateTimeUtil.format(point.getFrom()),
             DateTimeUtil.format(point.getTo()),
-            stats.getFirstValue(),
-            stats.getLastValue(),
+            // stats.getFirstValue(),
+            // stats.getLastValue(),
             stats.getMinValue(),
             stats.getMaxValue(),
             point.getMeasure());

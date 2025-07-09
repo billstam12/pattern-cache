@@ -5,8 +5,8 @@ import gr.imsi.athenarc.middleware.query.pattern.*;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryBuilder;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
-import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
+import gr.imsi.athenarc.middleware.domain.SlopeFunction;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
 
@@ -184,7 +184,7 @@ public class QuerySequenceGenerator {
             return randomStateFromProbabilities();
         }
         
-        return MarkovUtils.pickRandomOp(transitions);
+        return MarkovUtils.pickRandomOp(transitions, mainRandom);
     }
     
     /**
@@ -402,8 +402,7 @@ public class QuerySequenceGenerator {
         AggregateInterval timeUnit = DateTimeUtil.roundDownToCalendarBasedInterval((long) Math.floor((to - from) / (level * viewPort.getWidth())));
 
         // Generate a random aggregation type
-        AggregationType[] types = AggregationType.values();
-        AggregationType aggregationType = types[random.nextInt(types.length)];
+        SlopeFunction slopeFunction = SlopeFunction.FIRST_LAST;
         
         // Choose a predefined pattern ID and get the pattern
         List<Integer> patternIds = PredefinedPattern.getAllPatternIds();
@@ -415,7 +414,7 @@ public class QuerySequenceGenerator {
             .withTimeRange(from, to)
             .withMeasure(measure)
             .withTimeUnit(timeUnit)
-            .withAggregationType(aggregationType)
+            .withSlopeFunction(slopeFunction)
             .withPatternNodes(predefinedPattern.getPatternNodes())
             .withViewPort(viewPort.getWidth(), viewPort.getHeight())
             .withAccuracy(baseQuery.getAccuracy())
@@ -667,13 +666,13 @@ public class QuerySequenceGenerator {
                 PredefinedPattern predefinedPattern = PredefinedPattern.getPatternById(patternId);
                 
                 // Use default aggregate interval and type if not available in file
-                AggregationType aggregationType = AggregationType.LAST_VALUE;
+                SlopeFunction slopeFunction = SlopeFunction.FIRST_LAST;
                 
                 query = new PatternQueryBuilder()
                     .withTimeRange(from, to)
                     .withMeasure(measures.get(0))
                     .withTimeUnit(timeUnit)
-                    .withAggregationType(aggregationType)
+                    .withSlopeFunction(slopeFunction)
                     .withPatternNodes(predefinedPattern.getPatternNodes())
                     .withViewPort(viewportWidth, viewportHeight)
                     .withAccuracy(accuracy)

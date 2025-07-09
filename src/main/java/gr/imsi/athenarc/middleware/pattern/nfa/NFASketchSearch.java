@@ -33,6 +33,15 @@ public class NFASketchSearch {
      * Builds the NFA, then runs BFS to collect all matches.
      */
     public List<List<List<Sketch>>> findAllMatches() {
+        return findAllMatches(false);
+    }
+    
+    /**
+     * Builds the NFA, then runs BFS to collect matches.
+     * @param allowOverlapping if true, finds all possible matches including overlapping ones.
+     *                        if false, finds non-overlapping matches using a greedy approach.
+     */
+    public List<List<List<Sketch>>> findAllMatches(boolean allowOverlapping) {
         if (sketches.isEmpty() || patternNodes.isEmpty()) {
             return new ArrayList<>();
         }
@@ -40,12 +49,18 @@ public class NFASketchSearch {
         // 1) Build an NFA that matches patternNodes in sequence
         NFA nfa = buildNfaFromPattern(patternNodes);
         // printNfaGraphically();
-        // 2) Run BFS (or a DP approach) to find ALL successful paths
-        List<List<List<Sketch>>> allMatches = new ArrayList<>();
-        for (int i = 0; i < sketches.size(); i++) {
-            allMatches.addAll(simulateNfaAllMatches(nfa, sketches, i));
+        
+        if (allowOverlapping) {
+            // 2a) Run BFS to find ALL successful paths (original behavior)
+            List<List<List<Sketch>>> allMatches = new ArrayList<>();
+            for (int i = 0; i < sketches.size(); i++) {
+                allMatches.addAll(simulateNfaAllMatches(nfa, sketches, i));
+            }
+            return allMatches;
+        } else {
+            // 2b) Run greedy search to find non-overlapping matches
+            return findNonOverlappingMatches(nfa, sketches);
         }
-        return allMatches;
     }
     
     // ---------------------------------------------
@@ -488,5 +503,50 @@ public class NFASketchSearch {
     public void printNfaGraphically() {
         String dotRepresentation = toDotFormat();
         System.out.println(dotRepresentation);
+    }
+    
+    /**
+     * Finds non-overlapping matches using a greedy approach.
+     * Once a match is found, the algorithm skips ahead to avoid overlapping matches.
+     */
+    private List<List<List<Sketch>>> findNonOverlappingMatches(NFA nfa, List<Sketch> sketches) {
+        List<List<List<Sketch>>> nonOverlappingMatches = new ArrayList<>();
+        int currentIndex = 0;
+        
+        while (currentIndex < sketches.size()) {
+            // Try to find a match starting from currentIndex
+            List<List<List<Sketch>>> matchesFromCurrentIndex = simulateNfaAllMatches(nfa, sketches, currentIndex);
+            
+            if (!matchesFromCurrentIndex.isEmpty()) {
+                // Found at least one match starting from currentIndex
+                // Select the first match (greedy approach) 
+                List<List<Sketch>> selectedMatch = matchesFromCurrentIndex.get(0);
+                nonOverlappingMatches.add(selectedMatch);
+                
+                // Calculate the end index of this match to avoid overlaps
+                int matchLength = calculateMatchLength(selectedMatch);
+                currentIndex += matchLength;
+                
+                LOG.debug("Found match of length {} at index {}, next search starts at {}", 
+                         matchLength, currentIndex - matchLength, currentIndex);
+            } else {
+                // No match found at currentIndex, move to next position
+                currentIndex++;
+            }
+        }
+        
+        LOG.info("Found {} non-overlapping matches", nonOverlappingMatches.size());
+        return nonOverlappingMatches;
+    }
+    
+    /**
+     * Calculates the total length (number of sketches) consumed by a match.
+     */
+    private int calculateMatchLength(List<List<Sketch>> match) {
+        int totalLength = 0;
+        for (List<Sketch> segment : match) {
+            totalLength += segment.size();
+        }
+        return totalLength;
     }
 }

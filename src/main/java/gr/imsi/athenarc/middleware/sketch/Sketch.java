@@ -2,7 +2,6 @@ package gr.imsi.athenarc.middleware.sketch;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
@@ -104,13 +103,6 @@ public interface Sketch extends TimeInterval {
     boolean isEmpty();
     
     /**
-     * Gets the aggregation type used by this sketch
-     * 
-     * @return The aggregation type
-     */
-    AggregationType getAggregationType();
-    
-    /**
      * Checks if this sketch's angle matches the value filter
      * 
      * @param filter The filter to check against
@@ -127,7 +119,7 @@ public interface Sketch extends TimeInterval {
     }
       
     /**
-     * Gets the original time interval used in this sketch
+     * Gets the original time interval used in this sketch (before combining)
      * 
      * @return The aggregate interval
      */

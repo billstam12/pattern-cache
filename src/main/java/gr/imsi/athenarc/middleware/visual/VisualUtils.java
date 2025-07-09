@@ -8,9 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import javax.xml.crypto.Data;
+
 import com.google.common.base.Stopwatch;
 
 import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
 import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
@@ -19,6 +22,7 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
+import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.ImmutableDataPoint;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -27,6 +31,35 @@ import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
 
 public class VisualUtils {
 
+
+    public static VisualQueryResults executeRawQuery(VisualQuery query, DataSource dataSource){
+        VisualQueryResults queryResults = new VisualQueryResults();
+        
+        Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure = new HashMap<>(query.getMeasures().size());
+        Map<Integer, List<DataPoint>> rawData = new HashMap<>();
+        for(int measure : query.getMeasures()){
+            List<TimeInterval> timeIntervalsForMeasure = new ArrayList<>();
+            timeIntervalsForMeasure.add(new TimeRange(query.getFrom(), query.getTo()));
+            missingIntervalsPerMeasure.put(measure, timeIntervalsForMeasure);
+        }
+        DataPoints dataPoints = dataSource.getDataPoints(query.getFrom(), query.getTo(), missingIntervalsPerMeasure);
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createRaw(dataPoints, missingIntervalsPerMeasure);
+        for (Integer measure : query.getMeasures()) {
+            List<TimeSeriesSpan> spans = timeSeriesSpans.get(measure);
+            List<DataPoint> dataPointsForMeasure = new ArrayList<>();
+            for (TimeSeriesSpan span : spans) {
+                Iterator<DataPoint> it = ((RawTimeSeriesSpan) span).iterator();
+                while (it.hasNext()) {
+                    DataPoint dataPoint = it.next();
+                    dataPointsForMeasure.add(dataPoint);
+
+                }
+            }
+            rawData.put(measure, dataPointsForMeasure);
+        }
+        queryResults.setData(rawData);
+        return queryResults;
+    }
     public static VisualQueryResults executeM4Query(VisualQuery query, DataSource dataSource) {
         VisualQueryResults queryResults = new VisualQueryResults();
         Map<Integer, List<DataPoint>> m4Data = new HashMap<>();

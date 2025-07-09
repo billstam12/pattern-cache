@@ -7,26 +7,22 @@ import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
+import gr.imsi.athenarc.middleware.domain.SlopeStatsAggregator;
 import gr.imsi.athenarc.middleware.domain.Stats;
-import gr.imsi.athenarc.middleware.domain.StatsAggregator;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 
 /** Only for non timestamped aggregate stats = agg. time series spans */
-public class M4Sketch implements Sketch {
+public class FirstLastSketch implements Sketch {
 
-    private static final Logger LOG = LoggerFactory.getLogger(M4Sketch.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FirstLastSketch.class);
 
     private long from;
     private long to;
 
     // Store the stats from each interval
-    private StatsAggregator statsAggregator = new StatsAggregator();
-    
-    // The aggregation type to use when adding data points
-    private AggregationType aggregationType;
-    
+    private SlopeStatsAggregator slopeStatsAggregator = new SlopeStatsAggregator();
+        
     private double angle;
 
     // used for fetching data from the db
@@ -44,10 +40,9 @@ public class M4Sketch implements Sketch {
      * @param to The end timestamp of this sketch
      * @param aggregationType The function that gets the representative data point
      */
-    public M4Sketch(long from, long to, AggregationType aggregationType) {
+    public FirstLastSketch(long from, long to) {
         this.from = from;
         this.to = to;
-        this.aggregationType = aggregationType;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
     }
 
@@ -60,7 +55,7 @@ public class M4Sketch implements Sketch {
         hasInitialized = true; // Mark as having underlying data
         Stats stats = dp.getStats();
         if (stats.getCount() > 0) {
-            statsAggregator.accept(dp);
+            slopeStatsAggregator.accept(dp);
         }
     }
     
@@ -76,7 +71,7 @@ public class M4Sketch implements Sketch {
             return false;
         }
         
-        if (!(other instanceof M4Sketch)) {
+        if (!(other instanceof FirstLastSketch)) {
             LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
             return false;
         }
@@ -105,17 +100,15 @@ public class M4Sketch implements Sketch {
             return this;
         }
         
-        M4Sketch otherSketch = (M4Sketch) other;
-        
-        // Calculate angle between consecutive sketches before combining stats
-        computeAngleBetweenConsecutiveSketches(this, otherSketch);
-        
+        FirstLastSketch otherSketch = (FirstLastSketch) other;
+                
         // Update time interval and duration
         this.to = otherSketch.getTo();        
         
         // Combine stats
-        this.statsAggregator.combine(otherSketch.getStatsAggregator());
+        this.slopeStatsAggregator.combine(otherSketch.getSlopeStatsAggregator());
         
+        computeAngle();
         return this;
     }
     
@@ -125,16 +118,6 @@ public class M4Sketch implements Sketch {
     }
 
     // Accessors and utility methods
-    
-    /**
-     * Gets the aggregation type used by this sketch.
-     *
-     * @return The aggregation type
-     */
-    public AggregationType getAggregationType() {
-        return aggregationType;
-    }
-
     @Override
     public long getFrom() {
         return from;
@@ -151,26 +134,25 @@ public class M4Sketch implements Sketch {
     }
     
     public Sketch clone() {
-        M4Sketch sketch = new M4Sketch(this.from, this.to, this.aggregationType);
-        sketch.statsAggregator = this.statsAggregator.clone();
+        FirstLastSketch sketch = new FirstLastSketch(this.from, this.to);
+        sketch.slopeStatsAggregator = this.getSlopeStatsAggregator().clone();
         sketch.hasInitialized = this.hasInitialized;
         sketch.angle = this.angle;
         sketch.originalAggregateInterval = this.originalAggregateInterval;
         return sketch;
     }
 
-    public StatsAggregator getStatsAggregator() {
-        return statsAggregator;
+    public SlopeStatsAggregator getSlopeStatsAggregator() {
+        return slopeStatsAggregator;
     }
 
     public boolean isEmpty() {
-        return statsAggregator.getCount() == 0;
+        return slopeStatsAggregator.getCount() == 0;
     }
 
     public boolean hasInitialized() {
         return hasInitialized;
     }
-    
     
     /**
      * Computes the slope of a composite sketch against the ValueFilter of a segment.
@@ -190,28 +172,23 @@ public class M4Sketch implements Sketch {
         throw new UnsupportedOperationException("This sketch does not support adding individual data points directly. Use addAggregatedDataPoint instead.");
     }
 
-    /**
-     * Calculates the angle between two consecutive sketches based on their first or last data points,
-     * depending on aggregation type.
-     * 
-     * @param first The first sketch in sequence
-     * @param second The second sketch in sequence (consecutive to first)
-     */
-    private void computeAngleBetweenConsecutiveSketches(M4Sketch first, M4Sketch second) {
-        DataPoint firstPoint = first.getReferencePointFromSketch();
-        DataPoint secondPoint = second.getReferencePointFromSketch();
-        LOG.debug("Calculating angle between sketches from {} to {}", firstPoint, secondPoint);
+    
+    private void computeAngle() {
+        DataPoint firstDataPoint = getSlopeStatsAggregator().getFirstDataPoint();
+        DataPoint lastDataPoint = getSlopeStatsAggregator().getLastDataPoint();
         
-        if (firstPoint == null || secondPoint == null) {
+        LOG.debug("Calculating angle between sketches from {} to {}", firstDataPoint, lastDataPoint);
+        
+        if (firstDataPoint == null || lastDataPoint == null) {
             LOG.warn("Insufficient data points to calculate angle between sketches");
             this.angle = Double.POSITIVE_INFINITY;
             return;
         }
         // Calculate value change
-        double valueChange = secondPoint.getValue() - firstPoint.getValue();
+        double valueChange = lastDataPoint.getValue() - firstDataPoint.getValue();
         
         // Calculate time change
-        long timeChange = (second.getStatsAggregator().getLastTimestamp() - first.getStatsAggregator().getLastTimestamp()) / (originalAggregateInterval.toDuration().toMillis());
+        long timeChange = (lastDataPoint.getTimestamp() - firstDataPoint.getTimestamp()) / (originalAggregateInterval.toDuration().toMillis());
 
         // Check for zero time difference before division
         if (timeChange == 0) {
@@ -224,35 +201,15 @@ public class M4Sketch implements Sketch {
         double radians = Math.atan(slope);
         this.angle = Math.toDegrees(radians);
         
-        LOG.debug("Calculated angle between consecutive sketches {} and {} : {}", 
-                first, second, this.angle);
+        LOG.debug("Calculated angle between consecutive sketches {} and {} : {}", from, to, this.angle);
     }
     
-    private DataPoint getReferencePointFromSketch() {
-        if (isEmpty()) {
-            return null;
-        }
-        
-        switch (aggregationType) {
-            case FIRST_VALUE:
-                return statsAggregator.getFirstDataPoint();
-            case LAST_VALUE:
-                return statsAggregator.getLastDataPoint();
-            case MIN_VALUE:
-                return statsAggregator.getMinDataPoint();
-            case MAX_VALUE:
-                return statsAggregator.getMaxDataPoint();
-            default:
-                throw new IllegalArgumentException("Unsupported aggregation type: " + aggregationType);
-        }
-    }
     
     @Override
     public String toString(){
         return "NonTimestampedSketch{" +
                 "from=" + getFromDate() +
                 ", to=" + getToDate() +
-                ", referencePoint=" + getReferencePointFromSketch() +
                 '}';
     }
 }

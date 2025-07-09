@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.AggregationType;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
@@ -22,9 +21,6 @@ public class ApproxOLSSketch implements Sketch {
     private long from;
     private long to;
     private int windowId;
-
-    // The aggregation type to use when adding data points
-    private AggregationType aggregationType;
     
     private double angle;
     private double minAngle; // Lower bound of angle error
@@ -52,17 +48,6 @@ public class ApproxOLSSketch implements Sketch {
         this.to = to;
         this.windowId = windowId;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
-    }
-
-    /**
-     * Sets the aggregation type for this sketch.
-     *
-     * @param aggregationType The aggregation type to use
-     * @return This sketch instance for method chaining
-     */
-    public ApproxOLSSketch setAggregationType(AggregationType aggregationType) {
-        this.aggregationType = aggregationType;
-        return this;
     }
 
     /**
@@ -147,15 +132,7 @@ public class ApproxOLSSketch implements Sketch {
 
     // Accessors and utility methods
     
-    /**
-     * Gets the aggregation type used by this sketch.
-     *
-     * @return The aggregation type
-     */
-    public AggregationType getAggregationType() {
-        return aggregationType;
-    }
-
+  
     @Override
     public long getFrom() {
         return from;
@@ -209,7 +186,6 @@ public class ApproxOLSSketch implements Sketch {
         sketch.maxAngle = this.maxAngle;
         sketch.angleErrorMargin = this.angleErrorMargin;
         sketch.allDataPoints = new ArrayList<>(this.allDataPoints);
-        sketch.aggregationType = this.aggregationType;
         sketch.originalAggregateInterval = this.originalAggregateInterval;
         return sketch;
     }
@@ -267,7 +243,7 @@ public class ApproxOLSSketch implements Sketch {
         // Calculate the slope and its confidence bounds using interval regression
         calculateAngleWithErrorBounds(combinedPoints);
         
-        LOG.info("Calculated angle between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
+        LOG.debug("Calculated angle between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
                 first.getFromDate(), second.getToDate(), this.angle, this.minAngle, this.maxAngle, this.angleErrorMargin);
     }
     

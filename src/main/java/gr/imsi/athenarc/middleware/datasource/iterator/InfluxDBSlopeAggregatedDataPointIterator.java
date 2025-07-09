@@ -8,7 +8,7 @@ import com.influxdb.query.FluxTable;
 
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.ImmutableAggregatedDataPoint;
-import gr.imsi.athenarc.middleware.domain.SlopeStats;
+import gr.imsi.athenarc.middleware.domain.OLSSlopeStats;
 
 public class InfluxDBSlopeAggregatedDataPointIterator extends InfluxDBIterator<AggregatedDataPoint> {
 
@@ -41,9 +41,9 @@ public class InfluxDBSlopeAggregatedDataPointIterator extends InfluxDBIterator<A
         final Double sumXY = getSafeDoubleValue(record, "sum_xy");
         final Double sumX2 = getSafeDoubleValue(record, "sum_x2");
         final Integer count = getSafeIntValue(record, "count");
-        LOG.info("Start group timestamp: {}, End group timestamp: {}, Measure index: {}, Sum X: {}, Sum Y: {}, Sum XY: {}, Sum X2: {}, Count: {}",
+        LOG.debug("Start group timestamp: {}, End group timestamp: {}, Measure index: {}, Sum X: {}, Sum Y: {}, Sum XY: {}, Sum X2: {}, Count: {}",
                 startGroupTimestamp, endGroupTimestamp, measureIndex, sumX, sumY, sumXY, sumX2, count);
-        SlopeStats slopeStats = new SlopeStats(sumX, sumY, sumXY, sumX2, count);
+        OLSSlopeStats slopeStats = new OLSSlopeStats(sumX, sumY, sumXY, sumX2, count);
         return new ImmutableAggregatedDataPoint(
                 startGroupTimestamp,
                 endGroupTimestamp, 

@@ -53,7 +53,10 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
      */
     private AggregateInterval aggregateInterval;
 
+
     private static int AGG_SIZE = 9;
+
+    private boolean isInit = false;
 
     private void initialize(long from, long to, AggregateInterval aggregateInterval, int measure) {
         this.size = DateTimeUtil.numberOfIntervals(from, to, aggregateInterval);
@@ -472,7 +475,6 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public double getFirstValue() {
-                    // return (getMinValue() + getMaxValue()) / 2;
                     return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 4]);
                 }
 
@@ -483,7 +485,6 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
 
                 @Override
                 public double getLastValue() {
-                    // return (getMinValue() + getMaxValue()) / 2;
                     return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 5]);
                 }
 
@@ -524,5 +525,12 @@ public class M4AggregateTimeSeriesSpan implements TimeSeriesSpan {
         }
     }
 
+    public boolean isInit() {
+        return isInit;
+    }
 
+    public void setInit(boolean init) {
+        isInit = init;
+    }
 }
+

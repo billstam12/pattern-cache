@@ -32,4 +32,9 @@ public interface TimeSeriesSpan extends DataPoints {
         Return the aggregate Interval of this span. For raw it is null;
      */
     AggregateInterval getAggregateInterval();
+
+    /*
+     *  Wethe this span is an initialization span or not.
+     */
+    boolean isInit();
 }

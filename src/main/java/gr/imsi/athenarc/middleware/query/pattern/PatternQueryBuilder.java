@@ -1,7 +1,7 @@
 package gr.imsi.athenarc.middleware.query.pattern;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
-import gr.imsi.athenarc.middleware.domain.AggregationType;
+import gr.imsi.athenarc.middleware.domain.SlopeFunction;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
 
 import java.util.ArrayList;
@@ -16,7 +16,7 @@ public class PatternQueryBuilder {
     private long to;
     private int measure;
     private AggregateInterval timeUnit;
-    private AggregationType aggregationType = AggregationType.LAST_VALUE; // Default aggregation type
+    private SlopeFunction slopeFunction = SlopeFunction.FIRST_LAST; // Default aggregation type
     private List<PatternNode> patternNodes = new ArrayList<>();
     private int width = 800;
     private int height = 400;
@@ -92,8 +92,8 @@ public class PatternQueryBuilder {
      * @param aggregationType The type of aggregation to use
      * @return This builder for method chaining
      */
-    public PatternQueryBuilder withAggregationType(AggregationType aggregationType) {
-        this.aggregationType = aggregationType;
+    public PatternQueryBuilder withSlopeFunction(SlopeFunction slopeFunction) {
+        this.slopeFunction = slopeFunction;
         return this;
     }
 
@@ -149,7 +149,7 @@ public class PatternQueryBuilder {
             to, 
             measure,
             timeUnit,
-            aggregationType,
+            slopeFunction,
             patternNodes,
             width,
             height,
