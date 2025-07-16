@@ -184,6 +184,20 @@ public class DateTimeUtil {
         
         return AggregateInterval.of(result.getMultiplier(), result.getChronoUnit());
     }
+
+    public static AggregateInterval roundUpToCalendarBasedInterval(long intervalMs) { 
+    // Find closest calendar interval that is >= intervalMs
+    for (AggregateInterval interval : CALENDAR_INTERVALS) {
+        long intervalDuration = interval.toDuration().toMillis();
+        if (intervalDuration >= intervalMs) {
+            return AggregateInterval.of(interval.getMultiplier(), interval.getChronoUnit());
+        }
+    }
+    
+    // If no interval is large enough, return the largest available interval
+    AggregateInterval largest = CALENDAR_INTERVALS.get(CALENDAR_INTERVALS.size() - 1);
+    return AggregateInterval.of(largest.getMultiplier(), largest.getChronoUnit());
+}
     
     /**
      * Determines if a smaller interval can be aggregated into a larger target interval.

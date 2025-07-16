@@ -5,7 +5,6 @@ import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.cache.CacheManager;
 import gr.imsi.athenarc.middleware.cache.CacheUtils;
-import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesCache;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
@@ -34,7 +33,8 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
     
     private final long maxMemoryBytes;
     private final double memoryUtilizationTarget; // between 0.0 and 1.0
-   
+
+    private final String method; // Method to use for data retrieval (e.g., "M4Inf", "M4", etc.)
     
     /**
      * Creates a memory-bounded initialization policy with full configuration.
@@ -44,9 +44,11 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
      * @param lookbackPeriod How far back in time to load data (null for full dataset)     */
     public MemoryBoundedInitializationPolicy(
             long maxMemoryBytes, 
-            double memoryUtilizationTarget) {
+            double memoryUtilizationTarget,
+            String method) {
         this.maxMemoryBytes = maxMemoryBytes;
         this.memoryUtilizationTarget = memoryUtilizationTarget;
+        this.method = method;
 
         if (memoryUtilizationTarget <= 0.0 || memoryUtilizationTarget > 1.0) {
             throw new IllegalArgumentException("Memory utilization target must be between 0.0 and 1.0");
@@ -78,18 +80,19 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         long startTimestamp = dataset.getTimeRange().getFrom();        
     
         long datasetTimeRange = endTimestamp - startTimestamp;
-        
+
         // Use specific measures if provided, otherwise use all dataset measures
         List<Integer> measureList = measures != null ? measures : dataset.getMeasures();
         int measureCount = measureList.size();
         
         // Calculate per-measure memory budget
-        long targetMemoryBytes = (long)(maxMemoryBytes * memoryUtilizationTarget);
+        long targetMemoryBytes = (long) (maxMemoryBytes * memoryUtilizationTarget);
         long perMeasureBytes = targetMemoryBytes / measureCount;
         
         LOG.info("Selected time range spans {} ms with {} measures", datasetTimeRange, measureCount);
         LOG.info("Memory budget per measure: {} bytes", perMeasureBytes);
         Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure = new HashMap<>();
+
         // Determine appropriate aggregation intervals
         Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = calculateOptimalAggregationIntervals(
             measureList, perMeasureBytes, datasetTimeRange);
@@ -129,58 +132,81 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
     }
 
 
-    private long calculateDeepMemorySize() {
-        // Memory overhead for an object in a 64-bit JVM
-        final int OBJECT_OVERHEAD = 16;
-        // Memory overhead for an array in a 64-bit JVM
-        final int ARRAY_OVERHEAD = 20;
-        // Memory usage of int in a 64-bit JVM
-        final int INT_SIZE = 4;
-        // Memory usage of long in a 64-bit JVM
-        final int LONG_SIZE = 8;
-        // Memory usage of a reference in a 64-bit JVM with a heap size less than 32 GB
-        final int REF_SIZE = 4;
-
-
-        long aggregatesMemory = REF_SIZE + ARRAY_OVERHEAD + M4InfAggregateTimeSeriesSpan.getAggSize() * (REF_SIZE + ARRAY_OVERHEAD + ((long)  M4InfAggregateTimeSeriesSpan.getAggSize() * LONG_SIZE));
-
-        long countsMemory = REF_SIZE + ARRAY_OVERHEAD + ((long) INT_SIZE);
-
-        long aggregateIntervalMemory = 2 * REF_SIZE + OBJECT_OVERHEAD + LONG_SIZE;
-
-        long deepMemorySize = REF_SIZE + OBJECT_OVERHEAD +
-                aggregatesMemory + countsMemory + LONG_SIZE + INT_SIZE + aggregateIntervalMemory;
-
-
-        return deepMemorySize;
+    private long calculateBytesPerDataPoint() {
+    // Memory usage of long in a 64-bit JVM
+    final int LONG_SIZE = 8;
+    
+    long aggSize = 0;
+    switch(method) {
+        case "m4Inf":
+            aggSize = 5; // min, max, first, last, count
+            break;
+        case "m4":
+            aggSize = 9; // min, max, first, last values + 4 timestamps + count
+            break;
+        case "minmax":
+            aggSize = 3; // min, max, count
+            break;
+        case "ols":
+            aggSize = 5; // sum_x, sum_y, sum_xy, sum_x2, count
+            break;
+        default:
+            throw new IllegalArgumentException("Unknown method: " + method);
     }
+    
+    // Each aggregate element is stored as a long (8 bytes)
+    return aggSize * LONG_SIZE;
+}
 
-    /**
-     * Calculate optimal aggregation intervals for each measure based on memory constraints.
-     */
-    private Map<Integer, AggregateInterval> calculateOptimalAggregationIntervals(
-        List<Integer> measures, long bytesPerMeasure, long datasetTimeRange) {
+private Map<Integer, AggregateInterval> calculateOptimalAggregationIntervals(
+    List<Integer> measures, long bytesPerMeasure, long datasetTimeRange) {
+    
+    Map<Integer, AggregateInterval> intervals = new HashMap<>();
+    
+    // Memory overhead constants
+    final int OBJECT_OVERHEAD = 16;
+    final int ARRAY_OVERHEAD = 24;
+    final int INT_SIZE = 4;
+    final int LONG_SIZE = 8;
+    final int REF_SIZE = 8;
+    
+    // Calculate bytes per aggregated data point
+    long bytesPerPoint = calculateBytesPerDataPoint();
+    
+    // Calculate TimeSeriesSpan object overhead
+    long spanOverhead = OBJECT_OVERHEAD + // object header
+                       INT_SIZE +         // measure
+                       INT_SIZE +         // count  
+                       REF_SIZE +         // aggregates reference
+                       LONG_SIZE +        // from
+                       LONG_SIZE +        // to
+                       INT_SIZE +         // size
+                       REF_SIZE +         // aggregateInterval reference
+                       ARRAY_OVERHEAD;    // aggregates array overhead
+    
+    for (Integer measureId : measures) {
+        // Available memory for actual data points
+        long availableForData = bytesPerMeasure - spanOverhead;
         
-        Map<Integer, AggregateInterval> intervals = new HashMap<>();
+        // Calculate how many aggregated points we can store
+        long maxDataPoints = availableForData / bytesPerPoint;
         
-        // Estimate bytes per data point (this is an approximation)
-        long bytesPerPoint = calculateDeepMemorySize(); // Adjust based on actual memory profile
+        // Calculate minimum aggregation interval needed to fit within memory
+        long minIntervalMs = datasetTimeRange / maxDataPoints;
         
-        for (Integer measureId : measures) {
-            // Calculate how many points we can store with our memory budget
-            long maxDataPoints = bytesPerMeasure / bytesPerPoint;
-            
-            // Calculate minimum aggregation interval needed to fit within memory
-            long minIntervalMs = datasetTimeRange / maxDataPoints;
-            
-            // Round up to a sensible interval (1min, 5min, 15min, 1hr, etc.)
-            AggregateInterval interval = DateTimeUtil.roundDownToCalendarBasedInterval(minIntervalMs);
-            
-            intervals.put(measureId, interval);
-            LOG.info("Measure {}: Can store ~{} points, using interval {}", 
-                    measureId, maxDataPoints, interval);
-        }
+        // Round up to a sensible interval
+        AggregateInterval interval = DateTimeUtil.roundDownToCalendarBasedInterval(minIntervalMs);
         
-        return intervals;
+        intervals.put(measureId, interval);
+        
+        // Calculate actual usage for logging
+        long actualPoints = datasetTimeRange / interval.toDuration().toMillis();
+        long actualMemory = spanOverhead + (actualPoints * bytesPerPoint);
+        
+        LOG.info("Measure {}: Budget {}B, overhead {}B, can store ~{} points, using interval {} (actual: {} points, {}B)", 
+                measureId, bytesPerMeasure, spanOverhead, maxDataPoints, interval, actualPoints, actualMemory);
     }
+    
+    return intervals;
+}
 }

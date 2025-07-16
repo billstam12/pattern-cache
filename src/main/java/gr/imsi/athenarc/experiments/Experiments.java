@@ -237,7 +237,7 @@ public class Experiments<T> {
                 Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
 
                 List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
-                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Time (sec)");
+                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Init Time (sec)", "Time (sec)", "IO Count", "Cache Hits (%)", "Cache Size (bytes)");
                 csvWriter.flush(); // Ensure headers are written immediately
         
                 for (int i = 0; i < sequence.size(); i += 1) {
@@ -274,7 +274,11 @@ public class Experiments<T> {
                         csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
                         csvWriter.addValue(DateTimeUtil.format(query.getTo()));
                         csvWriter.addValue(typedQuery.getUserOpType());
+                        csvWriter.addValue(-1);
                         csvWriter.addValue(time);
+                        csvWriter.addValue(""); // Indicate no IO count
+                        csvWriter.addValue(""); // Indicate no cache hit ratio
+                        csvWriter.addValue(""); // Indicate no cache size
                         csvWriter.writeValuesToRow();
                         csvWriter.flush(); // Force flush after each row
                         stopwatch.reset();
@@ -300,7 +304,7 @@ public class Experiments<T> {
                 
                 Stopwatch stopwatch = Stopwatch.createUnstarted();
                 DataSource dataSource = createDatasource();
-                long maxMemoryBytes = 500 * 1024 * 1024; // 500MB memory limit for cache
+                long maxMemoryBytes = 100 * 1024 * 1024; // 100MB memory limit for cache
                 CacheManager cacheManager = CacheManager.builder(dataSource)
                     .withMaxMemory(maxMemoryBytes)
                     .withMethod(method)
@@ -313,15 +317,19 @@ public class Experiments<T> {
 
                 Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
                 
+                stopwatch.start();
                 if(initCacheAllocation > 0) {
                     MemoryBoundedInitializationPolicy policy = new MemoryBoundedInitializationPolicy(
-                        maxMemoryBytes, // 2GB memory limit
-                        initCacheAllocation);
+                        maxMemoryBytes, 
+                        initCacheAllocation,
+                        method);
                     policy.initialize(cacheManager, measures);
                 }
-                
+                double initTime = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
+                stopwatch.reset();
+
                 List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
-                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Time (sec)", "IO Count", "Cache Hits (%)");
+                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type","Init Time (sec)", "Time (sec)", "IO Count", "Cache Hits (%)", "Cache Size (bytes)");
                 csvWriter.flush(); // Ensure headers are written immediately
         
                 for (int i = 0; i < sequence.size(); i += 1) {
@@ -355,15 +363,17 @@ public class Experiments<T> {
                         csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
                         csvWriter.addValue(DateTimeUtil.format(query.getTo()));
                         csvWriter.addValue(typedQuery.getUserOpType());
-                        csvWriter.addValue(time);
-                        
+                        csvWriter.addValue(initTime);
+                        csvWriter.addValue(time);                        
                         // Add IO count and cache hit ratio if available, otherwise add -1
                         if (queryResults != null) {
                             csvWriter.addValue(queryResults.getIoCount());
                             csvWriter.addValue(queryResults.getCacheHitRatio() * 100); // Convert to percentage
+                            csvWriter.addValue(cacheManager.getMemoryManager().getCurrentMemoryBytes()); // Cache size in bytes
                         } else {
                             csvWriter.addValue(-1); // Indicate error for IO count
                             csvWriter.addValue(-1); // Indicate error for cache hit ratio
+                            csvWriter.addValue(-1); // Indicate error for cache size
                         }
                         
                         csvWriter.writeValuesToRow();
@@ -391,7 +401,7 @@ public class Experiments<T> {
                 
                 Stopwatch stopwatch = Stopwatch.createUnstarted();
                 DataSource dataSource = createDatasource();
-                long maxMemoryBytes = 500 * 1024 * 1024; // 500MB memory limit for cache
+                long maxMemoryBytes = 100 * 1024 * 1024; // 100MB memory limit for cache
                 
                 CacheManager cacheManager = CacheManager.builder(dataSource)
                     .withMaxMemory(maxMemoryBytes)
@@ -406,19 +416,22 @@ public class Experiments<T> {
 
                 Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
                 
+                stopwatch.start();
                 if(initCacheAllocation > 0) {
                     MemoryBoundedInitializationPolicy policy = new MemoryBoundedInitializationPolicy(
                         maxMemoryBytes, 
-                        initCacheAllocation);
+                        initCacheAllocation,
+                        method);
                     
                     // Initialize the cache with specified measures
-                    policy.initialize(cacheManager, List.of(q0.getMeasures().get(0)));
-
+                    policy.initialize(cacheManager, List.of(q0.getMeasures().get(0)));   
                 }
+                double initTime = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
+                stopwatch.reset();
                 
                 List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
                 // Update CSV header to include query_type
-                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Time (sec)");
+                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Init Time (sec)", "Time (sec)", "IO Count", "Cache Hits (%)", "Cache Size (bytes)");
                 csvWriter.flush(); // Ensure headers are written immediately
         
                 for (int i = 0; i < sequence.size(); i += 1) {
@@ -444,6 +457,7 @@ public class Experiments<T> {
                         // Continue with the next query
                     } finally {
                         time = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
+
                         LOG.info("Query time: {}", time);
                         if(run == 0 && queryResults != null && queryResults instanceof VisualQueryResults) 
                             ((VisualQueryResults) queryResults).toMultipleCsv(Paths.get(resultsPath, "query_" + i).toString());
@@ -456,7 +470,18 @@ public class Experiments<T> {
                         csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
                         csvWriter.addValue(DateTimeUtil.format(query.getTo()));
                         csvWriter.addValue(typedQuery.getUserOpType());
+                        csvWriter.addValue(initTime);
                         csvWriter.addValue(time);
+                       // Add IO count and cache hit ratio if available, otherwise add -1
+                        if (queryResults != null) {
+                            csvWriter.addValue(queryResults.getIoCount());
+                            csvWriter.addValue(queryResults.getCacheHitRatio() * 100); // Convert to percentage
+                            csvWriter.addValue(cacheManager.getMemoryManager().getCurrentMemoryBytes()); // Cache size in bytes
+                        } else {
+                            csvWriter.addValue(-1); // Indicate error for IO count
+                            csvWriter.addValue(-1); // Indicate error for cache hit ratio
+                            csvWriter.addValue(-1); // Indicate error for cache size
+                        }
                         csvWriter.writeValuesToRow();
                         csvWriter.flush(); // Force flush after each row
                         

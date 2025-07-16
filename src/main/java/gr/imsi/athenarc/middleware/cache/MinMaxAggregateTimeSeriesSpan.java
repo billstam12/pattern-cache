@@ -66,6 +66,7 @@ public class MinMaxAggregateTimeSeriesSpan implements TimeSeriesSpan {
         LOG.debug("Initializing time series span ({},{}) measure = {} with size {}, aggregate interval {}", getFromDate(), getToDate(), measure, size, aggregateInterval);
     }
 
+
     protected MinMaxAggregateTimeSeriesSpan(long from, long to, int measure, AggregateInterval aggregateInterval) {
         initialize(from, to, aggregateInterval, measure);
     }

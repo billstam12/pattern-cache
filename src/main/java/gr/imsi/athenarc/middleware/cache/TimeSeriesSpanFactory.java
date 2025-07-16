@@ -293,6 +293,7 @@ public class TimeSeriesSpanFactory {
         
         return spans;
     }
+
 }
 
 
