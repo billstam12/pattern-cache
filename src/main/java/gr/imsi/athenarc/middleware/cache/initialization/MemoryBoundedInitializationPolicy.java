@@ -144,6 +144,8 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
         case "m4":
             aggSize = 9; // min, max, first, last values + 4 timestamps + count
             break;
+        case "visual":
+        case "approxOls":
         case "minmax":
             aggSize = 3; // min, max, count
             break;

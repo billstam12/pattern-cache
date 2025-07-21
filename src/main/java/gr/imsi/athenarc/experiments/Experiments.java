@@ -17,7 +17,7 @@ import gr.imsi.athenarc.middleware.datasource.config.InfluxDBConfiguration;
 import gr.imsi.athenarc.middleware.datasource.dataset.*;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
-import gr.imsi.athenarc.middleware.pattern.PatternUtils;
+import gr.imsi.athenarc.middleware.pattern.PatternQueryExecutor;
 import gr.imsi.athenarc.middleware.query.Query;
 import gr.imsi.athenarc.middleware.query.QueryResults;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
@@ -251,9 +251,9 @@ public class Experiments<T> {
                         if (query instanceof VisualQuery){
                             queryResults = VisualUtils.executeM4Query((VisualQuery) query, dataSource);   
                         } else if (query instanceof PatternQuery) { 
-                            queryResults = PatternUtils.executePatternQuery((PatternQuery) query, dataSource, method);
+                            queryResults = PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, "firstLast");
                             // Log matches to file
-                            PatternUtils.logMatchesToFile((PatternQuery) query, (PatternQueryResults) queryResults, "ground_truth", dataSource, outFolder);
+                            PatternQueryExecutor.logMatchesToFile((PatternQuery) query, (PatternQueryResults) queryResults, "ground_truth", dataSource, outFolder);
                         } else {
                             throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
                         }
@@ -344,7 +344,7 @@ public class Experiments<T> {
                         queryResults = cacheManager.executeQuery(query);
                         if (query instanceof PatternQuery) { 
                             // Log matches to file
-                            PatternUtils.logMatchesToFile((PatternQuery)query, (PatternQueryResults) queryResults, method, dataSource, outFolder);
+                            PatternQueryExecutor.logMatchesToFile((PatternQuery)query, (PatternQueryResults) queryResults, method, dataSource, outFolder);
                         }
                     } catch (Exception e) {
                         LOG.error("Error during query execution: ", e);
@@ -446,9 +446,9 @@ public class Experiments<T> {
                             queryResults = cacheManager.executeQuery(query);
                         } else if (query instanceof PatternQuery) { 
                             queryResults = 
-                                PatternUtils.executePatternQuery((PatternQuery) query, dataSource, "firstLastInf");
+                                PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, "firstLastInf");
                                 // Log matches to file
-                            PatternUtils.logMatchesToFile((PatternQuery)query, (PatternQueryResults) queryResults, "minmaxcache", dataSource, outFolder);
+                            PatternQueryExecutor.logMatchesToFile((PatternQuery)query, (PatternQueryResults) queryResults, "minmaxcache", dataSource, outFolder);
                         } else {
                             throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
                         }

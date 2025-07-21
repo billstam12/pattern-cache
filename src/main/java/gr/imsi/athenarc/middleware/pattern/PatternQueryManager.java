@@ -1,6 +1,5 @@
 package gr.imsi.athenarc.middleware.pattern;
 
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +23,6 @@ public class PatternQueryManager {
     }
 
     public PatternQueryResults executeQuery(PatternQuery query) {
-        return PatternUtils.executePatternQueryWithCache(query, dataSource, cache, method);
+        return PatternQueryExecutor.executePatternQueryWithCache(query, dataSource, cache, method);
     }
 }

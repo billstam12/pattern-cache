@@ -6,7 +6,7 @@ import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
 
-/** FUnctions used both for visual and patterns */
+/** Functions used both for visual and patterns */
 public class Utils {
     
     public static int getPixelColumnForTimestamp(long timestamp, long from, long to, int width) {

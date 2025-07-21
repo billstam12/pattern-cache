@@ -12,7 +12,7 @@ public class VisualQueryManager {
     private static final Logger LOG = LoggerFactory.getLogger(VisualQueryManager.class);
 
     private final TimeSeriesCache cache;
-    private final QueryExecutor queryExecutor;
+    private final VisualQueryExecutor queryExecutor;
     private final DataProcessor dataProcessor;
     private final PrefetchManager prefetchManager;
     private final DataSource dataSource;
@@ -25,7 +25,7 @@ public class VisualQueryManager {
         this.dataSource = dataSource;
         // Initialize components for visual queries
         this.dataProcessor = new DataProcessor(dataSource, dataReductionFactor, method, calendarAlignment);
-        this.queryExecutor = new QueryExecutor(dataSource, initialAggregationFactor);
+        this.queryExecutor = new VisualQueryExecutor(dataSource, initialAggregationFactor);
         this.prefetchManager = new PrefetchManager(dataSource, prefetchingFactor, cache, dataProcessor);
         this.method = method;
     }

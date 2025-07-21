@@ -41,16 +41,16 @@ import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
 import gr.imsi.athenarc.middleware.sketch.PixelColumn;
 
-public class QueryExecutor {
+public class VisualQueryExecutor {
 
-    private static final Logger LOG = LoggerFactory.getLogger(QueryExecutor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(VisualQueryExecutor.class);
     private final DataSource dataSource;
     private final AbstractDataset dataset;
     private final AggregationFactorService aggFactorService;
 
     private final int initialAggFactor;
 
-    protected QueryExecutor(DataSource dataSource, int aggFactor) {
+    protected VisualQueryExecutor(DataSource dataSource, int aggFactor) {
         this.dataSource = dataSource;
         this.dataset = dataSource.getDataset();
         this.initialAggFactor = aggFactor;
@@ -95,7 +95,7 @@ public class QueryExecutor {
             for (long j = 0; j < viewPort.getWidth(); j++) {
                 long pixelFrom = from + (j * pixelColumnInterval.toDuration().toMillis());
                 long pixelTo = pixelFrom + pixelColumnInterval.toDuration().toMillis();
-                PixelColumn pixelColumn = new PixelColumn(pixelFrom, pixelTo, viewPort);
+                PixelColumn pixelColumn = new PixelColumn(pixelFrom, pixelTo);
                 pixelColumns.add(pixelColumn);
             }
             pixelColumnsPerMeasure.put(measure, pixelColumns);

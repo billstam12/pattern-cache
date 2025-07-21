@@ -12,9 +12,9 @@ import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.Stats;
 
-public class MinMaxSketch implements Sketch {
+public class ApproxFirstLastSketch implements Sketch {
 
-    private static final Logger LOG = LoggerFactory.getLogger(MinMaxSketch.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ApproxFirstLastSketch.class);
 
     private long from;
     private long to;
@@ -30,7 +30,7 @@ public class MinMaxSketch implements Sketch {
 
     private AggregateInterval originalAggregateInterval;
 
-    public MinMaxSketch(long from, long to) {
+    public ApproxFirstLastSketch(long from, long to) {
         this.from = from;
         this.to = to;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
@@ -50,7 +50,7 @@ public class MinMaxSketch implements Sketch {
     public Sketch combine(Sketch other) {
         if (!canCombineWith(other)) return this;
 
-        MinMaxSketch otherSketch = (MinMaxSketch) other;
+        ApproxFirstLastSketch otherSketch = (ApproxFirstLastSketch) other;
         this.dataPoints.addAll(otherSketch.dataPoints);
         this.to = otherSketch.getTo();
 
@@ -145,7 +145,7 @@ public class MinMaxSketch implements Sketch {
 
     @Override
     public boolean canCombineWith(Sketch other) {
-        return other instanceof MinMaxSketch && this.getTo() == other.getFrom();
+        return other instanceof ApproxFirstLastSketch && this.getTo() == other.getFrom();
     }
 
     @Override
@@ -182,7 +182,7 @@ public class MinMaxSketch implements Sketch {
 
     @Override
     public Sketch clone() {
-        MinMaxSketch clone = new MinMaxSketch(this.from, this.to);
+        ApproxFirstLastSketch clone = new ApproxFirstLastSketch(this.from, this.to);
         clone.dataPoints = new ArrayList<>(this.dataPoints);
         clone.angle = this.angle;
         clone.minAngle = this.minAngle;

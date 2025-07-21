@@ -22,19 +22,23 @@ public class CacheUtils {
         // Create spans and add to cache
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = null;
 
-        if(method.equalsIgnoreCase("m4")) {
-            newDataPoints = dataSource.getAggregatedDataPointsWithTimestamps(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            return TimeSeriesSpanFactory.createM4Aggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        }
-        else if(method.equalsIgnoreCase("m4Inf")) {
-            newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        } else if(method.equalsIgnoreCase("minmax") || method.equalsIgnoreCase("approxOls")) {
-            newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            timeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        }  
-        else {
-            throw new IllegalArgumentException("Unsupported method for fetching data: " + method);
+        switch(method){
+            case "m4":
+                newDataPoints = dataSource.getAggregatedDataPointsWithTimestamps(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
+                timeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+                break;
+            case "m4Inf":
+                newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
+                timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+                break;
+            case "minmax":
+            case "visual":
+            case "approxOls":
+                newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
+                timeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported method for fetching data: " + method);
         }
         return timeSeriesSpans;
     }
@@ -44,27 +48,9 @@ public class CacheUtils {
             Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure, 
             Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, String method) {
 
-        // Fetch missing data
-        AggregatedDataPoints newDataPoints = null;
-                        
         // Create spans and add to cache
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = null;
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = fetchTimeSeriesSpans(dataSource, from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, method);
 
-        if(method.equalsIgnoreCase("m4")) {
-            newDataPoints = dataSource.getAggregatedDataPointsWithTimestamps(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            timeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        }
-        else if(method.equalsIgnoreCase("m4Inf")) {
-            newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        } else if(method.equalsIgnoreCase("minmax") || method.equalsIgnoreCase("approxOls")) {
-            newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-            timeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
-        }  
-        else {
-            throw new IllegalArgumentException("Unsupported method for fetching data: " + method);
-        }
-        
         for(List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
             for(TimeSeriesSpan span : spans) {
                 if(span instanceof MinMaxAggregateTimeSeriesSpan) {

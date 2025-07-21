@@ -1,6 +1,5 @@
 package gr.imsi.athenarc.middleware.visual;
 
-import org.checkerframework.checker.units.qual.t;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -8,13 +7,13 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
+import gr.imsi.athenarc.middleware.cache.CacheUtils;
 import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.MinMaxAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
-import gr.imsi.athenarc.middleware.config.AggregationFunctionsConfig;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.*;
 import gr.imsi.athenarc.middleware.sketch.PixelColumn;
@@ -204,26 +203,8 @@ public class DataProcessor {
             Map<Integer, List<TimeInterval>> alignedIntervalsPerMeasure = 
                 DateTimeUtil.alignIntervalsToTimeUnitBoundary(aggregateMissingIntervals, aggIntervals);
             
-            AggregatedDataPoints aggDataPoints = null;
-            Map<Integer, List<TimeSeriesSpan>> aggTimeSeriesSpans = null;
+            Map<Integer, List<TimeSeriesSpan>> aggTimeSeriesSpans = CacheUtils.fetchTimeSeriesSpans(dataSource, from, to, alignedIntervalsPerMeasure, aggIntervals, method);
 
-            if (method.equalsIgnoreCase("m4Inf")) {
-                // For M4 methods, we fetch the data points with the specified aggregation functions
-                aggDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, AggregationFunctionsConfig.getAggregateFunctions(method));
-                aggTimeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
-            } else if(method.equalsIgnoreCase("minmax")){
-                // For min-max aggregation, we use the min-max aggregate functions
-                aggDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggIntervals, AggregationFunctionsConfig.getAggregateFunctions(method));
-                aggTimeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
-            }
-            else if(method.equalsIgnoreCase("m4")){
-                // For min-max aggregation, we use the min-max aggregate functions
-                aggDataPoints = dataSource.getAggregatedDataPointsWithTimestamps(from, to, alignedIntervalsPerMeasure, aggIntervals, AggregationFunctionsConfig.getAggregateFunctions(method));
-                aggTimeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(aggDataPoints, alignedIntervalsPerMeasure, aggIntervals);
-            } else {
-                throw new IllegalArgumentException("Unknown aggregation method: " + method);
-            }
-                    
             // Merge aggregate time series spans with the result
             for (Map.Entry<Integer, List<TimeSeriesSpan>> entry : aggTimeSeriesSpans.entrySet()) {
                 int measure = entry.getKey();

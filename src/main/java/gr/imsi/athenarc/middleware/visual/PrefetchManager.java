@@ -67,7 +67,7 @@ public class PrefetchManager {
             for (long j = 0; j < viewPort.getWidth(); j++) {
                 long pixelFrom = from + (j * pixelColumnInterval.toDuration().toMillis());
                 long pixelTo = pixelFrom + pixelColumnInterval.toDuration().toMillis();
-                PixelColumn pixelColumn = new PixelColumn(pixelFrom, pixelTo, viewPort);
+                PixelColumn pixelColumn = new PixelColumn(pixelFrom, pixelTo);
                 pixelColumns.add(pixelColumn);
             }
             pixelColumnsPerMeasure.put(measure, pixelColumns);

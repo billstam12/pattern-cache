@@ -17,17 +17,20 @@ public class AggregationFunctionsConfig {
      * @return Set of aggregation function names
      */
     public static Set<String> getAggregateFunctions(String type) {
-        if ("minmax".equalsIgnoreCase(type)) {
-            return MIN_MAX_FUNCTIONS;
-        } else if ("m4Inf".equalsIgnoreCase(type)) {
-            return M4INF_FUNCTIONS;
-        } else if ("m4".equalsIgnoreCase(type)) {
-            return M4INF_FUNCTIONS;
-        } else if("firstLast".equalsIgnoreCase(type) || "firstLastInf".equalsIgnoreCase(type)) {
-            return FIRST_LAST_FUNCTIONS;
-        }
-        else {
-            throw new IllegalArgumentException("Unsupported type: " + type);
+        switch (type){
+            case "visual":
+            case "approxOls":
+            case "minmax": 
+                return MIN_MAX_FUNCTIONS;
+            case "m4Inf":
+            case "m4":
+                return M4INF_FUNCTIONS;
+            case "firstLast":
+            case "firstLastInf":
+                return FIRST_LAST_FUNCTIONS;
+            default:
+                throw new IllegalArgumentException("Unsupported type: " + type);
+            
         }
     }
 }

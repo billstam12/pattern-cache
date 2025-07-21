@@ -28,8 +28,6 @@ public class PixelColumn implements Sketch {
     private long from;
     private long to;
 
-    private final ViewPort viewPort;
-
     private final RangeSet<Long> fullyContainedRangeSet = TreeRangeSet.create();
 
     private StatsAggregator statsAggregator;
@@ -63,12 +61,11 @@ public class PixelColumn implements Sketch {
         return hasNoError;
     }
 
-    public PixelColumn(long from, long to, ViewPort viewPort) {
+    public PixelColumn(long from, long to) {
         this.from = from;
         this.to = to;
         statsAggregator = new StatsAggregator();
         fullyContainedStatsAggregator = new StatsAggregator();
-        this.viewPort = viewPort;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
     }
 
@@ -163,7 +160,7 @@ public class PixelColumn implements Sketch {
      * @return the maximum inner column pixel range or null if there are gaps in the fully contained ranges or no fully contained ranges at all.
      */
 
-     public Range<Integer> computeMaxInnerPixelRange(Stats viewPortStats) {
+     public Range<Integer> computeMaxInnerPixelRange(ViewPort viewPort, Stats viewPortStats) {
         Set<Range<Long>> fullyContainedDisjointRanges = fullyContainedRangeSet.asRanges();
         if (fullyContainedDisjointRanges.size() > 1) {
             LOG.debug("There are gaps in the fully contained ranges of this pixel column.");
@@ -201,7 +198,7 @@ public class PixelColumn implements Sketch {
      * @param viewPortStats The stats for the entire view port.
      * @return A Range object representing the range of pixel IDs that the line segment intersects within the pixel column.
      */
-    public Range<Integer> getPixelIdsForLineSegment(double t1, double v1, double t2, double v2, Stats viewPortStats) {
+    public Range<Integer> getPixelIdsForLineSegment(double t1, double v1, double t2, double v2, ViewPort viewPort, Stats viewPortStats) {
         // Calculate the slope of the line segment
         double slope = (v2 - v1) / (t2 - t1);
 
@@ -236,7 +233,7 @@ public class PixelColumn implements Sketch {
      * @param viewPortStats The stats for the entire view port.
      * @return A Range object representing the range of inner-column pixel IDs
      */
-    public Range<Integer> getActualInnerColumnPixelRange(Stats viewPortStats) {
+    public Range<Integer> getActualInnerColumnPixelRange(ViewPort viewPort, Stats viewPortStats) {
         if(fullyContainedStatsAggregator.getCount() <= 0) return Range.open(0, viewPort.getHeight()); // If not initialized or empty
         return Range.closed(viewPort.getPixelId(fullyContainedStatsAggregator.getMinValue(), viewPortStats),
                 viewPort.getPixelId(fullyContainedStatsAggregator.getMaxValue(), viewPortStats));
@@ -365,7 +362,7 @@ public class PixelColumn implements Sketch {
     }
 
     public PixelColumn clone() {
-        PixelColumn clone = new PixelColumn(this.from, this.to, this.viewPort);
+        PixelColumn clone = new PixelColumn(this.from, this.to);
         clone.statsAggregator = this.statsAggregator.clone();
         clone.fullyContainedStatsAggregator = this.fullyContainedStatsAggregator.clone();
         clone.leftPartial = leftPartial == null ? null : ImmutableAggregatedDataPoint.fromAggregatedDataPoint(this.leftPartial);

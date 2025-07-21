@@ -39,13 +39,14 @@ import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
 import gr.imsi.athenarc.middleware.sketch.ApproxOLSSketch;
 import gr.imsi.athenarc.middleware.sketch.FirstLastSketch;
-import gr.imsi.athenarc.middleware.sketch.MinMaxSketch;
+import gr.imsi.athenarc.middleware.sketch.ApproxFirstLastSketch;
 import gr.imsi.athenarc.middleware.sketch.OLSSketch;
+import gr.imsi.athenarc.middleware.sketch.PixelColumn;
 import gr.imsi.athenarc.middleware.sketch.Sketch;
 
-public class PatternUtils {
+public class PatternQueryExecutor {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PatternUtils.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PatternQueryExecutor.class);
     
     /**
      * Generate sketches covering the specified time range based on the AggregateInterval.
@@ -56,7 +57,7 @@ public class PatternUtils {
      * @param aggregationType Type of aggregation for the sketches
      * @return List of sketches spanning the time range
      */
-    public static List<Sketch> generateSketches(long from, long to, AggregateInterval timeUnit, ViewPort viewPort, String method) {
+    public static List<Sketch> generateSketches(long from, long to, AggregateInterval timeUnit, String method) {
         List<Sketch> sketches = new ArrayList<>();
         
         // Calculate the number of complete intervals
@@ -76,13 +77,16 @@ public class PatternUtils {
                     sketch = new FirstLastSketch(sketchStart, sketchEnd);
                     break;
                 case "minmax":
-                    sketch = new MinMaxSketch(sketchStart, sketchEnd);
+                    sketch = new ApproxFirstLastSketch(sketchStart, sketchEnd);
                     break;
                 case "approxOls":
                     sketch = new ApproxOLSSketch(sketchStart, sketchEnd, i);
                     break;
                 case "ols":
                     sketch = new OLSSketch(sketchStart, sketchEnd);
+                    break;
+                case "visual":
+                    sketch = new PixelColumn(sketchStart, sketchEnd);
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown method: " + method);
@@ -117,6 +121,7 @@ public class PatternUtils {
             addAggregatedDataPointToSketches(from, to, timeUnit, sketches, point, viewPort);
         }
     }
+    
     /** 
      * Populate sketches with data from a TimeSeriesSpan.
      */
@@ -151,7 +156,6 @@ public class PatternUtils {
                                                                   TimeSeriesCache cache, String method) {        
         long startTime = System.currentTimeMillis();
 
-        Set<String> aggregateFunctions = AggregationFunctionsConfig.getAggregateFunctions(method);
 
         // Extract query parameters
         QueryParams params = extractQueryParams(query);
@@ -159,8 +163,7 @@ public class PatternUtils {
 
         // Create sketches for non-timestamped pattern matching (used with cache)
         List<Sketch> sketches = generateSketches(
-                params.alignedFrom, params.alignedTo, params.timeUnit, 
-                params.viewPort, method);
+                params.alignedFrom, params.alignedTo, params.timeUnit, method);
         
         LOG.info("Created {} sketches for aligned time range with time unit {}", 
                 sketches.size(), params.timeUnit);
@@ -173,9 +176,9 @@ public class PatternUtils {
         // Fetch missing data from datasource and update cache
         fetchMissingDataAndUpdateCache(
                 sketches, dataSource, cache, method,
-                params.measure, params.alignedFrom, params.alignedTo, 
-                params.timeUnit,  aggregateFunctions, params.viewPort);
-        
+                params.measure, params.alignedFrom, params.alignedTo,
+                params.timeUnit, params.viewPort);
+
         // Perform pattern matching and return results
         List<List<List<Sketch>>> matches = performPatternMatching(sketches, patternNodes);
         
@@ -206,34 +209,26 @@ public class PatternUtils {
                 
         // Create timestamped sketches for direct data source pattern matching
         List<Sketch> sketches = generateSketches(
-                params.alignedFrom, params.alignedTo, params.timeUnit, 
-                params.viewPort, method);
+                params.alignedFrom, params.alignedTo, params.timeUnit, method);
         
         LOG.info("Created {} sketches for aligned time range with time unit {}", 
                 sketches.size(), params.timeUnit);
 
-        if(method.equals("ols")){
-            executePatternQueryForSlopeMethod(
-                sketches, dataSource, params.measure,
-                params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
+        switch(method){
+            case("ols"):
+                executePatternQueryForSlopeMethod(
+                    sketches, dataSource, params.measure,
+                    params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
+                break;
+            case("firstLastInf"):
+            case("firstLast"):
+                executePatternQueryForAggregateMethod(
+                    sketches, dataSource, params.measure,
+                    params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort, method);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported method for pattern query: " + method);
         }
-        else if(method.equals("m4Inf") 
-            || method.equals("m4") 
-            || method.equals("approxOls") 
-            || method.equals("minmax")) {
-            executePatternQueryForAggregateMethod(
-                sketches, dataSource, params.measure,
-                params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort, method);
-        } else if(method.equals("firstLastInf") 
-                || method.equals("firstLast")) {
-            executePatternQueryForSingleAggregateMethod(
-                sketches, dataSource, params.measure,
-                params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort, method);    
-        } 
-        else {
-            throw new IllegalArgumentException("Unsupported method for pattern query: " + method);
-        }
-        
         
         // Perform pattern matching and return results
         List<List<List<Sketch>>> matches = performPatternMatching(sketches, patternNodes);
@@ -247,113 +242,56 @@ public class PatternUtils {
         patternQueryResults.setExecutionTime(executionTime);
         return patternQueryResults;
     }
-    
-    /**
-     * Execute a pattern query with caching support, finding non-overlapping matches.
-     * This method handles cache lookups and updates for pattern matching.
-     * 
-     * @param query The pattern query to execute
-     * @param dataSource The data source to use for fetching missing data
-     * @param cache The cache to check for existing data and to update with new data
-     * @param method The method type (e.g., "m4Inf", "m4", "minmax", etc.)
-     * @return Pattern query results with non-overlapping matches
-     */
-    public static PatternQueryResults executePatternQueryWithCacheNonOverlapping(PatternQuery query, DataSource dataSource, 
-                                                                  TimeSeriesCache cache, String method) {        
-        long startTime = System.currentTimeMillis();
 
-        Set<String> aggregateFunctions = AggregationFunctionsConfig.getAggregateFunctions(method);
-
-        // Extract query parameters
-        QueryParams params = extractQueryParams(query);
-        List<PatternNode> patternNodes = query.getPatternNodes();
-
-        // Create sketches for non-timestamped pattern matching (used with cache)
-        List<Sketch> sketches = generateSketches(
-                params.alignedFrom, params.alignedTo, params.timeUnit, 
-                params.viewPort, method);
+     /**
+     * Fetch all required data directly from data source (no caching).
+     * Used by the non-cached pattern query execution.
+    */
+    private static void executePatternQueryForSlopeMethod(List<Sketch> sketches, DataSource dataSource, 
+                                               int measure, long alignedFrom, long alignedTo, 
+                                               AggregateInterval timeUnit, ViewPort viewPort) {
+        // Create a time range for the pattern query (entire range)
+        TimeRange patternTimeRange = new TimeRange(alignedFrom, alignedTo);
         
-        LOG.info("Created {} sketches for aligned time range with time unit {}", 
-                sketches.size(), params.timeUnit);
+        // Setup measure and intervals
+        Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
+        List<TimeInterval> intervals = new ArrayList<>();  
+        intervals.add(patternTimeRange);
+        intervalsPerMeasure.put(measure, intervals);
         
-        // Check cache and populate sketches with existing data
-        populateSketchesFromCache(
-                sketches, cache, method, params.measure, 
-                params.alignedFrom, params.alignedTo, params.timeUnit,  params.viewPort);
+        Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
+        aggregateIntervalsPerMeasure.put(measure, timeUnit);
         
-        // Fetch missing data from datasource and update cache
-        fetchMissingDataAndUpdateCache(
-                sketches, dataSource, cache, method,
-                params.measure, params.alignedFrom, params.alignedTo, 
-                params.timeUnit,  aggregateFunctions, params.viewPort);
+        // Fetch all data directly from the data source
+        AggregatedDataPoints newDataPoints = dataSource.getSlopeAggregates(
+                alignedFrom, alignedTo, intervalsPerMeasure, aggregateIntervalsPerMeasure);
+                        
+        // Create spans and add to sketches
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
+            TimeSeriesSpanFactory.createSlopeAggregate(newDataPoints, intervalsPerMeasure, aggregateIntervalsPerMeasure);
         
-        // Perform pattern matching with non-overlapping results
-        List<List<List<Sketch>>> matches = performPatternMatching(sketches, patternNodes, false);
-        
-        long endTime = System.currentTimeMillis();
-        long executionTime = endTime - startTime;
-        LOG.info("Pattern query with cache (non-overlapping) executed in {} ms", executionTime);
-        PatternQueryResults patternQueryResults = new PatternQueryResults();
-        patternQueryResults.setMatches(matches);
-        patternQueryResults.setExecutionTime(executionTime);
-        return patternQueryResults;
-    }
-    
-    /**
-     * Execute a pattern query directly without using cache, finding non-overlapping matches.
-     * This method fetches all required data directly from the data source.
-     * 
-     * @param query The pattern query to execute
-     * @param dataSource The data source to use for fetching data
-     * @param method The method type (e.g., "m4", "minmax", "ols", etc.)
-     * @return Pattern query results with non-overlapping matches
-     */
-    public static PatternQueryResults executePatternQueryNonOverlapping(PatternQuery query, DataSource dataSource, String method){
-        long startTime = System.currentTimeMillis();
-
-        // Extract query parameters
-        QueryParams params = extractQueryParams(query);
-        List<PatternNode> patternNodes = query.getPatternNodes();
-                
-        // Create timestamped sketches for direct data source pattern matching
-        List<Sketch> sketches = generateSketches(
-                params.alignedFrom, params.alignedTo, params.timeUnit, 
-                params.viewPort, method);
-        
-        LOG.info("Created {} sketches for aligned time range with time unit {}", 
-                sketches.size(), params.timeUnit);
-
-        if(method.equals("ols")){
-            executePatternQueryForSlopeMethod(sketches, dataSource, params.measure, 
-                                               params.alignedFrom, params.alignedTo, 
-                                               params.timeUnit, params.viewPort);
-        } else if(method.equals("m4Inf") 
-            || method.equals("m4") 
-            || method.equals("approxOls")
-            || method.equals("minmax")) {
-            executePatternQueryForAggregateMethod(sketches, dataSource, params.measure, 
-                                                  params.alignedFrom, params.alignedTo, 
-                                                  params.timeUnit, params.viewPort, method);
-        } else {
-            executePatternQueryForSingleAggregateMethod(sketches, dataSource, params.measure, 
-                                                         params.alignedFrom, params.alignedTo, 
-                                                         params.timeUnit, params.viewPort, method);
+        // Fill the sketches with the data
+        for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
+            for (TimeSeriesSpan span : spans) {
+                if(span instanceof SlopeAggregateTimeSeriesSpan) {
+                    SlopeAggregateTimeSeriesSpan aggregateSpan = (SlopeAggregateTimeSeriesSpan) span;
+                    Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
+                    while (dataPoints.hasNext()) {
+                        AggregatedDataPoint point = dataPoints.next();
+                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point, viewPort);
+                    }
+                } else {
+                   throw new IllegalArgumentException("Unsupported span type for M4 patterns: " + span.getClass());     
+                }
+            }
         }
-        
-        // Perform pattern matching with non-overlapping results
-        List<List<List<Sketch>>> matches = performPatternMatching(sketches, patternNodes, false);
-        
-        long endTime = System.currentTimeMillis();
-        long executionTime = endTime - startTime;
-        LOG.info("Pattern query (non-overlapping) executed in {} ms", executionTime);
-        
-        PatternQueryResults patternQueryResults = new PatternQueryResults();
-        patternQueryResults.setMatches(matches);
-        patternQueryResults.setExecutionTime(executionTime);
-        return patternQueryResults;
     }
-    
-    private static void executePatternQueryForSingleAggregateMethod(List<Sketch> sketches, DataSource dataSource,
+
+    /**
+     * Fetch all required data directly from data source (no caching).
+     * Used by the non-cached pattern query execution.
+    */ 
+    private static void executePatternQueryForAggregateMethod(List<Sketch> sketches, DataSource dataSource,
             int measure, long from, long to, AggregateInterval timeUnit, ViewPort viewPort, String method) {
         Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
         Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
@@ -441,12 +379,23 @@ public class PatternUtils {
         TimeRange alignedTimeRange = new TimeRange(alignedFrom, alignedTo);
 
         List<TimeSeriesSpan> existingSpans;
-        if(method.equalsIgnoreCase("minmax")){
-            existingSpans = cache.getOverlappingSpansForVisualization(measure, alignedTimeRange, timeUnit);
-        } else {
-            existingSpans = cache.getCompatibleSpans(measure, alignedTimeRange, timeUnit);
+        switch(method){
+            case "firstLast":
+            case "firstLastInf":
+            case "m4":
+            case "m4Inf":
+                // For firstLast, we can use the minmax spans as they contain first and last values
+                existingSpans = cache.getCompatibleSpans(measure, alignedTimeRange, timeUnit);
+                break;
+            case "minmax":
+            case "visual":
+            case "approxOls":
+                existingSpans = cache.getOverlappingSpansForVisualization(measure, alignedTimeRange, timeUnit);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported method for pattern query: " + method);
         }
-
+        
         if (!existingSpans.isEmpty()) {
             LOG.info("Found {} existing compatible spans in cache for measure {}", existingSpans.size(), measure);
             
@@ -462,9 +411,9 @@ public class PatternUtils {
                                                    TimeSeriesCache cache,  String method, int measure, 
                                                    long alignedFrom, long alignedTo, 
                                                    AggregateInterval timeUnit, 
-                                                   Set<String> aggregateFunctions,
                                                    ViewPort viewPort
                                                 ) {
+                                            
         // Identify unfilled sketches/intervals
         //round down        
         List<TimeInterval> missingIntervals = identifyMissingIntervals(sketches, alignedFrom, alignedTo);
@@ -509,75 +458,6 @@ public class PatternUtils {
         }
     }
     
-    /**
-     * Fetch all required data directly from data source (no caching).
-     * Used by the non-cached pattern query execution.
-     */
-    private static void executePatternQueryForAggregateMethod(List<Sketch> sketches, DataSource dataSource, 
-                                               int measure, long alignedFrom, long alignedTo, 
-                                               AggregateInterval timeUnit, ViewPort viewPort, String method) {
-        // Create a time range for the pattern query (entire range)
-        TimeRange patternTimeRange = new TimeRange(alignedFrom, alignedTo);
-        
-        // Setup measure and intervals
-        Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
-        List<TimeInterval> intervals = new ArrayList<>();  
-        intervals.add(patternTimeRange);
-        intervalsPerMeasure.put(measure, intervals);
-        
-        Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
-        aggregateIntervalsPerMeasure.put(measure, timeUnit);
-        
-        // Create spans 
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans =  
-                CacheUtils.fetchTimeSeriesSpans(dataSource, alignedFrom, alignedTo, 
-                                     intervalsPerMeasure, aggregateIntervalsPerMeasure, method);
-
-        // Fill the sketches with the data
-        for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
-            populateSketchesFromSpans(spans, sketches, alignedFrom, alignedTo, timeUnit, viewPort);
-        }
-    }
-
-    private static void executePatternQueryForSlopeMethod(List<Sketch> sketches, DataSource dataSource, 
-                                               int measure, long alignedFrom, long alignedTo, 
-                                               AggregateInterval timeUnit, ViewPort viewPort) {
-        // Create a time range for the pattern query (entire range)
-        TimeRange patternTimeRange = new TimeRange(alignedFrom, alignedTo);
-        
-        // Setup measure and intervals
-        Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
-        List<TimeInterval> intervals = new ArrayList<>();  
-        intervals.add(patternTimeRange);
-        intervalsPerMeasure.put(measure, intervals);
-        
-        Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
-        aggregateIntervalsPerMeasure.put(measure, timeUnit);
-        
-        // Fetch all data directly from the data source
-        AggregatedDataPoints newDataPoints = dataSource.getSlopeAggregates(
-                alignedFrom, alignedTo, intervalsPerMeasure, aggregateIntervalsPerMeasure);
-                        
-        // Create spans and add to sketches
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
-            TimeSeriesSpanFactory.createSlopeAggregate(newDataPoints, intervalsPerMeasure, aggregateIntervalsPerMeasure);
-        
-        // Fill the sketches with the data
-        for (List<TimeSeriesSpan> spans : timeSeriesSpans.values()) {
-            for (TimeSeriesSpan span : spans) {
-                if(span instanceof SlopeAggregateTimeSeriesSpan) {
-                    SlopeAggregateTimeSeriesSpan aggregateSpan = (SlopeAggregateTimeSeriesSpan) span;
-                    Iterator<AggregatedDataPoint> dataPoints = aggregateSpan.iterator(alignedFrom, alignedTo);
-                    while (dataPoints.hasNext()) {
-                        AggregatedDataPoint point = dataPoints.next();
-                        addAggregatedDataPointToSketches(alignedFrom, alignedTo, timeUnit, sketches, point, viewPort);
-                    }
-                } else {
-                   throw new IllegalArgumentException("Unsupported span type for M4 patterns: " + span.getClass());     
-                }
-            }
-        }
-    }
     
     /**
      * Perform pattern matching on the prepared sketches and generate results.
@@ -753,72 +633,4 @@ public class PatternUtils {
         return missingIntervals;
     }
     
-    /**
-     * Removes overlapping matches from a list of pattern matches using a greedy approach.
-     * This is a post-processing method that can be used when the algorithm itself 
-     * cannot avoid overlaps during the search phase.
-     * 
-     * @param allMatches List of all matches that may contain overlaps
-     * @return List of non-overlapping matches
-     */
-    public static List<List<List<Sketch>>> removeOverlappingMatches(List<List<List<Sketch>>> allMatches) {
-        if (allMatches.isEmpty()) {
-            return new ArrayList<>();
-        }
-        
-        // Sort matches by their starting position (first sketch's timestamp or index)
-        // For this we need to track where each match starts and ends
-        List<MatchWithPosition> matchesWithPositions = new ArrayList<>();
-        
-        for (List<List<Sketch>> match : allMatches) {
-            MatchWithPosition matchPos = new MatchWithPosition(match);
-            matchesWithPositions.add(matchPos);
-        }
-        
-        // Sort by start position
-        matchesWithPositions.sort((a, b) -> Integer.compare(a.startIndex, b.startIndex));
-        
-        // Greedily select non-overlapping matches
-        List<List<List<Sketch>>> nonOverlappingMatches = new ArrayList<>();
-        int lastEndIndex = -1;
-        
-        for (MatchWithPosition matchPos : matchesWithPositions) {
-            if (matchPos.startIndex >= lastEndIndex) {
-                // This match doesn't overlap with the previous selected match
-                nonOverlappingMatches.add(matchPos.match);
-                lastEndIndex = matchPos.endIndex;
-            }
-        }
-        
-        LOG.info("Removed overlaps: {} matches reduced to {} non-overlapping matches", 
-                allMatches.size(), nonOverlappingMatches.size());
-        
-        return nonOverlappingMatches;
-    }
-    
-    /**
-     * Helper class to track match positions for overlap removal
-     */
-    private static class MatchWithPosition {
-        final List<List<Sketch>> match;
-        final int startIndex;
-        final int endIndex;
-        
-        MatchWithPosition(List<List<Sketch>> match) {
-            this.match = match;
-            
-            // Calculate start and end indices based on sketch positions
-            // For now, we'll use a simple heuristic based on match length
-            // In a real implementation, you might want to track actual sketch indices
-            int length = 0;
-            for (List<Sketch> segment : match) {
-                length += segment.size();
-            }
-            
-            // This is a simplified approach - in practice you'd want to track
-            // the actual indices from the pattern matching algorithm
-            this.startIndex = match.hashCode() % 1000; // Placeholder logic
-            this.endIndex = this.startIndex + length;
-        }
-    }
 }
