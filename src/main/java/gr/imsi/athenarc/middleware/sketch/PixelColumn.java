@@ -49,6 +49,8 @@ public class PixelColumn implements Sketch {
 
     private double angle;
      
+    private Range<Integer> pixelColumnRange;
+
     public void markAsNoError() {
         this.hasNoError = true;
     }
@@ -372,5 +374,13 @@ public class PixelColumn implements Sketch {
         clone.hasNoError = this.hasNoError;
         clone.hasInitialized = this.hasInitialized;
         return clone;
+    }
+
+    public Range<Integer> getPixelColumnRange() {
+        return pixelColumnRange;
+    }
+
+    public void setPixelColumnRange(Range<Integer> pixelColumnRange) {
+        this.pixelColumnRange = pixelColumnRange;
     }
 }

@@ -168,6 +168,7 @@ public class ErrorCalculator {
                     pixelColumnErrorPixels.addAll(pixelColumnFalsePixels);
                     pixelColumnErrorPixels.addAll(pixelColumnMissingPixels);
                     
+                    currentPixelColumn.setPixelColumnRange(pixelColumnRange);
                     // Calculate pixel errors
                     int maxWrongPixels = pixelColumnErrorPixels.asRanges().stream()
                             .mapToInt(range -> range.upperEndpoint() - range.lowerEndpoint() + 1)

@@ -43,6 +43,7 @@ import gr.imsi.athenarc.middleware.sketch.ApproxFirstLastSketch;
 import gr.imsi.athenarc.middleware.sketch.OLSSketch;
 import gr.imsi.athenarc.middleware.sketch.PixelColumn;
 import gr.imsi.athenarc.middleware.sketch.Sketch;
+import gr.imsi.athenarc.middleware.visual.ErrorCalculator;
 
 public class PatternQueryExecutor {
 
@@ -179,6 +180,32 @@ public class PatternQueryExecutor {
                 params.measure, params.alignedFrom, params.alignedTo,
                 params.timeUnit, params.viewPort);
 
+
+        if(method.equals("visual")){
+            int startIndex = 0;
+            int noOfVisualizations = sketches.size() - params.viewPort.getWidth() + 1;
+            while(startIndex < noOfVisualizations){
+                List<PixelColumn> visualization = new ArrayList<>();
+                for(int i = startIndex; i < startIndex + params.viewPort.getWidth(); i++){
+                    Sketch sketch = sketches.get(i);
+                    if(sketch instanceof PixelColumn){
+                        visualization.add((PixelColumn) sketch);
+                    } else {
+                        throw new IllegalArgumentException("Unsupported sketch type for visual method: " + sketch.getClass());
+                    }  
+                }
+                ErrorCalculator errorCalculator = new ErrorCalculator();
+                double errorOfViz = errorCalculator.calculateTotalError(visualization, params.viewPort, params.timeUnit, params.accuracy);
+                if(!errorCalculator.hasError()){
+                    for(PixelColumn pixelColumn : visualization){
+                        LOG.info("Pixel column range: {}", pixelColumn.getPixelColumnRange());
+                    }
+                }
+                LOG.info("Size: {} of visualization: {}, Error: {}", visualization.size(), startIndex, errorOfViz);
+                startIndex ++;
+            }
+        }
+
         // Perform pattern matching and return results
         List<List<List<Sketch>>> matches = performPatternMatching(sketches, patternNodes);
         
@@ -306,7 +333,7 @@ public class PatternQueryExecutor {
                 dataPoints = dataSource.getAggregatedDataPoints(
                     from, to, intervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
                 break;
-            case "firtLast":
+            case "firstLast":
                 dataPoints = dataSource.getAggregatedDataPointsWithTimestamps(
                     from, to, intervalsPerMeasure, aggregateIntervalsPerMeasure, aggregateFunctions);
                 break;
@@ -395,7 +422,7 @@ public class PatternQueryExecutor {
             default:
                 throw new IllegalArgumentException("Unsupported method for pattern query: " + method);
         }
-        
+
         if (!existingSpans.isEmpty()) {
             LOG.info("Found {} existing compatible spans in cache for measure {}", existingSpans.size(), measure);
             
