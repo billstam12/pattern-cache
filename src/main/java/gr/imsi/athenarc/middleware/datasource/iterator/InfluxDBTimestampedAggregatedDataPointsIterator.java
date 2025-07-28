@@ -12,12 +12,12 @@ import gr.imsi.athenarc.middleware.domain.StatsAggregator;
 import java.util.List;
 import java.util.Map;
 
-public class InfluxDBM4DataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
+public class InfluxDBTimestampedAggregatedDataPointsIterator extends InfluxDBIterator<AggregatedDataPoint> {
 
     private final Map<String, Integer> measuresMap;
     private final int noOfAggregates;
 
-    public InfluxDBM4DataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap, int noOfAggregates) {
+    public InfluxDBTimestampedAggregatedDataPointsIterator(List<FluxTable> tables, Map<String, Integer> measuresMap, int noOfAggregates) {
         super(tables);
         this.measuresMap = measuresMap;
         this.noOfAggregates = noOfAggregates;

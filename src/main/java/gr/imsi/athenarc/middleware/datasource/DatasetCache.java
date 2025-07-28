@@ -3,6 +3,7 @@ package gr.imsi.athenarc.middleware.datasource;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.dataset.InfluxDBDataset;
+import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,7 +40,6 @@ public class DatasetCache {
     
     public static AbstractDataset getDataset(String source, String schema, String tableName) {
         File cacheFile = getCacheFile(source, schema, tableName);
-        
         if (!cacheFile.exists()) {
             return null;
         }
@@ -49,6 +49,12 @@ public class DatasetCache {
             
             if (source.equals("influxdb")) {
                 InfluxDBDataset dataset = new InfluxDBDataset(tableName, schema, tableName);
+                populateDatasetFromCache(dataset, datasetData);
+                return dataset;
+            }
+            else if(source.equals("sql")) {
+                SQLDataset dataset = new SQLDataset(tableName, schema, tableName);
+                dataset.setId((String) datasetData.get("id"));
                 populateDatasetFromCache(dataset, datasetData);
                 return dataset;
             }
@@ -103,7 +109,7 @@ public class DatasetCache {
     }
     
     private static File getCacheFile(String source, String schema, String tableName) {
-        String filename = source + "_" + schema + "_" + tableName + ".json";
+        String filename = source + "_" + (schema == null ? "" : schema + "_") + tableName + ".json";
         return Paths.get(CACHE_DIRECTORY, filename).toFile();
     }
 }

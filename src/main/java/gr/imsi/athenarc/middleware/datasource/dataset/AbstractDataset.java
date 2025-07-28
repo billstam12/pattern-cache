@@ -1,5 +1,6 @@
 package gr.imsi.athenarc.middleware.datasource.dataset;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -66,8 +67,6 @@ public abstract class AbstractDataset {
         this.samplingInterval = samplingInterval;
     }
 
-    public List<Integer> getMeasures(){return null;}
-
     public String getSchema() {
         return schema;
     }
@@ -91,6 +90,15 @@ public abstract class AbstractDataset {
 
     public void setTimeFormat(String timeFormat) {
         this.timeFormat = timeFormat;
+    }
+
+    public List<Integer> getMeasures() {
+        int[] measures = new int[getHeader().length];
+        for(int i = 0; i < measures.length; i++)
+            measures[i] = i;
+        return Arrays.stream(measures)
+                .boxed()
+                .collect(Collectors.toList());
     }
 
     @Override

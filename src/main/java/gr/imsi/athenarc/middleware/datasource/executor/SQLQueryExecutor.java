@@ -9,13 +9,13 @@ import org.slf4j.LoggerFactory;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class PostgreSQLQueryExecutor implements QueryExecutor {
+public class SQLQueryExecutor implements QueryExecutor {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PostgreSQLQueryExecutor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(SQLQueryExecutor.class);
 
     private final JDBCConnection databaseConnection;
 
-    public PostgreSQLQueryExecutor(DatabaseConnection databaseConnection) {
+    public SQLQueryExecutor(DatabaseConnection databaseConnection) {
         this.databaseConnection = (JDBCConnection) databaseConnection;
     }
 

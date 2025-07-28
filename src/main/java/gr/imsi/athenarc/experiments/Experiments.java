@@ -14,6 +14,7 @@ import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.middleware.datasource.config.DataSourceConfiguration;
 import gr.imsi.athenarc.middleware.datasource.config.InfluxDBConfiguration;
+import gr.imsi.athenarc.middleware.datasource.config.SQLConfiguration;
 import gr.imsi.athenarc.middleware.datasource.dataset.*;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
@@ -583,6 +584,17 @@ public class Experiments<T> {
                     .timeFormat(timeFormat)
                     .measurement(table)
                     .build();   
+                break;
+            case "postgres":
+                dataSourceConfiguration = new SQLConfiguration.Builder()
+                    .url(properties.getProperty("postgres.url"))
+                    .username(properties.getProperty("postgres.username"))
+                    .password(properties.getProperty("postgres.password"))
+                    .tableName(table)
+                    .timestampColumn("timestamp")
+                    .idColumn("id")
+                    .valueColumn("value")
+                    .build();
                 break;
             default:
                 break;

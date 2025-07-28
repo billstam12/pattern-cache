@@ -16,14 +16,14 @@ import com.influxdb.query.FluxTable;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.InfluxDBQueryExecutor;
-import gr.imsi.athenarc.middleware.datasource.iterator.InfluxDBM4DataPointsIterator;
+import gr.imsi.athenarc.middleware.datasource.iterator.InfluxDBTimestampedAggregatedDataPointsIterator;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 
-final class InfluxDBM4Datapoints implements AggregatedDataPoints {
+final class InfluxDBTimestampedAggregatedDatapoints implements AggregatedDataPoints {
 
     private AbstractDataset dataset;
     private InfluxDBQueryExecutor influxDBQueryExecutor;
@@ -34,7 +34,7 @@ final class InfluxDBM4Datapoints implements AggregatedDataPoints {
     private Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure;
     private Set<String> aggregateFunctions;
 
-    public InfluxDBM4Datapoints(InfluxDBQueryExecutor influxDBQueryExecutor, AbstractDataset dataset, 
+    public InfluxDBTimestampedAggregatedDatapoints(InfluxDBQueryExecutor influxDBQueryExecutor, AbstractDataset dataset, 
                                      long from, long to,  Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
                                      Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure,
                                      Set<String> aggregateFunctions
@@ -237,7 +237,7 @@ final class InfluxDBM4Datapoints implements AggregatedDataPoints {
         
         // Execute the query
         List<FluxTable> fluxTables = influxDBQueryExecutor.executeDbQuery(fluxQuery.toString());
-        return new InfluxDBM4DataPointsIterator(fluxTables, measuresMap, aggregateFunctions.size());
+        return new InfluxDBTimestampedAggregatedDataPointsIterator(fluxTables, measuresMap, aggregateFunctions.size());
     }
 
     /**

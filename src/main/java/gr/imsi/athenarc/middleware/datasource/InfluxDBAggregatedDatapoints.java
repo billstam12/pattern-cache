@@ -4,11 +4,13 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashMap;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -25,8 +27,10 @@ import gr.imsi.athenarc.middleware.domain.TimeInterval;
 
 final class InfluxDBAggregatedDatapoints implements AggregatedDataPoints {
 
+    private static final Set<String> SUPPORTED_AGGREGATE_FUNCTIONS = new HashSet<>(
+        Arrays.asList("first", "last", "min", "max")
+    );
 
-        
     private AbstractDataset dataset;
     private InfluxDBQueryExecutor influxDBQueryExecutor;
 
