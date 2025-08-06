@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.middleware.datasource;
+package gr.imsi.athenarc.middleware.datasource.trino;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
@@ -11,21 +11,21 @@ import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import java.sql.ResultSet;
 import java.util.*;
 
-public class SQLDataPoints implements DataPoints {
+public class TrinoDataPoints implements DataPoints {
 
     private SQLDataset dataset;
-    private SQLQueryExecutor sqlQueryExecutor;
+    private SQLQueryExecutor trinoQueryExecutor;
     private long from;
     private long to;
     private Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure;
 
-    public SQLDataPoints(SQLQueryExecutor sqlQueryExecutor, SQLDataset dataset, long from, long to,
+    public TrinoDataPoints(SQLQueryExecutor trinoQueryExecutor, SQLDataset dataset, long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure) {
         this.from = from;
         this.to = to;
         this.missingIntervalsPerMeasure = missingIntervalsPerMeasure;
         this.dataset = dataset;
-        this.sqlQueryExecutor = sqlQueryExecutor;
+        this.trinoQueryExecutor = trinoQueryExecutor;
         
         if (this.missingIntervalsPerMeasure == null || this.missingIntervalsPerMeasure.size() == 0) {
             throw new IllegalArgumentException("No measures specified");
@@ -64,16 +64,17 @@ public class SQLDataPoints implements DataPoints {
         sqlQuery.append(String.join(" UNION ALL ", dataSourceQueries));
         sqlQuery.append(" ORDER BY ").append(timestampColumn).append(", id");
 
-        ResultSet resultSet = sqlQueryExecutor.executeDbQuery(sqlQuery.toString());
+        ResultSet resultSet = trinoQueryExecutor.executeDbQuery(sqlQuery.toString());
         return new SQLDataPointsIterator(resultSet, measuresMap, timestampColumn);
     }
 
     private String buildDataSourceQuery(String tableName, String measureName, String timestampColumn,
                                         long fromTime, long toTime) {
+        // Trino uses from_unixtime instead of to_timestamp
         return "SELECT " + timestampColumn + ", value, id " +
                 "FROM " + tableName + " " +
-                "WHERE " + timestampColumn + " >= to_timestamp(" + (fromTime / 1000.0) + ") " +
-                "AND " + timestampColumn + " < to_timestamp(" + (toTime / 1000.0) + ") " +
+                "WHERE " + timestampColumn + " >= from_unixtime(" + (fromTime / 1000.0) + ") " +
+                "AND " + timestampColumn + " < from_unixtime(" + (toTime / 1000.0) + ") " +
                 "AND id = '" + measureName + "'";
     }
 

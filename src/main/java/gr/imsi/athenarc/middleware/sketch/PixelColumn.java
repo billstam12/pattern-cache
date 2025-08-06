@@ -46,8 +46,6 @@ public class PixelColumn implements Sketch {
     private boolean hasNoError = false;
 
     private boolean hasInitialized = false;
-
-    private double angle;
      
     private Range<Integer> pixelColumnRange;
 
@@ -286,7 +284,7 @@ public class PixelColumn implements Sketch {
 
     @Override
     public double getAngle() {
-        return angle;
+        throw new UnsupportedOperationException("Angle calculation is not supported for PixelColumn. Use getSlope method instead.");
     }
 
     /**
@@ -297,23 +295,7 @@ public class PixelColumn implements Sketch {
      */
     @Override
     public boolean canCombineWith(Sketch other) {
-        if (other == null || other.isEmpty()) {
-            LOG.debug("Cannot combine with null or empty sketch");
-            return false;
-        }
-        
-        if (!(other instanceof PixelColumn)) {
-            LOG.debug("Cannot combine sketches of different types: {}", other.getClass());
-            return false;
-        }
-        
-        if (this.getTo() != other.getFrom()) {
-            LOG.debug("Cannot combine non-consecutive sketches. Current sketch ends at {} but next sketch starts at {}", 
-                      this.getTo(), other.getFrom());
-            return false;
-        }
-        
-        return true;
+        throw new UnsupportedOperationException("Combine operation is not supported for PixelColumn. Use combineWith method instead.");
     }
 
     /**
@@ -321,36 +303,7 @@ public class PixelColumn implements Sketch {
      */
     @Override
     public Sketch combine(Sketch other) {
-        if (!canCombineWith(other)) {
-            LOG.warn("Cannot combine incompatible sketches");
-            return this;
-        }
-
-        if (other instanceof PixelColumn) {
-            PixelColumn otherPixelColumn = (PixelColumn) other;
-            if(other.isEmpty()) {
-                LOG.debug("Other PixelColumn is empty, skipping combination.");
-                this.angle = Double.POSITIVE_INFINITY;
-            } else {
-                this.angle = (otherPixelColumn.getStats().getLastValue() - this.getStats().getLastValue()) /
-                        ((otherPixelColumn.getFrom() - this.getFrom()) / (this.originalAggregateInterval.toDuration().toMillis()));
-                LOG.debug("Calculated angle for PixelColumn from {} to {}: {}", this.from, this.to, this.angle);
-            }
-            this.statsAggregator.combine(otherPixelColumn.statsAggregator);
-            this.fullyContainedStatsAggregator.combine(otherPixelColumn.fullyContainedStatsAggregator);
-            this.left.addAll(otherPixelColumn.left.stream().map(ImmutableAggregatedDataPoint::fromAggregatedDataPoint).collect(Collectors.toList()));
-            this.right.addAll(otherPixelColumn.right.stream().map(ImmutableAggregatedDataPoint::fromAggregatedDataPoint).collect(Collectors.toList()));
-            this.hasNoError = this.hasNoError && otherPixelColumn.hasNoError;
-            this.hasInitialized = this.hasInitialized || otherPixelColumn.hasInitialized;
-            
-            // Update the end timestamp
-            this.to = otherPixelColumn.getTo();
-            
-            return this; 
-        } else {
-            LOG.warn("Cannot combine PixelColumn with non-PixelColumn sketch: {}", other.getClass().getSimpleName());
-        }
-        return this;
+        throw new UnsupportedOperationException("Combine operation is not supported for PixelColumn. Use combineWith method instead.");
     }
 
     @Override
@@ -367,12 +320,16 @@ public class PixelColumn implements Sketch {
         PixelColumn clone = new PixelColumn(this.from, this.to);
         clone.statsAggregator = this.statsAggregator.clone();
         clone.fullyContainedStatsAggregator = this.fullyContainedStatsAggregator.clone();
+        clone.fullyContainedRangeSet.addAll(this.fullyContainedRangeSet);
         clone.leftPartial = leftPartial == null ? null : ImmutableAggregatedDataPoint.fromAggregatedDataPoint(this.leftPartial);
         clone.rightPartial = rightPartial == null ? null : ImmutableAggregatedDataPoint.fromAggregatedDataPoint(this.rightPartial);
         clone.left.addAll(this.left.stream().map(ImmutableAggregatedDataPoint::fromAggregatedDataPoint).collect(Collectors.toList()));
         clone.right.addAll(this.right.stream().map(ImmutableAggregatedDataPoint::fromAggregatedDataPoint).collect(Collectors.toList()));
         clone.hasNoError = this.hasNoError;
         clone.hasInitialized = this.hasInitialized;
+        clone.originalAggregateInterval = this.originalAggregateInterval;
+        clone.pixelColumnRange = this.pixelColumnRange;
+        
         return clone;
     }
 

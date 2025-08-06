@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Properties;
 
 public class JDBCConnection implements DatabaseConnection {
     private static final Logger LOG = LoggerFactory.getLogger(JDBCConnection.class);
@@ -26,8 +27,14 @@ public class JDBCConnection implements DatabaseConnection {
         connection = null;
         try {
             Class.forName("org.postgresql.Driver");
+            Properties properties = new Properties();
+            properties.setProperty("user", user);
+            properties.setProperty("password", password);
+            properties.setProperty("SSL", "true");
+            properties.setProperty("SSLVerification", "NONE");
+
             connection = DriverManager
-                    .getConnection(host, user, password);
+                    .getConnection(host, properties);
             LOG.info("Initialized JDBC connection {}", host);
         } catch (Exception e) {
             e.printStackTrace();

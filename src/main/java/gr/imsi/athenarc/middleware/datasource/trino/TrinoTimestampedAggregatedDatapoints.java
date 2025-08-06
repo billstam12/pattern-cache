@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.middleware.datasource;
+package gr.imsi.athenarc.middleware.datasource.trino;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
@@ -13,21 +13,21 @@ import java.sql.ResultSet;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-public class SQLTimestampedAggregatedDatapoints implements AggregatedDataPoints {
+public class TrinoTimestampedAggregatedDatapoints implements AggregatedDataPoints {
 
     private static final Set<String> SUPPORTED_AGGREGATE_FUNCTIONS = new HashSet<>(
         Arrays.asList("first", "last", "min", "max")
     );
 
     private SQLDataset dataset;
-    private SQLQueryExecutor sqlQueryExecutor;
+    private SQLQueryExecutor trinoQueryExecutor;
     private long from;
     private long to;
     private Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure;
     private Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure;
     private Set<String> aggregateFunctions;
 
-    public SQLTimestampedAggregatedDatapoints(SQLQueryExecutor sqlQueryExecutor, SQLDataset dataset, long from, long to,
+    public TrinoTimestampedAggregatedDatapoints(SQLQueryExecutor trinoQueryExecutor, SQLDataset dataset, long from, long to,
                                    Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure,
                                    Set<String> aggregateFunctions) {
@@ -36,7 +36,7 @@ public class SQLTimestampedAggregatedDatapoints implements AggregatedDataPoints 
         this.missingIntervalsPerMeasure = missingIntervalsPerMeasure;
         this.aggregateIntervalsPerMeasure = aggregateIntervalsPerMeasure;
         this.dataset = dataset;
-        this.sqlQueryExecutor = sqlQueryExecutor;
+        this.trinoQueryExecutor = trinoQueryExecutor;
 
         if (aggregateFunctions == null || aggregateFunctions.isEmpty()) {
             throw new IllegalArgumentException("No aggregate functions specified");
@@ -113,22 +113,24 @@ public class SQLTimestampedAggregatedDatapoints implements AggregatedDataPoints 
         sqlQuery.append(String.join(" UNION ALL ", selectParts));
         sqlQuery.append(" ORDER BY measure_name, time_bucket");
 
-        ResultSet resultSet = sqlQueryExecutor.executeDbQuery(sqlQuery.toString());
+        ResultSet resultSet = trinoQueryExecutor.executeDbQuery(sqlQuery.toString());
         return new SQLTimestampedAggregateDataPointsIterator(resultSet, measuresMap, aggregateIntervalsPerMeasure);
     }
 
     private String buildDataSourceQuery(String tableName, String measureName, String timestampColumn,
                                         long fromTime, long toTime) {
+        // Trino uses from_unixtime instead of to_timestamp
         return "SELECT " + timestampColumn + ", value as _value, id as _measure " +
                 "FROM " + tableName + " " +
-                "WHERE " + timestampColumn + " >= to_timestamp(" + (fromTime / 1000.0) + ") " +
-                "AND " + timestampColumn + " < to_timestamp(" + (toTime / 1000.0) + ") " +
+                "WHERE " + timestampColumn + " >= from_unixtime(" + (fromTime / 1000.0) + ") " +
+                "AND " + timestampColumn + " < from_unixtime(" + (toTime / 1000.0) + ") " +
                 "AND id = '" + measureName + "'";
     }
 
     /**
      * Like buildAggregateQuery but also fetches timestamps for each stat value.
      * Handles sub-second intervals with millisecond precision to avoid floating-point precision issues.
+     * Adapted for Trino SQL syntax.
      */
     private String buildTimestampedAggregateQuery(
             String dataSourceQuery, String timestampColumn,
@@ -169,19 +171,20 @@ public class SQLTimestampedAggregatedDatapoints implements AggregatedDataPoints 
         
         if (aggFunctions.contains("min")) {
             outerSelect.add("min(_value) AS min");
-            outerSelect.add("(ARRAY_AGG(" + timestampColumn + " ORDER BY _value))[1] AS min_timestamp");
+            // Trino uses element_at instead of array subscription
+            outerSelect.add("element_at(array_sort(array_agg(" + timestampColumn + " ORDER BY _value)), 1) AS min_timestamp");
         }
         if (aggFunctions.contains("max")) {
             outerSelect.add("max(_value) AS max");
-            outerSelect.add("(ARRAY_AGG(" + timestampColumn + " ORDER BY _value DESC))[1] AS max_timestamp");
+            outerSelect.add("element_at(array_sort(array_agg(" + timestampColumn + " ORDER BY _value DESC)), 1) AS max_timestamp");
         }
         if (aggFunctions.contains("first")) {
-            outerSelect.add("MIN(first_value) AS first");
-            outerSelect.add("MIN(first_timestamp) AS first_timestamp");
+            outerSelect.add("arbitrary(first_value) AS first");
+            outerSelect.add("arbitrary(first_timestamp) AS first_timestamp");
         }
         if (aggFunctions.contains("last")) {
-            outerSelect.add("MIN(last_value) AS last");
-            outerSelect.add("MIN(last_timestamp) AS last_timestamp");
+            outerSelect.add("arbitrary(last_value) AS last");
+            outerSelect.add("arbitrary(last_timestamp) AS last_timestamp");
         }
 
         String query = "SELECT " + String.join(", ", outerSelect) +
@@ -192,8 +195,8 @@ public class SQLTimestampedAggregatedDatapoints implements AggregatedDataPoints 
     }
     
     private String generateTimeBucketExpression(String timestampColumn, long intervalMillis, long offset) {
-        // Always work in milliseconds for precision, convert to seconds only for to_timestamp()
-        return "to_timestamp((" + offset + " + FLOOR((EXTRACT(EPOCH FROM " + timestampColumn + ") * 1000 - " +
+        // Trino-specific time bucket expression using from_unixtime and to_unixtime
+        return "from_unixtime((" + offset + " + FLOOR((to_unixtime(" + timestampColumn + ") * 1000 - " +
                 offset + ") / " + intervalMillis + ") * " + intervalMillis + ") / 1000.0)";
     }
 

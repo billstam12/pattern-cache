@@ -12,13 +12,14 @@ import gr.imsi.athenarc.middleware.sketch.PixelColumn;
 
 import java.util.*;
 
-public class ErrorCalculator {
-    private static final Logger LOG = LoggerFactory.getLogger(ErrorCalculator.class);
+public class VisualEvaluator {
+    private static final Logger LOG = LoggerFactory.getLogger(VisualEvaluator.class);
 
     private MaxErrorEvaluator maxErrorEvaluator;
     private boolean hasError = true;
     private AggregateInterval pixelColumnInterval;
     private double error;
+    public int validColumns = 0;
 
     public double calculateTotalError(List<PixelColumn> pixelColumns, ViewPort viewPort, AggregateInterval pixelColumnInterval, double accuracy) {
         // Calculate errors using processed data
@@ -27,7 +28,7 @@ public class ErrorCalculator {
         List<Double> pixelColumnErrors = maxErrorEvaluator.computeMaxPixelErrorsPerColumn();
         LOG.debug("Pixel column errors: {}", pixelColumnErrors);
         // Find the part of the query interval that is not covered by the spans in the interval tree.
-        int validColumns = 0;
+        validColumns = 0;
         error = 0.0;
         for (Double pixelColumnError : pixelColumnErrors) {
             if(pixelColumnError != null) {
@@ -35,9 +36,8 @@ public class ErrorCalculator {
                 error += pixelColumnError;
             }
         }
-        LOG.debug("Valid columns: {}", validColumns);
         error /= validColumns;
-        hasError = error > 1 - accuracy;
+        hasError = error > 1 - accuracy || validColumns != pixelColumns.size();
         return error;
     }
 
@@ -59,6 +59,10 @@ public class ErrorCalculator {
     public boolean hasError(){
         return hasError;
     }
+
+    public Stats getViewPortStats() {
+        return maxErrorEvaluator.getViewPortStatsAggregator();
+    }
     
     /**
      * Class that computes the maximum number of pixel errors.
@@ -69,7 +73,7 @@ public class ErrorCalculator {
         private final ViewPort viewPort;
 
         private final List<PixelColumn> pixelColumns;
-
+        private StatsAggregator viewPortStatsAggregator;
         private List<TimeInterval> missingRanges;
 
         private List<RangeSet<Integer>> missingPixels;
@@ -88,7 +92,7 @@ public class ErrorCalculator {
 
             // The stats aggregator for the whole query interval to keep track of the min/max values
             // and determine the y-axis scale.
-            StatsAggregator viewPortStatsAggregator = new StatsAggregator();
+            viewPortStatsAggregator = new StatsAggregator();
             pixelColumns.forEach(pixelColumn -> viewPortStatsAggregator.combine(pixelColumn.getStats()));
             LOG.debug("Viewport stats: {}", viewPortStatsAggregator);
 
@@ -236,6 +240,10 @@ public class ErrorCalculator {
 
         public List<RangeSet<Integer>> getFalsePixels() {
             return falsePixels;
+        }
+
+        public Stats getViewPortStatsAggregator() {
+            return viewPortStatsAggregator;
         }
     }
 }

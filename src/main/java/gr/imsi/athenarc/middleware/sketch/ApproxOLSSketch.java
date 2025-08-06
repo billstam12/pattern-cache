@@ -241,7 +241,7 @@ public class ApproxOLSSketch implements Sketch {
         }
         
         // Calculate the slope and its confidence bounds using interval regression
-        calculateAngleWithErrorBounds(combinedPoints);
+        calculateAngleWithMinMax(combinedPoints);
         
         LOG.debug("Calculated angle between consecutive sketches {} and {} : {} (range: {} to {}), error margin: {}", 
                 first.getFromDate(), second.getToDate(), this.angle, this.minAngle, this.maxAngle, this.angleErrorMargin);
@@ -249,12 +249,11 @@ public class ApproxOLSSketch implements Sketch {
     
     /**
      * Calculates the slope (angle) and its error bounds using interval regression technique.
-     * This implements the NM (new method) interval regression from the Python reference code.
-     * Also calculates standard errors of the regression coefficients.
+     * Also calculates standard errors of the regression coefficients in a 95% confidence interval.
      * 
      * @param dataPoints The list of reference data points to use for calculation
      */
-    private void calculateAngleWithErrorBounds(List<ReferenceDataPoint> dataPoints) {
+    private void calculateAngleWithMidpoints(List<ReferenceDataPoint> dataPoints) {
         if (dataPoints.isEmpty()) {
             this.angle = Double.POSITIVE_INFINITY;
             this.minAngle = Double.POSITIVE_INFINITY;
@@ -265,35 +264,31 @@ public class ApproxOLSSketch implements Sketch {
         
         // Extract x values (times), midpoints and ranges
         double[] xMidValues = new double[dataPoints.size()];
-        double[] xRangeValues = new double[dataPoints.size()];
         double[] midPoints = new double[dataPoints.size()];
-        double[] ranges = new double[dataPoints.size()];
         
         for (int i = 0; i < dataPoints.size(); i++) {
             ReferenceDataPoint point = dataPoints.get(i);
             // This places each data point at the appropriate position based on its window
             xMidValues[i] = (point.getTo() + point.getFrom()) / 2.0; // Midpoint of the time interval
-            xRangeValues[i]= (point.getTo() - point.getFrom()) / 2.0; // Half the range of the time interval
             midPoints[i] = (point.getMaxValue() + point.getMinValue()) / 2.0; // Midpoint between min and max
-            ranges[i] = (point.getMaxValue() - point.getMinValue()) / 2.0; // Range (max - min) / 2
         }
-
         // Calculate regression with standard errors for midpoints
         RegressionResult midResult = calculateRegressionWithStdErrors(xMidValues, midPoints);
         double bMid = midResult.slope; // Slope for midpoints
         double midpointSlopeStdErr = midResult.slopeStdErr;
         
-        // Calculate regression with standard errors for ranges
-        RegressionResult rangeResult = calculateRegressionWithStdErrors(xMidValues, ranges);
-        double bRange = rangeResult.slope; // Slope for ranges
-        double rangeSlopeStdErr = rangeResult.slopeStdErr;
-        
-        // Calculate bounds for slope
-        double bLo = bMid - rangeSlopeStdErr; // based on the paper
-        double bHi = bMid + rangeSlopeStdErr; // based on the paper
+        //  Calculate bounds for slope
+        double bLo = bMid - (midpointSlopeStdErr * 2); // 95% confidence interval lower bound
+        double bHi = bMid + (midpointSlopeStdErr * 2); // 95% confidence interval upper bound
 
         double slopeMin = Math.min(bLo, bHi);
         double slopeMax = Math.max(bLo, bHi);
+
+        // Now as before:
+        this.minAngle = Math.toDegrees(Math.atan(slopeMin));
+        this.maxAngle = Math.toDegrees(Math.atan(slopeMax));
+        this.angle = (this.minAngle + this.maxAngle) / 2.0;
+        this.angleErrorMargin = (this.maxAngle - this.minAngle) / 180.0;
 
         // Calculate angle and its bounds (in degrees)
         this.minAngle = Math.toDegrees(Math.atan(slopeMin));
@@ -301,7 +296,44 @@ public class ApproxOLSSketch implements Sketch {
         this.angle = (this.minAngle + this.maxAngle) / 2.0; // Average angle
         this.angleErrorMargin = (this.maxAngle - this.minAngle) / 180.0;
     }
-    
+
+    private void calculateAngleWithMinMax(List<ReferenceDataPoint> dataPoints) {
+         if (dataPoints.isEmpty()) {
+            this.angle = Double.POSITIVE_INFINITY;
+            this.minAngle = Double.POSITIVE_INFINITY;
+            this.maxAngle = Double.POSITIVE_INFINITY;
+            this.angleErrorMargin = Double.POSITIVE_INFINITY;
+            return;
+        }
+        
+        // Extract x values (times), midpoints and ranges
+        double[] xMidValues = new double[dataPoints.size()];
+
+        // For each window, use min and max as possible alternative representatives
+        double[] yMins = new double[dataPoints.size()];
+        double[] yMaxs = new double[dataPoints.size()];
+
+        for (int i = 0; i < dataPoints.size(); i++) {
+            ReferenceDataPoint point = dataPoints.get(i);
+            xMidValues[i] = (point.getTo() + point.getFrom()) / 2.0; // Midpoint of the time interval
+            yMins[i] = point.getMinValue();
+            yMaxs[i] = point.getMaxValue();
+        }
+
+        RegressionResult minResult = calculateRegressionWithStdErrors(xMidValues, yMins);
+        RegressionResult maxResult = calculateRegressionWithStdErrors(xMidValues, yMaxs);
+
+        // Now, your slope is somewhere in [minResult.slope, maxResult.slope]
+        double slopeLower = Math.min(minResult.slope, maxResult.slope);
+        double slopeUpper = Math.max(minResult.slope, maxResult.slope);
+
+        // Use these as bounds for your angle estimate
+        this.minAngle = Math.toDegrees(Math.atan(slopeLower));
+        this.maxAngle = Math.toDegrees(Math.atan(slopeUpper));
+        this.angle = (this.minAngle + this.maxAngle) / 2.0; // Average angle
+        this.angleErrorMargin = (this.maxAngle - this.minAngle) / 180.0;
+    }
+
     /**
      * Calculates simple linear regression coefficients and their standard errors
      * 

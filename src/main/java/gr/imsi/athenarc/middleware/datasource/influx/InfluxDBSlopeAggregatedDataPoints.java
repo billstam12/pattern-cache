@@ -1,4 +1,4 @@
-package gr.imsi.athenarc.middleware.datasource;
+package gr.imsi.athenarc.middleware.datasource.influx;
 
 import java.time.Instant;
 import java.time.ZoneId;

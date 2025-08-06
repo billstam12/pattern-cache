@@ -1,8 +1,8 @@
-package gr.imsi.athenarc.middleware.datasource;
+package gr.imsi.athenarc.middleware.datasource.sql;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
-import gr.imsi.athenarc.middleware.datasource.iterator.SQLAggregateDataPointsIterator;
+import gr.imsi.athenarc.middleware.datasource.iterator.SQLTimestampedAggregateDataPointsIterator;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
@@ -13,7 +13,7 @@ import java.sql.ResultSet;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-public class SQLAggregatedDatapoints implements AggregatedDataPoints {
+public class SQLTimestampedAggregatedDatapoints implements AggregatedDataPoints {
 
     private static final Set<String> SUPPORTED_AGGREGATE_FUNCTIONS = new HashSet<>(
         Arrays.asList("first", "last", "min", "max")
@@ -27,7 +27,7 @@ public class SQLAggregatedDatapoints implements AggregatedDataPoints {
     private Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure;
     private Set<String> aggregateFunctions;
 
-    public SQLAggregatedDatapoints(SQLQueryExecutor sqlQueryExecutor, SQLDataset dataset, long from, long to,
+    public SQLTimestampedAggregatedDatapoints(SQLQueryExecutor sqlQueryExecutor, SQLDataset dataset, long from, long to,
                                    Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure,
                                    Set<String> aggregateFunctions) {
@@ -95,14 +95,14 @@ public class SQLAggregatedDatapoints implements AggregatedDataPoints {
 
             if (missingIntervals == null || missingIntervals.isEmpty()) {
                 long offset = from % (aggregateInterval.getMultiplier() * getChronoUnitMillis(aggregateInterval.getChronoUnit()));
-                String aggQuery = buildAggregateQuery(dataSourceQueries.get(dataSourceCounter),
+                String aggQuery = buildTimestampedAggregateQuery(dataSourceQueries.get(dataSourceCounter),
                         timestampColumn, aggregateFunctions, aggregateInterval, offset);
                 selectParts.add(aggQuery);
                 dataSourceCounter++;
             } else {
                 for (TimeInterval interval : missingIntervals) {
                     long offset = interval.getFrom() % (aggregateInterval.getMultiplier() * getChronoUnitMillis(aggregateInterval.getChronoUnit()));
-                    String aggQuery = buildAggregateQuery(dataSourceQueries.get(dataSourceCounter),
+                    String aggQuery = buildTimestampedAggregateQuery(dataSourceQueries.get(dataSourceCounter),
                             timestampColumn, aggregateFunctions, aggregateInterval, offset);
                     selectParts.add(aggQuery);
                     dataSourceCounter++;
@@ -114,7 +114,7 @@ public class SQLAggregatedDatapoints implements AggregatedDataPoints {
         sqlQuery.append(" ORDER BY measure_name, time_bucket");
 
         ResultSet resultSet = sqlQueryExecutor.executeDbQuery(sqlQuery.toString());
-        return new SQLAggregateDataPointsIterator(resultSet, measuresMap, aggregateIntervalsPerMeasure);
+        return new SQLTimestampedAggregateDataPointsIterator(resultSet, measuresMap, aggregateIntervalsPerMeasure);
     }
 
     private String buildDataSourceQuery(String tableName, String measureName, String timestampColumn,
@@ -127,26 +127,33 @@ public class SQLAggregatedDatapoints implements AggregatedDataPoints {
     }
 
     /**
-     * Always use a subquery for window functions; aggregate in the outer query.
-     * Output columns only for requested aggregateFunctions.
+     * Like buildAggregateQuery but also fetches timestamps for each stat value.
+     * Handles sub-second intervals with millisecond precision to avoid floating-point precision issues.
      */
-    private String buildAggregateQuery(
+    private String buildTimestampedAggregateQuery(
             String dataSourceQuery, String timestampColumn,
             Set<String> aggFunctions, AggregateInterval aggregateInterval, long offset
     ) {
         long intervalMillis = aggregateInterval.getMultiplier() * getChronoUnitMillis(aggregateInterval.getChronoUnit());
-
+        
+        // Generate time bucket expression with appropriate precision
         String timeBucket = generateTimeBucketExpression(timestampColumn, intervalMillis, offset);
 
-        // Build inner select (window functions for first/last if requested)
+        // Build inner select with window functions for values AND timestamps
         List<String> innerSelect = new ArrayList<>();
         innerSelect.add(timeBucket + " AS time_bucket");
         innerSelect.add("_measure AS measure_name");
         innerSelect.add("_value");
-        if (aggFunctions.contains("first"))
+        innerSelect.add(timestampColumn);
+        
+        if (aggFunctions.contains("first")) {
             innerSelect.add("first_value(_value) OVER w AS first_value");
-        if (aggFunctions.contains("last"))
+            innerSelect.add("first_value(" + timestampColumn + ") OVER w AS first_timestamp");
+        }
+        if (aggFunctions.contains("last")) {
             innerSelect.add("last_value(_value) OVER w AS last_value");
+            innerSelect.add("last_value(" + timestampColumn + ") OVER w AS last_timestamp");
+        }
 
         String windowClause = "WINDOW w AS (PARTITION BY " + timeBucket + ", _measure ORDER BY " + timestampColumn +
                 " ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)";
@@ -155,18 +162,27 @@ public class SQLAggregatedDatapoints implements AggregatedDataPoints {
                 " FROM (" + dataSourceQuery + ") data " +
                 ((aggFunctions.contains("first") || aggFunctions.contains("last")) ? windowClause : "");
 
-        // Build outer select: aggregate as needed and select first/last as any_value from group (since they're constant per group)
+        // Build outer select: aggregate values AND get timestamps for min/max
         List<String> outerSelect = new ArrayList<>();
         outerSelect.add("time_bucket");
         outerSelect.add("measure_name");
-        if (aggFunctions.contains("min"))
+        
+        if (aggFunctions.contains("min")) {
             outerSelect.add("min(_value) AS min");
-        if (aggFunctions.contains("max"))
+            outerSelect.add("(ARRAY_AGG(" + timestampColumn + " ORDER BY _value))[1] AS min_timestamp");
+        }
+        if (aggFunctions.contains("max")) {
             outerSelect.add("max(_value) AS max");
-        if (aggFunctions.contains("first"))
+            outerSelect.add("(ARRAY_AGG(" + timestampColumn + " ORDER BY _value DESC))[1] AS max_timestamp");
+        }
+        if (aggFunctions.contains("first")) {
             outerSelect.add("MIN(first_value) AS first");
-        if (aggFunctions.contains("last"))
+            outerSelect.add("MIN(first_timestamp) AS first_timestamp");
+        }
+        if (aggFunctions.contains("last")) {
             outerSelect.add("MIN(last_value) AS last");
+            outerSelect.add("MIN(last_timestamp) AS last_timestamp");
+        }
 
         String query = "SELECT " + String.join(", ", outerSelect) +
                 " FROM (" + subquery + ") sub " +
@@ -174,7 +190,7 @@ public class SQLAggregatedDatapoints implements AggregatedDataPoints {
 
         return "(" + query + ")";
     }
-
+    
     private String generateTimeBucketExpression(String timestampColumn, long intervalMillis, long offset) {
         // Always work in milliseconds for precision, convert to seconds only for to_timestamp()
         return "to_timestamp((" + offset + " + FLOOR((EXTRACT(EPOCH FROM " + timestampColumn + ") * 1000 - " +

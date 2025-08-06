@@ -17,7 +17,7 @@ import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.*;
 import gr.imsi.athenarc.middleware.sketch.PixelColumn;
-import gr.imsi.athenarc.middleware.sketch.Utils;
+import gr.imsi.athenarc.middleware.sketch.SketchUtils;
 
 import java.util.*;
 
@@ -78,28 +78,28 @@ public class DataProcessor {
                 Iterator<DataPoint> iterator = ((RawTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     DataPoint dataPoint = iterator.next();
-                    Utils.addDataPointToPixelColumns(from, to, viewPort, pixelColumns, dataPoint);
+                    SketchUtils.addDataPointToPixelColumns(from, to, viewPort, pixelColumns, dataPoint);
                 }
             } else if (span instanceof M4InfAggregateTimeSeriesSpan) {
                 // Add aggregated data points to pixel columns with errors
                 Iterator<AggregatedDataPoint> iterator = ((M4InfAggregateTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     AggregatedDataPoint aggregatedDataPoint = iterator.next();
-                    Utils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                    SketchUtils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
                 } 
             } else if (span instanceof M4AggregateTimeSeriesSpan) {
                 // Add aggregated data points to pixel columns with errors
                 Iterator<AggregatedDataPoint> iterator = ((M4AggregateTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     AggregatedDataPoint aggregatedDataPoint = iterator.next();
-                    Utils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                    SketchUtils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
                 } 
             } else if (span instanceof MinMaxAggregateTimeSeriesSpan) {
                 // Add aggregated data points to pixel columns with errors
                 Iterator<AggregatedDataPoint> iterator = ((MinMaxAggregateTimeSeriesSpan) span).iterator(from, to);
                 while (iterator.hasNext()) {
                     AggregatedDataPoint aggregatedDataPoint = iterator.next();
-                    Utils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                    SketchUtils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
                 } 
              } else {
                 throw new IllegalArgumentException("Time Series Span Read Error");

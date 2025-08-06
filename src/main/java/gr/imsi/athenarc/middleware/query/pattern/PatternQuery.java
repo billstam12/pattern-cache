@@ -76,4 +76,8 @@ public class PatternQuery implements Query {
     public double getAccuracy(){
         return accuracy;
     }
+
+    public int getMeasure() {
+        return measure;
+    }
 }

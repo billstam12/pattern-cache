@@ -82,7 +82,7 @@ public class PrefetchManager {
             dataProcessor.processDatapoints(from, to, viewPort, pixelColumns, overlappingSpans);
 
             // Calculate Error
-            ErrorCalculator errorCalculator = new ErrorCalculator();
+            VisualEvaluator errorCalculator = new VisualEvaluator();
             errorCalculator.calculateTotalError(pixelColumns, viewPort, pixelColumnInterval, prefetchQuery.getAccuracy());
             List<TimeInterval> missingIntervalsForMeasure = errorCalculator.getMissingIntervals();
             if(!missingIntervalsForMeasure.isEmpty())

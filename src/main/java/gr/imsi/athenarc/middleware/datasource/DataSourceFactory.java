@@ -17,6 +17,9 @@ import gr.imsi.athenarc.middleware.datasource.config.*;
 import gr.imsi.athenarc.middleware.datasource.connection.*;
 import gr.imsi.athenarc.middleware.datasource.dataset.*;
 import gr.imsi.athenarc.middleware.datasource.executor.*;
+import gr.imsi.athenarc.middleware.datasource.influx.InfluxDBDatasource;
+import gr.imsi.athenarc.middleware.datasource.sql.SQLDatasource;
+import gr.imsi.athenarc.middleware.datasource.trino.TrinoDatasource;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
 
@@ -28,6 +31,8 @@ public class DataSourceFactory {
             return createInfluxDBDataSource((InfluxDBConfiguration) config);
         } else if (config instanceof SQLConfiguration) {
             return createSQLDataSource((SQLConfiguration) config);
+        } else if (config instanceof TrinoConfiguration) {
+            return createTrinoDataSource((TrinoConfiguration) config);
         }
         throw new IllegalArgumentException("Unsupported data source configuration");
     }
@@ -95,6 +100,42 @@ public class DataSourceFactory {
         }
         LOG.info("Created SQL dataset: {}", dataset);
         return new SQLDatasource(executor, dataset);
+    }
+
+    private static DataSource createTrinoDataSource(TrinoConfiguration config) {
+        JDBCConnection jdbcConnection = new JDBCConnection(
+            config.getUrl(),
+            config.getUsername(),
+            config.getPassword()
+        );
+        jdbcConnection.connect();
+        SQLQueryExecutor executor = new SQLQueryExecutor(jdbcConnection);
+
+        SQLDataset dataset;
+        
+        // Check if dataset info exists in cache
+        if (DatasetCache.hasDataset("trino", config.getSchemaName(), config.getTableName())) {
+            dataset = (SQLDataset) DatasetCache.getDataset("trino", config.getSchemaName(), config.getTableName());
+            dataset.setTimeFormat(config.getTimeFormat());
+            dataset.setIdColumn(config.getIdColumn());
+            dataset.setValueColumn(config.getValueColumn());
+            dataset.setTimestampColumn(config.getTimestampColumn());
+        } else {
+            dataset = new SQLDataset(
+                config.getSchemaName(),
+                config.getTableName(),
+                config.getTimestampColumn(),
+                config.getIdColumn(),
+                config.getValueColumn(),
+                config.getTimeFormat()
+            );
+            fillTrinoDatasetInfo(dataset, executor);
+            
+            // Save dataset info to cache
+            DatasetCache.saveDataset("trino", dataset);
+        }
+        LOG.info("Created Trino dataset: {}", dataset);
+        return new TrinoDatasource(executor, dataset);
     }
 
     private static void fillInfluxDBDatasetInfo(InfluxDBDataset dataset, InfluxDBQueryExecutor influxDBQueryExecutor) {
@@ -196,6 +237,55 @@ public class DataSourceFactory {
 
         } catch (SQLException e) {
             throw new RuntimeException("Failed to fill SQL dataset info", e);
+        }
+    }
+
+    private static void fillTrinoDatasetInfo(SQLDataset dataset, SQLQueryExecutor trinoQueryExecutor) {
+        try {
+            // Fetch first timestamp using Trino-specific functions
+            String firstQuery = "SELECT min(" + dataset.getTimestampColumn() + ") as first_time FROM " + dataset.getTableName();
+            ResultSet firstResult = trinoQueryExecutor.executeDbQuery(firstQuery);
+            firstResult.next();
+            long firstTime = firstResult.getTimestamp("first_time").toLocalDateTime().toInstant(ZoneOffset.UTC).toEpochMilli();
+            firstResult.close();
+
+            // Fetch last timestamp using Trino-specific functions
+            String lastQuery = "SELECT max(" + dataset.getTimestampColumn() + ") as last_time FROM " + dataset.getTableName();
+            ResultSet lastResult = trinoQueryExecutor.executeDbQuery(lastQuery);
+            lastResult.next();
+            long lastTime = lastResult.getTimestamp("last_time").toLocalDateTime().toInstant(ZoneOffset.UTC).toEpochMilli();
+            lastResult.close();
+
+            // Fetch the second timestamp to calculate the sampling interval
+            String secondQuery = "SELECT " + dataset.getTimestampColumn() + " FROM " + dataset.getTableName() + 
+                               " ORDER BY " + dataset.getIdColumn() + ", " + dataset.getTimestampColumn() + " ASC LIMIT 2";
+
+            ResultSet secondResult = trinoQueryExecutor.executeDbQuery(secondQuery);
+            secondResult.next();
+            long samplingInterval = 0;
+            if (secondResult.next()) {
+                long secondTime = secondResult.getTimestamp(dataset.getTimestampColumn()).toLocalDateTime().toInstant(ZoneOffset.UTC).toEpochMilli();
+                samplingInterval = secondTime - firstTime;
+            }
+            secondResult.close();
+
+            // Set sampling interval and time range
+            dataset.setSamplingInterval(samplingInterval);
+            dataset.setTimeRange(new TimeRange(firstTime, lastTime));
+
+            // Populate header (distinct sensor/measure IDs)
+            String headerQuery = "SELECT DISTINCT " + dataset.getIdColumn() + " FROM " + dataset.getTableName();
+            ResultSet headerResult = trinoQueryExecutor.executeDbQuery(headerQuery);
+            List<String> headers = new ArrayList<>();
+            while (headerResult.next()) {
+                headers.add(headerResult.getString(dataset.getIdColumn()));
+            }
+            headerResult.close();
+            
+            dataset.setHeader(headers.toArray(new String[0]));
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to fill Trino dataset info", e);
         }
     }
 }

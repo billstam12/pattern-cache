@@ -15,6 +15,7 @@ import gr.imsi.athenarc.middleware.datasource.DataSourceFactory;
 import gr.imsi.athenarc.middleware.datasource.config.DataSourceConfiguration;
 import gr.imsi.athenarc.middleware.datasource.config.InfluxDBConfiguration;
 import gr.imsi.athenarc.middleware.datasource.config.SQLConfiguration;
+import gr.imsi.athenarc.middleware.datasource.config.TrinoConfiguration;
 import gr.imsi.athenarc.middleware.datasource.dataset.*;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
@@ -25,6 +26,8 @@ import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
+import gr.imsi.athenarc.middleware.sketch.Sketch;
+import gr.imsi.athenarc.middleware.sketch.SketchUtils;
 import gr.imsi.athenarc.middleware.visual.VisualUtils;
 import gr.imsi.athenarc.experiments.util.*;
 import org.slf4j.Logger;
@@ -35,6 +38,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
@@ -42,7 +46,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 
-public class Experiments<T> {
+public class Experiments {
     
     private static final Logger LOG = LoggerFactory.getLogger(Experiments.class);
 
@@ -130,270 +134,54 @@ public class Experiments<T> {
         type = type.toLowerCase(Locale.ROOT);
         if ("generate".equalsIgnoreCase(mode)) {
             generateQuerySequenceOnly();
-        } else if ("timeCacheQueries".equalsIgnoreCase(mode)) {
-            initOutput();
-            timeCacheQueries();
-        } else if("timeMinMaxCacheQueries".equalsIgnoreCase(mode)){
-            method = "minmax";
-            initOutput();
-            timeMinMaxCacheQueries();
-        } else if("timeRawQueries".equalsIgnoreCase(mode)){
-            method = "raw";
-            initOutput();
-            timeRawQueries();
         } else {
-            method = "m4";
-            initOutput();
-            timeM4Queries();
+            runTimingExperiment();
         }
     }
 
-    private void timeRawQueries() throws IOException, SQLException {
-        for (int run = 0; run < runs; run++) {
-            String resultsPath = Paths.get(outFolder, "timeRawQueries", method, type, table, "run_" + run).toString();
-            FileUtil.build(resultsPath);            
-            File outFile = Paths.get(resultsPath, "results.csv").toFile();
-            
-            try (FileWriter fileWriter = new FileWriter(outFile, false)) {
-                CsvWriterSettings csvWriterSettings = new CsvWriterSettings();
-                CsvWriter csvWriter = new CsvWriter(fileWriter, csvWriterSettings);
-                
-                Stopwatch stopwatch = Stopwatch.createUnstarted();
-                DataSource dataSource = createDatasource();
-                long startTime = dataSource.getDataset().getTimeRange().getFrom();
-                long endTime = dataSource.getDataset().getTimeRange().getTo();
+    private void runTimingExperiment() throws IOException, SQLException {
+        ExperimentConfig config = createExperimentConfig();
+        if (config == null) {
+            LOG.error("Unknown mode: {}. Supported modes are: timeCacheQueries, timeRawQueries, timeM4Queries, timeOlsQueries, timeMinMaxCacheQueries, generate", mode);
+            return;
+        }
+        initOutput(config.methodName);
+        runTimingExperimentWithConfig(config);
+    }
 
-                if (measures == null) measures = dataSource.getDataset().getMeasures();
-
-                Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
-
-                List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
-                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Time (sec)");
-                csvWriter.flush(); // Ensure headers are written immediately
-        
-                for (int i = 0; i < sequence.size(); i += 1) {
-                    stopwatch.start();
-                    double time = 0;
-                    TypedQuery typedQuery = sequence.get(i);
-                    Query query = typedQuery.getQuery();
-                    QueryResults queryResults = null;
-                    try {
-                        LOG.info("Executing query " + i + " (" + typedQuery.getUserOpType() + ") " + query.getFrom() + " - " + query.getTo());
-                        if (query instanceof VisualQuery){
-                            queryResults = VisualUtils.executeRawQuery((VisualQuery) query, dataSource);   
-                        } else if (query instanceof PatternQuery) { 
-                            continue;
-                        } else {
-                            throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
-                        }
-                    } catch (Exception e) {
-                        LOG.error("Error during query execution: ", e);
-                        // Continue with the next query - we still want to record this one failed
-                    } finally {
-                        time = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
-                        LOG.info("Query time: {}", time);
-                        if(run == 0 && queryResults != null && queryResults instanceof VisualQueryResults) 
-                            ((VisualQueryResults) queryResults).toMultipleCsv(Paths.get(resultsPath, "query_" + i).toString());
-
-                        // Always write the row, even if the query failed
-                        csvWriter.addValue(table);
-                        csvWriter.addValue(i);
-                        csvWriter.addValue(query.getViewPort().getWidth());
-                        csvWriter.addValue(query.getViewPort().getHeight());
-                        csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
-                        csvWriter.addValue(DateTimeUtil.format(query.getTo()));
-                        csvWriter.addValue(typedQuery.getUserOpType());
-                        csvWriter.addValue(time);
-                        csvWriter.writeValuesToRow();
-                        csvWriter.flush(); // Force flush after each row
-                        stopwatch.reset();
-                    }
-                }
-            } catch (Exception e) {
-                LOG.error("Critical error during experiment run: ", e);
-                throw new RuntimeException("Error during experiment run: " + e.getMessage(), e);
-            }
+    private ExperimentConfig createExperimentConfig() {
+        switch (mode.toLowerCase()) {
+            case "timecachequeries":
+                return new ExperimentConfig(method, true, method);
+            case "timeminmaxcachequeries":
+                return new ExperimentConfig("minMaxCache", true, "minmax");
+            case "timerawqueries":
+                return new ExperimentConfig("raw", false, null);
+            case "timeolsqueries":
+                return new ExperimentConfig("ols", false, "ols");
+            case "timem4queries":
+                return new ExperimentConfig("m4", false, "m4");
+            default:
+                return null;
         }
     }
 
+    private static class ExperimentConfig {
+        final String methodName;
+        final boolean useCache;
+        final String queryMethod;
 
-
-    private void timeM4Queries() throws IOException, SQLException {
-        for (int run = 0; run < runs; run++) {
-            String resultsPath = Paths.get(outFolder, "timeM4Queries", method, type, table, "run_" + run).toString();
-            FileUtil.build(resultsPath);            
-            File outFile = Paths.get(resultsPath, "results.csv").toFile();
-            
-            try (FileWriter fileWriter = new FileWriter(outFile, false)) {
-                CsvWriterSettings csvWriterSettings = new CsvWriterSettings();
-                CsvWriter csvWriter = new CsvWriter(fileWriter, csvWriterSettings);
-                
-                Stopwatch stopwatch = Stopwatch.createUnstarted();
-                DataSource dataSource = createDatasource();
-                long startTime = dataSource.getDataset().getTimeRange().getFrom();
-                long endTime = dataSource.getDataset().getTimeRange().getTo();
-
-                if (measures == null) measures = dataSource.getDataset().getMeasures();
-
-                Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
-
-                List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
-                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Init Time (sec)", "Time (sec)", "IO Count", "Cache Hits (%)", "Cache Size (bytes)");
-                csvWriter.flush(); // Ensure headers are written immediately
-        
-                for (int i = 0; i < sequence.size(); i += 1) {
-                    stopwatch.start();
-                    double time = 0;
-                    TypedQuery typedQuery = sequence.get(i);
-                    Query query = typedQuery.getQuery();
-                    QueryResults queryResults = null;
-                    try {
-                        LOG.info("Executing query " + i + " (" + typedQuery.getUserOpType() + ") " + query.getFrom() + " - " + query.getTo());
-                        if (query instanceof VisualQuery){
-                            queryResults = VisualUtils.executeM4Query((VisualQuery) query, dataSource);   
-                        } else if (query instanceof PatternQuery) { 
-                            queryResults = PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, "firstLast");
-                            // Log matches to file
-                            PatternQueryExecutor.logMatchesToFile((PatternQuery) query, (PatternQueryResults) queryResults, "ground_truth", dataSource, outFolder);
-                        } else {
-                            throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
-                        }
-                    } catch (Exception e) {
-                        LOG.error("Error during query execution: ", e);
-                        // Continue with the next query - we still want to record this one failed
-                    } finally {
-                        time = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
-                        LOG.info("Query time: {}", time);
-                        if(run == 0 && queryResults != null && queryResults instanceof VisualQueryResults) 
-                            ((VisualQueryResults) queryResults).toMultipleCsv(Paths.get(resultsPath, "query_" + i).toString());
-
-                        // Always write the row, even if the query failed
-                        csvWriter.addValue(table);
-                        csvWriter.addValue(i);
-                        csvWriter.addValue(query.getViewPort().getWidth());
-                        csvWriter.addValue(query.getViewPort().getHeight());
-                        csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
-                        csvWriter.addValue(DateTimeUtil.format(query.getTo()));
-                        csvWriter.addValue(typedQuery.getUserOpType());
-                        csvWriter.addValue(-1);
-                        csvWriter.addValue(time);
-                        csvWriter.addValue(""); // Indicate no IO count
-                        csvWriter.addValue(""); // Indicate no cache hit ratio
-                        csvWriter.addValue(""); // Indicate no cache size
-                        csvWriter.writeValuesToRow();
-                        csvWriter.flush(); // Force flush after each row
-                        stopwatch.reset();
-                    }
-                }
-            } catch (Exception e) {
-                LOG.error("Critical error during experiment run: ", e);
-                throw new RuntimeException("Error during experiment run: " + e.getMessage(), e);
-            }
-        }
-    }
-    
-    private void timeCacheQueries() throws IOException, SQLException {
-        for (int run = 0; run < runs; run++) {
-            String resultsPath = Paths.get(outFolder, "timeCacheQueries", method, type, table, "run_" + run).toString();
-        
-            FileUtil.build(resultsPath);            
-            File outFile = Paths.get(resultsPath, "results.csv").toFile();
-            
-            try (FileWriter fileWriter = new FileWriter(outFile, false)) {
-                CsvWriterSettings csvWriterSettings = new CsvWriterSettings();
-                CsvWriter csvWriter = new CsvWriter(fileWriter, csvWriterSettings);
-                
-                Stopwatch stopwatch = Stopwatch.createUnstarted();
-                DataSource dataSource = createDatasource();
-                long maxMemoryBytes = 100 * 1024 * 1024; // 100MB memory limit for cache
-                CacheManager cacheManager = CacheManager.builder(dataSource)
-                    .withMaxMemory(maxMemoryBytes)
-                    .withMethod(method)
-                    .build();
-
-                // Add declaration for startTime and endTime
-                long startTime = dataSource.getDataset().getTimeRange().getFrom();
-                long endTime = dataSource.getDataset().getTimeRange().getTo();
-                if(measures == null) measures = dataSource.getDataset().getMeasures();
-
-                Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
-                
-                stopwatch.start();
-                if(initCacheAllocation > 0) {
-                    MemoryBoundedInitializationPolicy policy = new MemoryBoundedInitializationPolicy(
-                        maxMemoryBytes, 
-                        initCacheAllocation,
-                        method);
-                    policy.initialize(cacheManager, measures);
-                }
-                double initTime = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
-                stopwatch.reset();
-
-                List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
-                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type","Init Time (sec)", "Time (sec)", "IO Count", "Cache Hits (%)", "Cache Size (bytes)");
-                csvWriter.flush(); // Ensure headers are written immediately
-        
-                for (int i = 0; i < sequence.size(); i += 1) {
-                    stopwatch.start();
-                    TypedQuery typedQuery = sequence.get(i);
-                    Query query = typedQuery.getQuery();
-                    QueryResults queryResults = null;
-                    double time = 0;
-                    
-                    try {
-                        LOG.info("Executing query " + i + " (" + typedQuery.getUserOpType() + ") " + query.getFrom() + " - " + query.getTo());
-                        queryResults = cacheManager.executeQuery(query);
-                        if (query instanceof PatternQuery) { 
-                            // Log matches to file
-                            PatternQueryExecutor.logMatchesToFile((PatternQuery)query, (PatternQueryResults) queryResults, method, dataSource, outFolder);
-                        }
-                    } catch (Exception e) {
-                        LOG.error("Error during query execution: ", e);
-                        // Continue with the next query
-                    } finally {
-                        time = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
-                        LOG.info("Query time: {}", time);
-                        if(run == 0 && queryResults != null && queryResults instanceof VisualQueryResults) 
-                            ((VisualQueryResults) queryResults).toMultipleCsv(Paths.get(resultsPath, "query_" + i).toString());
-
-                        // Always write the row, even if the query failed
-                        csvWriter.addValue(table);
-                        csvWriter.addValue(i);
-                        csvWriter.addValue(query.getViewPort().getWidth());
-                        csvWriter.addValue(query.getViewPort().getHeight());
-                        csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
-                        csvWriter.addValue(DateTimeUtil.format(query.getTo()));
-                        csvWriter.addValue(typedQuery.getUserOpType());
-                        csvWriter.addValue(initTime);
-                        csvWriter.addValue(time);                        
-                        // Add IO count and cache hit ratio if available, otherwise add -1
-                        if (queryResults != null) {
-                            csvWriter.addValue(queryResults.getIoCount());
-                            csvWriter.addValue(queryResults.getCacheHitRatio() * 100); // Convert to percentage
-                            csvWriter.addValue(cacheManager.getMemoryManager().getCurrentMemoryBytes()); // Cache size in bytes
-                        } else {
-                            csvWriter.addValue(-1); // Indicate error for IO count
-                            csvWriter.addValue(-1); // Indicate error for cache hit ratio
-                            csvWriter.addValue(-1); // Indicate error for cache size
-                        }
-                        
-                        csvWriter.writeValuesToRow();
-                        csvWriter.flush(); // Force flush after each row
-                        
-                        stopwatch.reset();
-                    }
-                }
-            } catch (Exception e) {
-                LOG.error("Critical error during experiment run: ", e);
-                throw new RuntimeException("Error during experiment run: " + e.getMessage(), e);
-            }
+        ExperimentConfig(String methodName, boolean useCache, String queryMethod) {
+            this.methodName = methodName;
+            this.useCache = useCache;
+            this.queryMethod = queryMethod;
         }
     }
 
-    private void timeMinMaxCacheQueries() throws IOException, SQLException {
+    private void runTimingExperimentWithConfig(ExperimentConfig config) throws IOException, SQLException {
         for (int run = 0; run < runs; run++) {
-            String resultsPath = Paths.get(outFolder, "timeMinMaxCacheQueries", method, type, table, "run_" + run).toString();
-            FileUtil.build(resultsPath);            
+            String resultsPath = Paths.get(outFolder, mode, config.methodName, type, table, "run_" + run).toString();
+            FileUtil.build(resultsPath);
             File outFile = Paths.get(resultsPath, "results.csv").toFile();
             
             try (FileWriter fileWriter = new FileWriter(outFile, false)) {
@@ -404,96 +192,185 @@ public class Experiments<T> {
                 DataSource dataSource = createDatasource();
                 long maxMemoryBytes = 100 * 1024 * 1024; // 100MB memory limit for cache
                 
-                CacheManager cacheManager = CacheManager.builder(dataSource)
-                    .withMaxMemory(maxMemoryBytes)
-                    .withMethod("minmax")
-                    .withCalendarAlignment(false)
-                    .build();
-
-                // Add declaration for startTime and endTime
-                long startTime = dataSource.getDataset().getTimeRange().getFrom();
-                long endTime = dataSource.getDataset().getTimeRange().getTo();
-                if(measures == null) measures = dataSource.getDataset().getMeasures();
-
-                Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
+                CacheManager cacheManager = null;
+                double initTime = 0;
                 
-                stopwatch.start();
-                if(initCacheAllocation > 0) {
-                    MemoryBoundedInitializationPolicy policy = new MemoryBoundedInitializationPolicy(
-                        maxMemoryBytes, 
-                        initCacheAllocation,
-                        method);
+                // Setup cache if needed
+                if (config.useCache) {
+                    String cacheMethod = config.queryMethod != null ? config.queryMethod : method;
+                    cacheManager = CacheManager.builder(dataSource)
+                        .withMaxMemory(maxMemoryBytes)
+                        .withMethod(cacheMethod)
+                        .withCalendarAlignment(!config.methodName.equalsIgnoreCase("minMaxCache"))
+                        .build();
                     
-                    // Initialize the cache with specified measures
-                    policy.initialize(cacheManager, List.of(q0.getMeasures().get(0)));   
-                }
-                double initTime = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
-                stopwatch.reset();
-                
-                List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
-                // Update CSV header to include query_type
-                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", "Init Time (sec)", "Time (sec)", "IO Count", "Cache Hits (%)", "Cache Size (bytes)");
-                csvWriter.flush(); // Ensure headers are written immediately
-        
-                for (int i = 0; i < sequence.size(); i += 1) {
-                    stopwatch.start();
-                    TypedQuery typedQuery = sequence.get(i);
-                    Query query = typedQuery.getQuery();
-                    double time = 0;
-                    QueryResults queryResults = null;
-                    try {
-                        LOG.info("Executing query " + i + " (" + typedQuery.getUserOpType() + ") " + query.getFrom() + " - " + query.getTo());
-                        if (query instanceof VisualQuery){
-                            queryResults = cacheManager.executeQuery(query);
-                        } else if (query instanceof PatternQuery) { 
-                            queryResults = 
-                                PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, "firstLastInf");
-                                // Log matches to file
-                            PatternQueryExecutor.logMatchesToFile((PatternQuery)query, (PatternQueryResults) queryResults, "minmaxcache", dataSource, outFolder);
-                        } else {
-                            throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
-                        }
-                    } catch (Exception e) {
-                        LOG.error("Error during query execution: ", e);
-                        // Continue with the next query
-                    } finally {
-                        time = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
-
-                        LOG.info("Query time: {}", time);
-                        if(run == 0 && queryResults != null && queryResults instanceof VisualQueryResults) 
-                            ((VisualQueryResults) queryResults).toMultipleCsv(Paths.get(resultsPath, "query_" + i).toString());
-
-                        // Always write the row, even if the query failed
-                        csvWriter.addValue(table);
-                        csvWriter.addValue(i);
-                        csvWriter.addValue(query.getViewPort().getWidth());
-                        csvWriter.addValue(query.getViewPort().getHeight());
-                        csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
-                        csvWriter.addValue(DateTimeUtil.format(query.getTo()));
-                        csvWriter.addValue(typedQuery.getUserOpType());
-                        csvWriter.addValue(initTime);
-                        csvWriter.addValue(time);
-                       // Add IO count and cache hit ratio if available, otherwise add -1
-                        if (queryResults != null) {
-                            csvWriter.addValue(queryResults.getIoCount());
-                            csvWriter.addValue(queryResults.getCacheHitRatio() * 100); // Convert to percentage
-                            csvWriter.addValue(cacheManager.getMemoryManager().getCurrentMemoryBytes()); // Cache size in bytes
-                        } else {
-                            csvWriter.addValue(-1); // Indicate error for IO count
-                            csvWriter.addValue(-1); // Indicate error for cache hit ratio
-                            csvWriter.addValue(-1); // Indicate error for cache size
-                        }
-                        csvWriter.writeValuesToRow();
-                        csvWriter.flush(); // Force flush after each row
+                    // Initialize cache if specified
+                    if (initCacheAllocation > 0) {
+                        stopwatch.start();
+                        MemoryBoundedInitializationPolicy policy = new MemoryBoundedInitializationPolicy(
+                            maxMemoryBytes, 
+                            initCacheAllocation,
+                            cacheMethod);
                         
+                        long startTime = dataSource.getDataset().getTimeRange().getFrom();
+                        long endTime = dataSource.getDataset().getTimeRange().getTo();
+                        if (measures == null) measures = dataSource.getDataset().getMeasures();
+                        
+                        Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
+                        policy.initialize(cacheManager, List.of(q0.getMeasures().get(0)));
+                        initTime = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
                         stopwatch.reset();
                     }
+                }
+                
+                // Setup data and queries
+                long startTime = dataSource.getDataset().getTimeRange().getFrom();
+                long endTime = dataSource.getDataset().getTimeRange().getTo();
+                if (measures == null) measures = dataSource.getDataset().getMeasures();
+                
+                Query q0 = initiliazeQ0(dataSource.getDataset(), startTime, endTime, accuracy, measures, viewPort);
+                List<TypedQuery> sequence = generateQuerySequence(q0, dataSource.getDataset(), false);
+                
+                // Write CSV headers
+                csvWriter.writeHeaders("dataset", "query #", "width", "height", "from", "to", "query_type", 
+                    "Init Time (sec)", "Time (sec)", "IO Count", "Cache Hits (%)", "Cache Size (bytes)");
+                csvWriter.flush();
+                
+                // Execute queries
+                for (int i = 0; i < sequence.size(); i++) {
+                    executeAndRecordQuery(csvWriter, stopwatch, sequence.get(i), i, run, resultsPath, 
+                        dataSource, cacheManager, config, initTime);
                 }
             } catch (Exception e) {
                 LOG.error("Critical error during experiment run: ", e);
                 throw new RuntimeException("Error during experiment run: " + e.getMessage(), e);
             }
         }
+    }
+
+    private void executeAndRecordQuery(CsvWriter csvWriter, Stopwatch stopwatch, TypedQuery typedQuery, 
+            int queryIndex, int run, String resultsPath, DataSource dataSource, CacheManager cacheManager, 
+            ExperimentConfig config, double initTime) {
+        
+        stopwatch.start();
+        Query query = typedQuery.getQuery();
+        QueryResults queryResults = null;
+        double time = 0;
+        
+        try {
+            LOG.info("Executing query {} ({}) {} - {}", queryIndex, typedQuery.getUserOpType(), 
+                query.getFrom(), query.getTo());
+            
+            queryResults = executeQueryBasedOnConfig(query, dataSource, cacheManager, config);
+            
+            if (query instanceof PatternQuery) {
+                logMatchesToFile((PatternQuery) query, 
+                    (PatternQueryResults) queryResults, config.methodName, dataSource, outFolder);
+            }
+        } catch (Exception e) {
+            LOG.error("Error during query execution: ", e);
+        } finally {
+            time = stopwatch.elapsed(TimeUnit.NANOSECONDS) / Math.pow(10d, 9);
+            LOG.info("Query time: {}", time);
+            
+            if (run == 0 && queryResults != null && queryResults instanceof VisualQueryResults) {
+                ((VisualQueryResults) queryResults).toMultipleCsv(
+                    Paths.get(resultsPath, "query_" + queryIndex).toString());
+            }
+            
+            recordQueryMetrics(csvWriter, query, typedQuery, queryIndex, initTime, time, 
+                queryResults, cacheManager, config);
+            stopwatch.reset();
+        }
+    }
+
+    private QueryResults executeQueryBasedOnConfig(Query query, DataSource dataSource, 
+            CacheManager cacheManager, ExperimentConfig config) throws Exception {
+        
+        // cache executions
+        if (config.useCache) {
+            if(!config.methodName.equals("minMaxCache"))
+                return cacheManager.executeQuery(query);
+            else {
+                // use cache only for visualization
+                if (query instanceof VisualQuery) {
+                    return cacheManager.executeQuery(query);
+                } else if (query instanceof PatternQuery) {
+                    return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, getPatternMethodForConfig(config));
+                } else {
+                    throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
+                }
+            }
+        }
+        
+        // Non-cache execution
+        if (query instanceof VisualQuery) {
+            switch (config.methodName) {
+                case "raw":
+                    return VisualUtils.executeRawQuery((VisualQuery) query, dataSource);
+                case "m4":
+                case "ols":
+                    return VisualUtils.executeM4Query((VisualQuery) query, dataSource);
+                default:
+                    throw new IllegalArgumentException("Unknown method: " + config.methodName);
+            }
+        } else if (query instanceof PatternQuery) {
+            String patternMethod = getPatternMethodForConfig(config);
+            if (patternMethod == null) {
+                return null; // Skip pattern queries for raw mode
+            }
+            return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, patternMethod);
+        } else {
+            throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
+        }
+    }
+
+    /* firstLast and firstLastInf do not get min/max like the m4 variants */
+    private String getPatternMethodForConfig(ExperimentConfig config) {
+        switch (config.methodName) {
+            case "raw":
+                return null; // Skip pattern queries
+            case "m4":
+                return "firstLast";
+            case "ols":
+                return "ols";
+            case "minMaxCache":
+                return "firstLastInf";
+            default:
+                return config.queryMethod;
+        }
+    }
+
+    private void recordQueryMetrics(CsvWriter csvWriter, Query query, TypedQuery typedQuery, 
+            int queryIndex, double initTime, double time, QueryResults queryResults, 
+            CacheManager cacheManager, ExperimentConfig config) {
+        
+        csvWriter.addValue(table);
+        csvWriter.addValue(queryIndex);
+        csvWriter.addValue(query.getViewPort().getWidth());
+        csvWriter.addValue(query.getViewPort().getHeight());
+        csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
+        csvWriter.addValue(DateTimeUtil.format(query.getTo()));
+        csvWriter.addValue(typedQuery.getUserOpType());
+        csvWriter.addValue(config.useCache ? initTime : -1);
+        csvWriter.addValue(time);
+        
+        if (queryResults != null && config.useCache) {
+            csvWriter.addValue(queryResults.getIoCount());
+            csvWriter.addValue(queryResults.getCacheHitRatio() * 100);
+            csvWriter.addValue(cacheManager.getMemoryManager().getCurrentMemoryBytes());
+        } else if (queryResults != null) {
+            csvWriter.addValue(""); // No IO count for non-cache
+            csvWriter.addValue(""); // No cache hit ratio
+            csvWriter.addValue(""); // No cache size
+        } else {
+            csvWriter.addValue(-1);
+            csvWriter.addValue(-1);
+            csvWriter.addValue(-1);
+        }
+        
+        csvWriter.writeValuesToRow();
+        csvWriter.flush();
     }
 
     /**
@@ -556,19 +433,19 @@ public class Experiments<T> {
         
     }
 
-    private void initOutput() throws IOException {
+    private void initOutput(String methodName) throws IOException {
         Path outFolderPath = Paths.get(outFolder);
         Path timeQueriesPath = Paths.get(outFolder, mode);
-        Path methodPath = Paths.get(outFolder, mode, method);
-        Path typePath = Paths.get(outFolder, mode, method, type);
-        Path tablePath = Paths.get(outFolder, mode, method, type, table);
+        Path methodPath = Paths.get(outFolder, mode, methodName);
+        Path typePath = Paths.get(outFolder, mode, methodName, type);
+        Path tablePath = Paths.get(outFolder, mode, methodName, type, table);
         FileUtil.build(outFolderPath.toString());
         FileUtil.build(timeQueriesPath.toString());
         FileUtil.build(methodPath.toString());
         FileUtil.build(typePath.toString());
         FileUtil.build(tablePath.toString());
     }
-    
+
     private DataSource createDatasource(){
         DataSource datasource = null;
         DataSourceConfiguration dataSourceConfiguration = null;
@@ -590,6 +467,17 @@ public class Experiments<T> {
                     .url(properties.getProperty("postgres.url"))
                     .username(properties.getProperty("postgres.username"))
                     .password(properties.getProperty("postgres.password"))
+                    .tableName(table)
+                    .timestampColumn("timestamp")
+                    .idColumn("id")
+                    .valueColumn("value")
+                    .build();
+                break;
+            case "trino":
+                dataSourceConfiguration = new TrinoConfiguration.Builder()
+                    .url(properties.getProperty("trino.url"))
+                    .username(properties.getProperty("trino.username"))
+                    .password(properties.getProperty("trino.password"))
                     .tableName(table)
                     .timestampColumn("timestamp")
                     .idColumn("id")
@@ -645,6 +533,101 @@ public class Experiments<T> {
         } catch (Exception ex) {
             LOG.error("Unable to read query configuration file: {}", filePath, ex);
             return null;
+        }
+    }
+
+    /**
+     * Log pattern matches to a file for later comparison
+     */
+    public static void logMatchesToFile(PatternQuery query, PatternQueryResults patternQueryResults, String method, DataSource dataSource, String outputFolder) {
+
+        List<List<List<Sketch>>> matches = patternQueryResults.getMatches();
+        long executionTime = patternQueryResults.getExecutionTime();
+
+        try {
+            
+            // Create matches directory if it doesn't exist
+            Path patternMatchesDir = Paths.get(outputFolder,"pattern_matches");
+            if (!Files.exists(patternMatchesDir)) {
+                Files.createDirectories(patternMatchesDir);
+            }
+          
+            Path methodDir = Paths.get(outputFolder, "pattern_matches", method);
+            if (!Files.exists(methodDir)) {
+                Files.createDirectories(methodDir);
+            }
+
+            Path dbDir = Paths.get(outputFolder, "pattern_matches", method, "influx");
+            if (!Files.exists(dbDir)) {
+                Files.createDirectories(dbDir);
+            }
+
+            // Create specific directory if it doesn't exist
+            Path logDir = Paths.get(outputFolder,"pattern_matches", method, "influx", dataSource.getDataset().getTableName());
+            if (!Files.exists(logDir)) {
+                Files.createDirectories(logDir);
+            }
+            
+            // Create a unique filename with timestamp
+            String filename = String.format("%s_%s_%d_%s.log", 
+                query.getFrom(), query.getTo(), query.getMeasure(), query.getTimeUnit().toString());
+
+            File logFile = new File(logDir.toFile(), filename);
+            
+            try (FileWriter writer = new FileWriter(logFile)) {
+                // Write metadata
+                writer.write("Query Metadata:\n");
+                writer.write(String.format("Time Range: %d to %d\n", query.getFrom(), query.getTo()));
+                writer.write(String.format("Measure ID: %d\n", query.getMeasure()));
+                writer.write(String.format("Time Unit: %s\n", query.getTimeUnit()));
+                writer.write(String.format("Execution Time: %d ms\n", executionTime));
+                writer.write(String.format("Total Matches: %d\n", matches.size()));
+                writer.write("\n--- Matches ---\n\n");
+                
+                // Write each match with simplified information
+                for (int matchIdx = 0; matchIdx < matches.size(); matchIdx++) {
+                    List<List<Sketch>> match = matches.get(matchIdx);
+                    
+                    // Calculate the overall match time range and error margin
+                    long matchStart = Long.MAX_VALUE;
+                    long matchEnd = Long.MIN_VALUE;
+                    double totalErrorMargin = 0.0;
+                    int segmentCount = 0;
+                    
+                    for (List<Sketch> segment : match) {
+                        Sketch combinedSketch = SketchUtils.combineSketches(segment);
+                        matchStart = Math.min(matchStart, combinedSketch.getFrom());
+                        matchEnd = Math.max(matchEnd, combinedSketch.getTo());
+                        
+                        // Accumulate error margins for average calculation
+                        double segmentError = combinedSketch.getAngleErrorMargin();
+                        if (!Double.isNaN(segmentError) && !Double.isInfinite(segmentError)) {
+                            totalErrorMargin += segmentError;
+                            segmentCount++;
+                        }
+                    }
+                    
+                    // Calculate average error margin for the match
+                    double averageErrorMargin = segmentCount > 0 ? totalErrorMargin / segmentCount : 0.0;
+
+                    writer.write(String.format("Match #%d: [%d to %d] - Average Error Margin: %.2f%%\n", 
+                        matchIdx + 1, matchStart, matchEnd, averageErrorMargin * 100.0));
+
+                    for (int segmentIdx = 0; segmentIdx < match.size(); segmentIdx++) {
+                        List<Sketch> segment = match.get(segmentIdx);
+                        Sketch combinedSketch = SketchUtils.combineSketches(segment);
+                        double segmentErrorMargin = combinedSketch.getAngleErrorMargin();
+                        writer.write(String.format("  Segment %d: [%d to %d] - Error Margin: %.2f%%\n", 
+                            segmentIdx, combinedSketch.getFrom(), combinedSketch.getTo(), segmentErrorMargin * 100.0));
+                    }
+                    writer.write("\n");
+                }
+            }
+            
+            LOG.info("Pattern matches logged to file: {}", logFile.getAbsolutePath());
+            
+        } catch (IOException e) {
+            LOG.error("Failed to log pattern matches to file", e);
         }
     }
     

@@ -355,6 +355,9 @@ public class DateTimeUtil {
             }
         } else {
             switch (chronoUnit) {
+                case MILLIS:
+                    // For milliseconds, just multiply by the multiplier
+                    return alignToMultipleOf(timestamp, 1, multiplier, floor);
                 case SECONDS:
                     return alignToMultipleOf(timestamp, 1000, multiplier, floor);
                 case MINUTES:

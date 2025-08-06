@@ -1,8 +1,9 @@
-package gr.imsi.athenarc.middleware.datasource;
+package gr.imsi.athenarc.middleware.datasource.sql;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;

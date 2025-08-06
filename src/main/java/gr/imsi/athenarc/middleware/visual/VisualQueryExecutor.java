@@ -122,7 +122,7 @@ public class VisualQueryExecutor {
             dataProcessor.processDatapoints(from, to, viewPort, pixelColumns, overlappingSpans);
 
             // Calculate Error
-            ErrorCalculator errorCalculator = new ErrorCalculator();
+            VisualEvaluator errorCalculator = new VisualEvaluator();
             ErrorResults errorResults = new ErrorResults();
             double errorForMeasure = errorCalculator.calculateTotalError(pixelColumns, viewPort, pixelColumnInterval, query.getAccuracy());
             errorResults.setError(errorForMeasure);
@@ -201,7 +201,7 @@ public class VisualQueryExecutor {
             dataProcessor.processDatapoints(from, to, viewPort, pixelColumns, timeSeriesSpans);
 
             // Recalculate error per measure
-            ErrorCalculator errorCalculator = new ErrorCalculator();
+            VisualEvaluator errorCalculator = new VisualEvaluator();
             ErrorResults errorResults = new ErrorResults();
             double errorForMeasure = errorCalculator.calculateTotalError(pixelColumns, viewPort, pixelColumnInterval, query.getAccuracy());
 
@@ -240,7 +240,6 @@ public class VisualQueryExecutor {
             double min = Double.MAX_VALUE;
             double sum = 0;
             List<PixelColumn> pixelColumns = pixelColumnsPerMeasure.get(measure);
-            
             List<DataPoint> dataPoints = new ArrayList<>();
             for (PixelColumn pixelColumn : pixelColumns) {
                 Stats pixelColumnStats = pixelColumn.getStats();
