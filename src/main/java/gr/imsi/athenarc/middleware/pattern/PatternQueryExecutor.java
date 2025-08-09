@@ -155,15 +155,16 @@ public class PatternQueryExecutor {
      * 
      * @param query The pattern query to execute
      * @param dataSource The data source to use for fetching data
-     * @param method The method type (e.g., "m4", "minmax", "ols", etc.)
+     * @param type The type of pattern query (e.g., "matchRecognize", "aggregate", etc.)
+     * @param method The method type (e.g., "firstLast", "ols", etc.)
      * @return Pattern query results
      */
-    public static PatternQueryResults executePatternQuery(PatternQuery query, DataSource dataSource, String method) {
+    public static PatternQueryResults executePatternQuery(PatternQuery query, DataSource dataSource, String type, String method) {
         long startTime = System.currentTimeMillis();
 
         // Handle MATCH_RECOGNIZE queries separately
-        if ("matchRecognize".equals(method)) {
-            return MatchRecognizeQueryExecutor.executeMatchRecognizeQuery(query, dataSource);
+        if ("matchRecognize".equals(type)) {
+            return MatchRecognizeQueryExecutor.executeMatchRecognizeQuery(query, dataSource, method);
         }
 
         // Extract query parameters and prepare sketches

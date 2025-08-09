@@ -142,7 +142,7 @@ public class Experiments {
     private void runTimingExperiment() throws IOException, SQLException {
         ExperimentConfig config = createExperimentConfig();
         if (config == null) {
-            LOG.error("Unknown mode: {}. Supported modes are: timeCacheQueries, timeRawQueries, timeM4Queries, timeOlsQueries, timeMinMaxCacheQueries, generate", mode);
+            LOG.error("Unknown mode: {}. Supported modes are: timeCacheQueries, timeRawQueries, timeAggregateQueries, timeMinMaxCacheQueries, timeMatchRecognizeQueries, generate", mode);
             return;
         }
         initOutput(config.methodName);
@@ -152,15 +152,27 @@ public class Experiments {
     private ExperimentConfig createExperimentConfig() {
         switch (mode.toLowerCase()) {
             case "timecachequeries":
-                return new ExperimentConfig(method, true, method);
+                Preconditions.checkNotNull(method, "You must specify a method for cache queries.");
+                Preconditions.checkArgument(method.equals("m4") 
+                    || method.equals("m4Inf")
+                    || method.equals("approxOls") 
+                    || method.equals("minmax"), 
+                    "Method must be either 'm4', 'approxOls' or 'minmax' for cache queries.");
+                return new ExperimentConfig(method, true, method, method);
             case "timeminmaxcachequeries":
-                return new ExperimentConfig("minMaxCache", true, "minmax");
+                return new ExperimentConfig("minMaxCache", true, "minmax", "firstLastInf");
             case "timerawqueries":
-                return new ExperimentConfig("raw", false, null);
-            case "timeolsqueries":
-                return new ExperimentConfig("ols", false, "ols");
-            case "timem4queries":
-                return new ExperimentConfig("m4", false, "m4");
+                return new ExperimentConfig("raw", false, "raw", null);
+            case "timeaggregatequeries":
+                Preconditions.checkNotNull(method, "You must specify a method for aggregate queries.");
+                Preconditions.checkArgument(method.equals("firstLast") || method.equals("ols"),
+                    "Method must be either 'firstLast' or 'ols' for aggregate queries.");
+                return new ExperimentConfig("aggregate", false, "m4", method);
+            case "timematchrecognizequeries":
+                Preconditions.checkNotNull(method, "You must specify a method for match recognize queries.");
+                Preconditions.checkArgument(method.equals("firstLast") || method.equals("ols"),
+                    "Method must be either 'firstLast' or 'ols' for match recognize queries.");
+                return new ExperimentConfig("matchRecognize", false, "m4", method);
             default:
                 return null;
         }
@@ -169,12 +181,14 @@ public class Experiments {
     private static class ExperimentConfig {
         final String methodName;
         final boolean useCache;
-        final String queryMethod;
+        final String visualMethod;
+        final String patternMethod;
 
-        ExperimentConfig(String methodName, boolean useCache, String queryMethod) {
+        ExperimentConfig(String methodName, boolean useCache, String visualMethod, String patternMethod) {
             this.methodName = methodName;
             this.useCache = useCache;
-            this.queryMethod = queryMethod;
+            this.visualMethod = visualMethod;
+            this.patternMethod = patternMethod;
         }
     }
 
@@ -197,7 +211,7 @@ public class Experiments {
                 
                 // Setup cache if needed
                 if (config.useCache) {
-                    String cacheMethod = config.queryMethod != null ? config.queryMethod : method;
+                    String cacheMethod = config.visualMethod != null ? config.visualMethod : method;
                     cacheManager = CacheManager.builder(dataSource)
                         .withMaxMemory(maxMemoryBytes)
                         .withMethod(cacheMethod)
@@ -296,7 +310,7 @@ public class Experiments {
                 if (query instanceof VisualQuery) {
                     return cacheManager.executeQuery(query);
                 } else if (query instanceof PatternQuery) {
-                    return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, getPatternMethodForConfig(config));
+                    return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, config.methodName, config.patternMethod);
                 } else {
                     throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
                 }
@@ -305,39 +319,18 @@ public class Experiments {
         
         // Non-cache execution
         if (query instanceof VisualQuery) {
-            switch (config.methodName) {
+            switch (config.visualMethod) {
                 case "raw":
                     return VisualUtils.executeRawQuery((VisualQuery) query, dataSource);
                 case "m4":
-                case "ols":
                     return VisualUtils.executeM4Query((VisualQuery) query, dataSource);
                 default:
-                    throw new IllegalArgumentException("Unknown method: " + config.methodName);
+                    throw new IllegalArgumentException("Unknown method: " + config.visualMethod);
             }
         } else if (query instanceof PatternQuery) {
-            String patternMethod = getPatternMethodForConfig(config);
-            if (patternMethod == null) {
-                return null; // Skip pattern queries for raw mode
-            }
-            return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, patternMethod);
+            return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, config.methodName, config.patternMethod);
         } else {
             throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
-        }
-    }
-
-    /* firstLast and firstLastInf do not get min/max like the m4 variants */
-    private String getPatternMethodForConfig(ExperimentConfig config) {
-        switch (config.methodName) {
-            case "raw":
-                return null; // Skip pattern queries
-            case "m4":
-                return "firstLast";
-            case "ols":
-                return "ols";
-            case "minMaxCache":
-                return "firstLastInf";
-            default:
-                return config.queryMethod;
         }
     }
 

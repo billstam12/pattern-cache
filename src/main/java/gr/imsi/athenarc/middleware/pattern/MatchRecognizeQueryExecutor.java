@@ -35,9 +35,10 @@ public class MatchRecognizeQueryExecutor {
      * 
      * @param query The pattern query to execute
      * @param dataSource The data source to execute the query against
+     * @param method The method type (e.g., "firstLast", "ols", etc.)
      * @return Pattern query results containing the SQL query and execution details
      */
-    public static PatternQueryResults executeMatchRecognizeQuery(PatternQuery query, DataSource dataSource) {
+    public static PatternQueryResults executeMatchRecognizeQuery(PatternQuery query, DataSource dataSource, String method) {
         long startTime = System.currentTimeMillis();
         
         try {
