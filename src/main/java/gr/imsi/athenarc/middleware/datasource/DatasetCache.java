@@ -52,7 +52,7 @@ public class DatasetCache {
                 populateDatasetFromCache(dataset, datasetData);
                 return dataset;
             }
-            else if(source.equals("sql")) {
+            else if(source.equals("sql") || source.equals("trino")) {
                 SQLDataset dataset = new SQLDataset(tableName, schema, tableName);
                 dataset.setId((String) datasetData.get("id"));
                 populateDatasetFromCache(dataset, datasetData);

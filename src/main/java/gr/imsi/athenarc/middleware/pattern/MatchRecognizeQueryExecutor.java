@@ -1,5 +1,11 @@
 package gr.imsi.athenarc.middleware.pattern;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,7 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.datasource.DataSource;
+import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
@@ -17,6 +25,8 @@ import gr.imsi.athenarc.middleware.query.pattern.SegmentSpecification;
 import gr.imsi.athenarc.middleware.query.pattern.SingleNode;
 import gr.imsi.athenarc.middleware.query.pattern.TimeFilter;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
+import gr.imsi.athenarc.middleware.sketch.OLSSketch;
+import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 /**
  * Executor for running SQL MATCH_RECOGNIZE queries for pattern matching.
@@ -44,14 +54,23 @@ public class MatchRecognizeQueryExecutor {
         try {
             // Generate the SQL query
             String sqlQuery = generateMatchRecognizeSQL(query, dataSource);
+
+            if(dataSource.getQueryExecutor() instanceof SQLQueryExecutor == false) {
+                throw new IllegalArgumentException("DataSource's QueryExecutor must be an instance of SQLQueryExecutor");
+            }
             
-            LOG.info("Generated MATCH_RECOGNIZE SQL query: {}", sqlQuery);
+            ResultSet resultSet = ((SQLQueryExecutor)dataSource.getQueryExecutor()).executeDbQuery(sqlQuery);
+
+            // Process result set and create sketches similar to other pattern executors
+            List<List<List<Sketch>>> matches = processMatchRecognizeResults(resultSet, query, method);
             
             // Create result with the generated SQL query
             PatternQueryResults results = new PatternQueryResults();
+            results.setMatches(matches);
             results.setExecutionTime(System.currentTimeMillis() - startTime);
             
-            LOG.info("MATCH_RECOGNIZE query generated in {} ms", results.getExecutionTime());
+            LOG.info("MATCH_RECOGNIZE query executed in {} ms, found {} matches", 
+                    results.getExecutionTime(), matches.size());
             
             return results;
             
@@ -59,6 +78,114 @@ public class MatchRecognizeQueryExecutor {
             LOG.error("Failed to execute MATCH_RECOGNIZE query", e);
             throw new RuntimeException("Failed to execute MATCH_RECOGNIZE query", e);
         }
+    }
+
+    /**
+     * Process the MATCH_RECOGNIZE query results and convert them to pattern matches with sketches.
+     * Each row in the result set represents one pattern match, with columns like:
+     * seg1_start, seg1_end, seg1_angle, seg2_start, seg2_end, seg2_angle, etc.
+     * 
+     * @param resultSet The result set from the MATCH_RECOGNIZE query
+     * @param query The original pattern query
+     * @param method The method used (e.g., "ols", "firstLast", etc.)
+     * @return List of pattern matches, each match contains list of segments, each segment contains a list of sketches
+     */
+    private static List<List<List<Sketch>>> processMatchRecognizeResults(ResultSet resultSet, PatternQuery query, String method) {
+        List<List<List<Sketch>>> allMatches = new ArrayList<>();
+        
+        try {
+            // Determine the number of segments in the pattern
+            List<PatternNode> patternNodes = query.getPatternNodes();
+            List<PatternSegment> segments = extractPatternSegments(patternNodes);
+            int numSegments = segments.size();
+            
+            LOG.info("Processing MATCH_RECOGNIZE results for {} segments", numSegments);
+            
+            // Process each row in the result set (each row = one pattern match)
+            while (resultSet.next()) {
+                List<List<Sketch>> matchSegments = new ArrayList<>();
+                
+                // For each segment in the pattern, create sketches
+                for (int segmentIdx = 0; segmentIdx < numSegments; segmentIdx++) {
+                    int segmentNum = segmentIdx + 1; // SQL columns are 1-indexed (seg1, seg2, etc.)
+                    
+                    try {
+                        // Get segment boundaries and angle from result set
+                        String startColName = "seg" + segmentNum + "_start";
+                        String endColName = "seg" + segmentNum + "_end";
+                        String angleColName = "seg" + segmentNum + "_angle";
+                        
+                        Timestamp startTimestamp = resultSet.getTimestamp(startColName);
+                        Timestamp endTimestamp = resultSet.getTimestamp(endColName);
+                        double angle = resultSet.getDouble(angleColName);
+                        
+                        if (startTimestamp != null && endTimestamp != null) {
+                            long startTime = startTimestamp.getTime();
+                            long endTime = endTimestamp.getTime();
+                            
+                            // Create a sketch for this segment
+                            Sketch sketch = createSketchFromMatchRecognizeResult(startTime, endTime, angle, method);
+                            
+                            // Each segment contains a list with one sketch (matching the structure used by other executors)
+                            List<Sketch> segmentSketches = new ArrayList<>();
+                            segmentSketches.add(sketch);
+                            matchSegments.add(segmentSketches);
+                            
+                            LOG.debug("Created sketch for segment {}: start={}, end={}, angle={}", 
+                                    segmentNum, startTime, endTime, angle);
+                        }
+                    } catch (SQLException e) {
+                        LOG.warn("Could not process segment {}: {}", segmentNum, e.getMessage());
+                    }
+                }
+                
+                if (!matchSegments.isEmpty()) {
+                    allMatches.add(matchSegments);
+                }
+            }
+            
+            LOG.info("Total pattern matches found: {}", allMatches.size());
+            
+        } catch (SQLException e) {
+            LOG.error("Error processing MATCH_RECOGNIZE results", e);
+            throw new RuntimeException("Error processing MATCH_RECOGNIZE results", e);
+        }
+        
+        return allMatches;
+    }
+
+    /**
+     * Create a sketch from MATCH_RECOGNIZE result data.
+     * 
+     * @param startTime Start time of the segment in milliseconds
+     * @param endTime End time of the segment in milliseconds
+     * @param angle The calculated angle/slope from the SQL query
+     * @param method The method type to determine which sketch type to create
+     * @return A sketch representing this segment
+     */
+    private static Sketch createSketchFromMatchRecognizeResult(long startTime, long endTime, double angle, String method) {
+        // For now, create an OLS sketch since MATCH_RECOGNIZE calculates regression angles
+        // This could be extended to support other sketch types based on the method parameter
+        OLSSketch sketch = new OLSSketch(startTime, endTime);
+        
+        // Since we already have the calculated angle from SQL, we need to set it directly
+        // We'll use reflection or create a specialized constructor/setter for this case
+        // For now, we mark it as initialized and set the angle (this might need adjustment based on OLSSketch implementation)
+        try {
+            java.lang.reflect.Field angleField = OLSSketch.class.getDeclaredField("angle");
+            angleField.setAccessible(true);
+            angleField.set(sketch, angle);
+            
+            java.lang.reflect.Field hasInitializedField = OLSSketch.class.getDeclaredField("hasInitialized");
+            hasInitializedField.setAccessible(true);
+            hasInitializedField.set(sketch, true);
+            
+            LOG.debug("Set angle {} for sketch covering period {} to {}", angle, startTime, endTime);
+        } catch (Exception e) {
+            LOG.warn("Could not set angle directly on sketch, using default: {}", e.getMessage());
+        }
+        
+        return sketch;
     }
 
     /**
@@ -84,26 +211,43 @@ public class MatchRecognizeQueryExecutor {
         // Extract pattern segments and their constraints
         List<PatternSegment> segments = extractPatternSegments(patternNodes);
         
-        // Build the main query
+        // Build the main query with normalized timestamps (0-1 across entire query range)
         sql.append("SELECT *\n");
         sql.append("FROM (\n");
         sql.append("  SELECT\n");
-        sql.append("    ").append(bucketingExpression).append(" AS bucket_start,\n");
-        sql.append("    SUM( to_unixtime(timestamp) ) AS sum_x,\n");
-        sql.append("    SUM( value ) AS sum_y,\n");
-        sql.append("    SUM( to_unixtime(timestamp) * value ) AS sum_xy,\n");
-        sql.append("    SUM( to_unixtime(timestamp) * to_unixtime(timestamp) ) AS sum_x2,\n");
+        sql.append("    bucket_start,\n");
+        sql.append("    SUM(normalized_time) AS sum_x,\n");
+        sql.append("    SUM(value) AS sum_y,\n");
+        sql.append("    SUM(normalized_time * value) AS sum_xy,\n");
+        sql.append("    SUM(normalized_time * normalized_time) AS sum_x2,\n");
         sql.append("    COUNT(*) AS n\n");
-        sql.append("  FROM ").append(tableName).append("\n");
-        sql.append("  WHERE id = 'value_").append(measureId).append("'\n");
+        sql.append("  FROM (\n");
+        sql.append("    SELECT\n");
+        sql.append("      ").append(bucketingExpression).append(" AS bucket_start,\n");
+        sql.append("      value,\n");
+        sql.append("      -- Normalize timestamp to 0-1 range across entire query time range\n");
+        
+        // Add time range normalization based on query bounds or dataset bounds
+        if (query.getFrom() > 0 && query.getTo() > 0) {
+            sql.append("      (to_unixtime(timestamp) - ").append(query.getFrom()).append(") / ");
+            sql.append("(").append(query.getTo()).append(" - ").append(query.getFrom()).append(") AS normalized_time\n");
+        } else {
+            // If no time bounds specified, normalize relative to the min/max in the dataset
+            sql.append("      (to_unixtime(timestamp) - (SELECT MIN(to_unixtime(timestamp)) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("')) / \n");
+            sql.append("      NULLIF((SELECT MAX(to_unixtime(timestamp)) - MIN(to_unixtime(timestamp)) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("'), 0) AS normalized_time\n");
+        }
+        
+        sql.append("    FROM ").append(tableName).append("\n");
+        sql.append("    WHERE id = 'value_").append(measureId).append("'\n");
         
         // Add time range filter if specified
         if (query.getFrom() > 0 && query.getTo() > 0) {
-            sql.append("    AND timestamp >= FROM_UNIXTIME(").append(query.getFrom() / 1000).append(")\n");
-            sql.append("    AND timestamp <= FROM_UNIXTIME(").append(query.getTo() / 1000).append(")\n");
+            sql.append("      AND timestamp >= TIMESTAMP '").append(DateTimeUtil.format(query.getFrom())).append("'\n");
+            sql.append("      AND timestamp < TIMESTAMP '").append(DateTimeUtil.format(query.getTo())).append("'\n");
         }
         
-        sql.append("  GROUP BY 1\n");
+        sql.append("  ) normalized_data\n");
+        sql.append("  GROUP BY bucket_start\n");
         sql.append(") bucketed_stats\n");
         sql.append("MATCH_RECOGNIZE (\n");
         sql.append("  ORDER BY bucket_start\n");
@@ -125,7 +269,7 @@ public class MatchRecognizeQueryExecutor {
             sql.append("WHERE\n").append(whereClause);
         }
         
-        sql.append("ORDER BY seg1_start;");
+        sql.append("ORDER BY seg1_start");
         
         return sql.toString();
     }
@@ -141,12 +285,12 @@ public class MatchRecognizeQueryExecutor {
         switch (unit) {
             case MILLIS:
                 // For milliseconds, use epoch milliseconds and round down
-                return String.format("FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) * 1000 / %d) * %d / 1000)", 
+                return String.format("FROM_UNIXTIME(FLOOR(to_unixtime(timestamp) * 1000 / %d) * %d / 1000)", 
                     multiplier, multiplier);
                     
             case SECONDS:
                 // For seconds, use epoch seconds and round down
-                return String.format("FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(timestamp) / %d) * %d)", 
+                return String.format("FROM_UNIXTIME(FLOOR(to_unixtime(timestamp) / %d) * %d)", 
                     multiplier, multiplier);
                     
             case MINUTES:
@@ -208,7 +352,13 @@ public class MatchRecognizeQueryExecutor {
         
         switch (unit) {
             case MILLIS:
-                return String.format("INTERVAL '%d' MILLISECOND", multiplier);
+                // Trino doesn't support MILLISECOND intervals directly
+                // Add milliseconds using timestamp arithmetic
+                if (multiplier == 1) {
+                    return "INTERVAL '0.001' SECOND";
+                } else {
+                    return String.format("INTERVAL '%f' SECOND", multiplier / 1000.0);
+                }
             case SECONDS:
                 return String.format("INTERVAL '%d' SECOND", multiplier);
             case MINUTES:
@@ -254,13 +404,13 @@ public class MatchRecognizeQueryExecutor {
             SegmentSpecification spec = singleNode.getSpec();
             RepetitionFactor repetition = singleNode.getRepetitionFactor();
             
-            // For SingleNode, create one segment with repetition info
+            // For SingleNode, create one segment with time filter as segment length
             PatternSegment segment = new PatternSegment(
                 startIndex,
                 getSegmentVariable(startIndex),
                 spec.getValueFilter(),
-                spec.getTimeFilter(),
-                repetition
+                spec.getTimeFilter(), 
+                repetition  
             );
             segments.add(segment);
             
@@ -343,11 +493,38 @@ public class MatchRecognizeQueryExecutor {
         
         for (PatternSegment segment : segments) {
             String variable = segment.variable;
+            TimeFilter timeFilter = segment.timeFilter;
             RepetitionFactor repetition = segment.repetitionFactor;
             
-            // Convert repetition to SQL pattern syntax
-            String repetitionStr = convertRepetitionToSQL(repetition);
-            patternParts.add(variable + repetitionStr);
+            // First, apply the time filter as segment length ({n})
+            String segmentWithLength = variable;
+            if (timeFilter != null && !timeFilter.isTimeAny()) {
+                // For MATCH_RECOGNIZE, we need to determine the segment length
+                // If timeLow == timeHigh, use exact length {n}
+                // If they differ, we might use a range {min,max} but MATCH_RECOGNIZE syntax is limited
+                int timeLow = timeFilter.getTimeLow();
+                int timeHigh = timeFilter.getTimeHigh();
+                
+                if (timeLow == timeHigh) {
+                    // Exact length
+                    segmentWithLength = variable + "{" + timeLow + "}";
+                } else if (timeHigh == Integer.MAX_VALUE) {
+                    // Minimum length with no upper bound
+                    segmentWithLength = variable + "{" + timeLow + ",}";
+                } else {
+                    // Range with both min and max
+                    segmentWithLength = variable + "{" + timeLow + "," + timeHigh + "}";
+                }
+            }
+            
+            // Then, apply kleene repetition operators (*, +, ?) if any
+            String kleeneOperator = convertRepetitionToSQL(repetition);
+            if (!kleeneOperator.isEmpty() && !kleeneOperator.equals("{1}")) {
+                // Apply kleene operator to the entire segment (including its length)
+                segmentWithLength = "(" + segmentWithLength + ")" + kleeneOperator;
+            }
+            
+            patternParts.add(segmentWithLength);
         }
         
         return String.join(" ", patternParts);
@@ -428,12 +605,14 @@ public class MatchRecognizeQueryExecutor {
     private static class PatternSegment {
         final String variable;
         final ValueFilter valueFilter;
-        final RepetitionFactor repetitionFactor;
+        final TimeFilter timeFilter;        // TimeFilter determines segment length ({n})
+        final RepetitionFactor repetitionFactor; // RepetitionFactor for kleene operators (*, +, ?)
         
         PatternSegment(int index, String variable, ValueFilter valueFilter, 
                       TimeFilter timeFilter, RepetitionFactor repetitionFactor) {
             this.variable = variable;
             this.valueFilter = valueFilter;
+            this.timeFilter = timeFilter;
             this.repetitionFactor = repetitionFactor;
         }
     }

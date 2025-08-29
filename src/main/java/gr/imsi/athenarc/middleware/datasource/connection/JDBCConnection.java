@@ -28,10 +28,13 @@ public class JDBCConnection implements DatabaseConnection {
         try {
             Class.forName("org.postgresql.Driver");
             Properties properties = new Properties();
-            properties.setProperty("user", user);
-            properties.setProperty("password", password);
-            properties.setProperty("SSL", "true");
-            properties.setProperty("SSLVerification", "NONE");
+            if(user != null && !user.isEmpty()){
+                properties.setProperty("user", user);
+            }
+            if(password != null && !password.isEmpty()){
+                properties.setProperty("password", password);
+            }
+            properties.setProperty("SSL", "false");
 
             connection = DriverManager
                     .getConnection(host, properties);

@@ -105,8 +105,8 @@ public class DataSourceFactory {
     private static DataSource createTrinoDataSource(TrinoConfiguration config) {
         JDBCConnection jdbcConnection = new JDBCConnection(
             config.getUrl(),
-            config.getUsername(),
-            config.getPassword()
+            null,
+            null
         );
         jdbcConnection.connect();
         SQLQueryExecutor executor = new SQLQueryExecutor(jdbcConnection);

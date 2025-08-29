@@ -3,6 +3,7 @@ package gr.imsi.athenarc.middleware.datasource.trino;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
+import gr.imsi.athenarc.middleware.datasource.executor.QueryExecutor;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
 import gr.imsi.athenarc.middleware.domain.*;
 
@@ -52,6 +53,11 @@ public class TrinoDatasource implements DataSource {
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
             Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
         return new TrinoSlopeAggregatedDataPoints(trinoQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+    }
+
+    @Override
+    public QueryExecutor getQueryExecutor() {
+        return trinoQueryExecutor;
     }
 
     public void closeConnection(){

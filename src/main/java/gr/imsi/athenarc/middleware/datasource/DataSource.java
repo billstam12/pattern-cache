@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Set;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
+import gr.imsi.athenarc.middleware.datasource.executor.QueryExecutor;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
@@ -47,6 +48,9 @@ public interface DataSource {
 
     AggregatedDataPoints getSlopeAggregates(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure);                                  
+    
+    
+    public QueryExecutor getQueryExecutor();
     
     public AbstractDataset getDataset();
 

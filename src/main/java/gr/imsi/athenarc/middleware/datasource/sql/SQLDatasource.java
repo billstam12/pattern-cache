@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
+import gr.imsi.athenarc.middleware.datasource.executor.QueryExecutor;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
 import gr.imsi.athenarc.middleware.domain.*;
 
@@ -56,6 +57,10 @@ public class SQLDatasource implements DataSource {
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
             Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
         return new SQLSlopeAggregatedDataPoints(sqlQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+    }
+
+    public QueryExecutor getQueryExecutor() {
+        return sqlQueryExecutor;
     }
 
     public void closeConnection(){

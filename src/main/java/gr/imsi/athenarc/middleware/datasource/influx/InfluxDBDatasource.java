@@ -7,6 +7,7 @@ import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.dataset.AbstractDataset;
 import gr.imsi.athenarc.middleware.datasource.dataset.InfluxDBDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.InfluxDBQueryExecutor;
+import gr.imsi.athenarc.middleware.datasource.executor.QueryExecutor;
 import gr.imsi.athenarc.middleware.domain.*;
 
 import java.util.List;
@@ -62,5 +63,10 @@ public class InfluxDBDatasource implements DataSource {
 
     public void closeConnection(){
         influxDBQueryExecutor.closeConnection();
+    }
+
+    @Override
+    public QueryExecutor getQueryExecutor() {
+        return influxDBQueryExecutor;
     }
 }
