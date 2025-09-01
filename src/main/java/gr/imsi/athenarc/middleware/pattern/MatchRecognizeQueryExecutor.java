@@ -1,5 +1,7 @@
 package gr.imsi.athenarc.middleware.pattern;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -202,9 +204,13 @@ public class MatchRecognizeQueryExecutor {
         // Extract query parameters
         String tableName = dataSource.getDataset().getTableName();
         int measureId = query.getMeasures().get(0); // Assuming single measure for now
+        String measure = dataSource.getDataset().getHeader()[measureId];
         AggregateInterval timeUnit = query.getTimeUnit();
         List<PatternNode> patternNodes = query.getPatternNodes();
-        
+
+        long alignedFrom = DateTimeUtil.alignToTimeUnitBoundary(query.getFrom(), query.getTimeUnit(), true);
+        long alignedTo = DateTimeUtil.alignToTimeUnitBoundary(query.getTo(), query.getTimeUnit(), false);
+
         // Generate the bucketing interval
         String bucketingExpression = generateBucketingExpression(timeUnit);
         
@@ -227,23 +233,26 @@ public class MatchRecognizeQueryExecutor {
         sql.append("      value,\n");
         sql.append("      -- Normalize timestamp to 0-1 range across entire query time range\n");
         
-        // Add time range normalization based on query bounds or dataset bounds
-        if (query.getFrom() > 0 && query.getTo() > 0) {
-            sql.append("      (to_unixtime(timestamp) - ").append(query.getFrom()).append(") / ");
-            sql.append("(").append(query.getTo()).append(" - ").append(query.getFrom()).append(") AS normalized_time\n");
+ 
+        // Add time range normalization based on each bucket
+        if (alignedFrom > 0 && alignedTo > 0) {
+            // Calculate bucket interval in milliseconds
+            long bucketIntervalMs = timeUnit.toDuration().toMillis();
+            sql.append("      FLOOR((to_unixtime(timestamp) * 1000 - ").append(alignedFrom).append(") / ").append(bucketIntervalMs).append(") + \n");
+            sql.append("      ((to_unixtime(timestamp) * 1000 - ").append(alignedFrom).append(") % ").append(bucketIntervalMs).append(") / ").append(bucketIntervalMs).append(".0 AS normalized_time\n");
         } else {
-            // If no time bounds specified, normalize relative to the min/max in the dataset
-            sql.append("      (to_unixtime(timestamp) - (SELECT MIN(to_unixtime(timestamp)) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("')) / \n");
-            sql.append("      NULLIF((SELECT MAX(to_unixtime(timestamp)) - MIN(to_unixtime(timestamp)) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("'), 0) AS normalized_time\n");
+            // If no time bounds specified, calculate relative to dataset min/max with window indexing
+            sql.append("      FLOOR((to_unixtime(timestamp AT TIME ZONE 'UTC') - (SELECT MIN(to_unixtime(timestamp AT TIME ZONE 'UTC')) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("')) * 1000 / ").append(timeUnit.toDuration().toMillis()).append(") + \n");
+            sql.append("      ((to_unixtime(timestamp AT TIME ZONE 'UTC') - (SELECT MIN(to_unixtime(timestamp AT TIME ZONE 'UTC')) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("')) * 1000 % ").append(timeUnit.toDuration().toMillis()).append(") / ").append(timeUnit.toDuration().toMillis()).append(".0 AS normalized_time\n");
         }
         
         sql.append("    FROM ").append(tableName).append("\n");
-        sql.append("    WHERE id = 'value_").append(measureId).append("'\n");
+        sql.append("    WHERE id = '").append(measure).append("'\n");
         
         // Add time range filter if specified
-        if (query.getFrom() > 0 && query.getTo() > 0) {
-            sql.append("      AND timestamp >= TIMESTAMP '").append(DateTimeUtil.format(query.getFrom())).append("'\n");
-            sql.append("      AND timestamp < TIMESTAMP '").append(DateTimeUtil.format(query.getTo())).append("'\n");
+        if (alignedFrom > 0 && alignedTo > 0) {
+            sql.append("      AND timestamp >= TIMESTAMP '").append(DateTimeUtil.format(alignedFrom)).append("'\n");
+            sql.append("      AND timestamp < TIMESTAMP '").append(DateTimeUtil.format(alignedTo)).append("'\n");
         }
         
         sql.append("  ) normalized_data\n");
