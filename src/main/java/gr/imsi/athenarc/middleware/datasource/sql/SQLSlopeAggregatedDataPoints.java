@@ -17,8 +17,6 @@ public class SQLSlopeAggregatedDataPoints implements AggregatedDataPoints {
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
             Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
         super();
-        // Implementation for SQL slope aggregated data points
-        // Query: Calculate slopes using LAG/LEAD functions or subqueries
     }
 
     @Override

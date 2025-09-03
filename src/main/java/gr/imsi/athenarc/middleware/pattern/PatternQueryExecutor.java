@@ -103,7 +103,10 @@ public class PatternQueryExecutor {
         List<Sketch> sketches = prepareSketchesWithCache(params, dataSource, cache, method);
         
         // Execute pattern matching based on method type
-        List<List<List<Sketch>>> matches = executePatternMatching(sketches, patternNodes, false);
+        List<List<List<Sketch>>> matches = executePatternMatching(sketches, patternNodes, 
+                                                                 MatchingStrategy.ALL, 
+                                                                 MatchSelectionStrategy.LONGEST,
+                                                                 AdvancementStrategy.AFTER_MATCH_START);
         
         // Return results
         return createPatternQueryResults(matches, startTime);
@@ -176,7 +179,10 @@ public class PatternQueryExecutor {
                 params.alignedFrom, params.alignedTo, params.timeUnit);
         
         // Perform pattern matching and return results
-        List<List<List<Sketch>>> matches = executePatternMatching(sketches, patternNodes, false);
+        List<List<List<Sketch>>> matches = executePatternMatching(sketches, patternNodes, 
+                                                                 MatchingStrategy.SELECTION, 
+                                                                 MatchSelectionStrategy.LONGEST,
+                                                                 AdvancementStrategy.AFTER_MATCH_START);
         return createPatternQueryResults(matches, startTime);
     }
 
@@ -352,27 +358,23 @@ public class PatternQueryExecutor {
         }
     }
     
-
-    /**
-     * Perform pattern matching on the prepared sketches and generate results.
-     * @param allowOverlapping if true, finds all possible matches including overlapping ones.
-     *                        if false, finds non-overlapping matches using a greedy approach.
-     */
     private static List<List<List<Sketch>>> executePatternMatching(List<Sketch> sketches, 
                                                          List<PatternNode> patternNodes, 
-                                                         boolean allowOverlapping) {
-        LOG.info("Starting search, over {} aggregate data.", sketches.size());
+                                                         MatchingStrategy matchingStrategy,
+                                                         MatchSelectionStrategy selectionStrategy,
+                                                         AdvancementStrategy advancementStrategy) {
+        LOG.info("Starting search over {} aggregate data with {} strategy, {} selection, and {} advancement strategies.", 
+                sketches.size(), matchingStrategy, selectionStrategy, advancementStrategy);
         NFASketchSearch sketchSearch = new NFASketchSearch(sketches, patternNodes);
         
         long startTime = System.currentTimeMillis();
-        List<List<List<Sketch>>> matches = sketchSearch.findAllMatches(allowOverlapping);
+        List<List<List<Sketch>>> matches = sketchSearch.findMatches(matchingStrategy, selectionStrategy, advancementStrategy);
         long endTime = System.currentTimeMillis();
 
-        LOG.info("Pattern matching completed in {} ms, found {} matches (overlapping={})", 
-                (endTime - startTime), matches.size(), allowOverlapping);
+        LOG.info("Pattern matching completed in {} ms, found {} matches (overlap={}, selection={}, advancement={})", 
+                (endTime - startTime), matches.size(), matchingStrategy, selectionStrategy, advancementStrategy);
         return matches;
     }
-    
     
     /**
      * Identifies missing intervals in the sketches that need to be fetched from the data source.

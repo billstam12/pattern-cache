@@ -1,13 +1,8 @@
 package gr.imsi.athenarc.middleware.pattern;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -388,7 +383,7 @@ public class MatchRecognizeQueryExecutor {
     }
 
     /**
-     * Extract pattern segments from PatternNodes, flattening groups and handling repetitions.
+     * Extract pattern segments from PatternNodes, preserving group structure for repetitions.
      */
     private static List<PatternSegment> extractPatternSegments(List<PatternNode> patternNodes) {
         List<PatternSegment> segments = new ArrayList<>();
@@ -427,22 +422,26 @@ public class MatchRecognizeQueryExecutor {
             GroupNode groupNode = (GroupNode) node;
             RepetitionFactor groupRepetition = groupNode.getRepetitionFactor();
             
-            // For GroupNode, extract all children and apply group repetition
+            // For GroupNode, extract all children with their own repetitions
             List<PatternNode> children = groupNode.getChildren();
             int childIndex = startIndex;
+            int groupId = startIndex; // Use start index as group identifier
             
             for (PatternNode child : children) {
                 if (child instanceof SingleNode) {
                     SingleNode singleChild = (SingleNode) child;
                     SegmentSpecification spec = singleChild.getSpec();
+                    RepetitionFactor childRepetition = singleChild.getRepetitionFactor();
                     
-                    // Create segment with group repetition
+                    // Create segment with child's own repetition and group information
                     PatternSegment segment = new PatternSegment(
                         childIndex,
                         getSegmentVariable(childIndex),
                         spec.getValueFilter(),
                         spec.getTimeFilter(),
-                        groupRepetition // Use group's repetition for all children
+                        childRepetition, // Use child's own repetition
+                        groupId, // Track which group this segment belongs to
+                        groupRepetition // Store group repetition for pattern generation
                     );
                     segments.add(segment);
                     childIndex++;
@@ -500,43 +499,92 @@ public class MatchRecognizeQueryExecutor {
     private static String generatePattern(List<PatternSegment> segments) {
         List<String> patternParts = new ArrayList<>();
         
-        for (PatternSegment segment : segments) {
-            String variable = segment.variable;
-            TimeFilter timeFilter = segment.timeFilter;
-            RepetitionFactor repetition = segment.repetitionFactor;
+        int i = 0;
+        while (i < segments.size()) {
+            PatternSegment segment = segments.get(i);
             
-            // First, apply the time filter as segment length ({n})
-            String segmentWithLength = variable;
-            if (timeFilter != null && !timeFilter.isTimeAny()) {
-                // For MATCH_RECOGNIZE, we need to determine the segment length
-                // If timeLow == timeHigh, use exact length {n}
-                // If they differ, we might use a range {min,max} but MATCH_RECOGNIZE syntax is limited
-                int timeLow = timeFilter.getTimeLow();
-                int timeHigh = timeFilter.getTimeHigh();
+            if (segment.groupId != null) {
+                // This segment is part of a group - collect all segments with the same group ID
+                List<PatternSegment> groupSegments = new ArrayList<>();
+                Integer currentGroupId = segment.groupId;
+                RepetitionFactor groupRepetition = segment.groupRepetitionFactor;
                 
-                if (timeLow == timeHigh) {
-                    // Exact length
-                    segmentWithLength = variable + "{" + timeLow + "}";
-                } else if (timeHigh == Integer.MAX_VALUE) {
-                    // Minimum length with no upper bound
-                    segmentWithLength = variable + "{" + timeLow + ",}";
-                } else {
-                    // Range with both min and max
-                    segmentWithLength = variable + "{" + timeLow + "," + timeHigh + "}";
+                // Collect all segments belonging to the same group
+                while (i < segments.size() && segments.get(i).groupId != null && 
+                       segments.get(i).groupId.equals(currentGroupId)) {
+                    groupSegments.add(segments.get(i));
+                    i++;
                 }
+                
+                // Generate pattern for the entire group
+                List<String> groupPatternParts = new ArrayList<>();
+                for (PatternSegment groupSegment : groupSegments) {
+                    String variable = groupSegment.variable;
+                    TimeFilter timeFilter = groupSegment.timeFilter;
+                    RepetitionFactor individualRepetition = groupSegment.repetitionFactor;
+                    
+                    // Apply individual segment's time filter and repetition
+                    String segmentPattern = generateSegmentPattern(variable, timeFilter, individualRepetition);
+                    groupPatternParts.add(segmentPattern);
+                }
+                
+                // Combine group segments and apply group repetition
+                String groupPattern = "(" + String.join(" ", groupPatternParts) + ")";
+                String groupKleeneOperator = convertRepetitionToSQL(groupRepetition);
+                if (!groupKleeneOperator.isEmpty() && !groupKleeneOperator.equals("{1}")) {
+                    groupPattern = groupPattern + groupKleeneOperator;
+                }
+                
+                patternParts.add(groupPattern);
+                
+            } else {
+                // This segment is not part of a group - handle individually
+                String variable = segment.variable;
+                TimeFilter timeFilter = segment.timeFilter;
+                RepetitionFactor repetition = segment.repetitionFactor;
+                
+                String segmentPattern = generateSegmentPattern(variable, timeFilter, repetition);
+                patternParts.add(segmentPattern);
+                i++;
             }
-            
-            // Then, apply kleene repetition operators (*, +, ?) if any
-            String kleeneOperator = convertRepetitionToSQL(repetition);
-            if (!kleeneOperator.isEmpty() && !kleeneOperator.equals("{1}")) {
-                // Apply kleene operator to the entire segment (including its length)
-                segmentWithLength = "(" + segmentWithLength + ")" + kleeneOperator;
-            }
-            
-            patternParts.add(segmentWithLength);
         }
         
         return String.join(" ", patternParts);
+    }
+    
+    /**
+     * Generate pattern string for a single segment with its time filter and repetition.
+     */
+    private static String generateSegmentPattern(String variable, TimeFilter timeFilter, RepetitionFactor repetition) {
+        // First, apply the time filter as segment length ({n})
+        String segmentWithLength = variable;
+        if (timeFilter != null && !timeFilter.isTimeAny()) {
+            // For MATCH_RECOGNIZE, we need to determine the segment length
+            // If timeLow == timeHigh, use exact length {n}
+            // If they differ, we might use a range {min,max} but MATCH_RECOGNIZE syntax is limited
+            int timeLow = timeFilter.getTimeLow();
+            int timeHigh = timeFilter.getTimeHigh();
+            
+            if (timeLow == timeHigh) {
+                // Exact length
+                segmentWithLength = variable + "{" + timeLow + "}";
+            } else if (timeHigh == Integer.MAX_VALUE) {
+                // Minimum length with no upper bound
+                segmentWithLength = variable + "{" + timeLow + ",}";
+            } else {
+                // Range with both min and max
+                segmentWithLength = variable + "{" + timeLow + "," + timeHigh + "}";
+            }
+        }
+        
+        // Then, apply kleene repetition operators (*, +, ?) if any
+        String kleeneOperator = convertRepetitionToSQL(repetition);
+        if (!kleeneOperator.isEmpty() && !kleeneOperator.equals("{1}")) {
+            // Apply kleene operator to the entire segment (including its length)
+            segmentWithLength = "(" + segmentWithLength + ")" + kleeneOperator;
+        }
+        
+        return segmentWithLength;
     }
 
     /**
@@ -616,6 +664,8 @@ public class MatchRecognizeQueryExecutor {
         final ValueFilter valueFilter;
         final TimeFilter timeFilter;        // TimeFilter determines segment length ({n})
         final RepetitionFactor repetitionFactor; // RepetitionFactor for kleene operators (*, +, ?)
+        final Integer groupId; // Group ID if this segment is part of a group (null otherwise)
+        final RepetitionFactor groupRepetitionFactor; // Group repetition factor (null if not part of a group)
         
         PatternSegment(int index, String variable, ValueFilter valueFilter, 
                       TimeFilter timeFilter, RepetitionFactor repetitionFactor) {
@@ -623,6 +673,19 @@ public class MatchRecognizeQueryExecutor {
             this.valueFilter = valueFilter;
             this.timeFilter = timeFilter;
             this.repetitionFactor = repetitionFactor;
+            this.groupId = null;
+            this.groupRepetitionFactor = null;
+        }
+        
+        PatternSegment(int index, String variable, ValueFilter valueFilter, 
+                      TimeFilter timeFilter, RepetitionFactor repetitionFactor,
+                      Integer groupId, RepetitionFactor groupRepetitionFactor) {
+            this.variable = variable;
+            this.valueFilter = valueFilter;
+            this.timeFilter = timeFilter;
+            this.repetitionFactor = repetitionFactor;
+            this.groupId = groupId;
+            this.groupRepetitionFactor = groupRepetitionFactor;
         }
     }
 }

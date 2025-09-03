@@ -167,12 +167,12 @@ public class Experiments {
                 Preconditions.checkNotNull(method, "You must specify a method for aggregate queries.");
                 Preconditions.checkArgument(method.equals("firstLast") || method.equals("ols"),
                     "Method must be either 'firstLast' or 'ols' for aggregate queries.");
-                return new ExperimentConfig("aggregate", false, "m4", method);
+                return new ExperimentConfig(method, false, "m4", method);
             case "timematchrecognizequeries":
                 Preconditions.checkNotNull(method, "You must specify a method for match recognize queries.");
                 Preconditions.checkArgument(method.equals("firstLast") || method.equals("ols"),
                     "Method must be either 'firstLast' or 'ols' for match recognize queries.");
-                return new ExperimentConfig("matchRecognize", false, "m4", method);
+                return new ExperimentConfig(method, false, "m4", method);
             default:
                 return null;
         }
@@ -279,7 +279,7 @@ public class Experiments {
             
             if (query instanceof PatternQuery) {
                 logMatchesToFile((PatternQuery) query, 
-                    (PatternQueryResults) queryResults, config, type, dataSource, outFolder);
+                    (PatternQueryResults) queryResults, config, mode, type, dataSource, outFolder);
             }
         } catch (Exception e) {
             LOG.error("Error during query execution: ", e);
@@ -319,15 +319,15 @@ public class Experiments {
         
         // Non-cache execution
         if (query instanceof VisualQuery) {
-            return null;
-            // switch (config.visualMethod) {
-            //     case "raw":
-            //         return VisualUtils.executeRawQuery((VisualQuery) query, dataSource);
-            //     case "m4":
-            //         return VisualUtils.executeM4Query((VisualQuery) query, dataSource);
-            //     default:
-            //         throw new IllegalArgumentException("Unknown method: " + config.visualMethod);
-            // }
+            // return null;
+            switch (config.visualMethod) {
+                case "raw":
+                    return VisualUtils.executeRawQuery((VisualQuery) query, dataSource);
+                case "m4":
+                    return VisualUtils.executeM4Query((VisualQuery) query, dataSource);
+                default:
+                    throw new IllegalArgumentException("Unknown method: " + config.visualMethod);
+            }
         } else if (query instanceof PatternQuery) {
             return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, config.methodName, config.patternMethod);
         } else {
@@ -533,7 +533,7 @@ public class Experiments {
     /**
      * Log pattern matches to a file for later comparison
      */
-    public static void logMatchesToFile(PatternQuery query, PatternQueryResults patternQueryResults, ExperimentConfig config, String type, DataSource dataSource, String outputFolder) {
+    public static void logMatchesToFile(PatternQuery query, PatternQueryResults patternQueryResults, ExperimentConfig config, String mode, String type, DataSource dataSource, String outputFolder) {
 
         List<List<List<Sketch>>> matches = patternQueryResults.getMatches();
         long executionTime = patternQueryResults.getExecutionTime();
@@ -546,23 +546,23 @@ public class Experiments {
                 Files.createDirectories(patternMatchesDir);
             }
           
-            Path methodDir = Paths.get(outputFolder, "pattern_matches", config.methodName);
-            if (!Files.exists(methodDir)) {
-                Files.createDirectories(methodDir);
+            Path modeDir = Paths.get(outputFolder, "pattern_matches", mode);
+            if (!Files.exists(modeDir)) {
+                Files.createDirectories(modeDir);
             }
 
-            Path patternMethodDir = Paths.get(outputFolder, "pattern_matches", config.methodName, config.patternMethod);
+            Path patternMethodDir = Paths.get(outputFolder, "pattern_matches", mode, config.patternMethod);
             if (!Files.exists(patternMethodDir)) {
                 Files.createDirectories(patternMethodDir);
             }
 
-            Path dbDir = Paths.get(outputFolder, "pattern_matches", config.methodName, config.patternMethod, type);
+            Path dbDir = Paths.get(outputFolder, "pattern_matches", mode, config.patternMethod, type);
             if (!Files.exists(dbDir)) {
                 Files.createDirectories(dbDir);
             }
 
             // Create specific directory if it doesn't exist
-            Path logDir = Paths.get(outputFolder,"pattern_matches", config.methodName, config.patternMethod, type, dataSource.getDataset().getTableName());
+            Path logDir = Paths.get(outputFolder,"pattern_matches", mode, config.patternMethod, type, dataSource.getDataset().getTableName());
             if (!Files.exists(logDir)) {
                 Files.createDirectories(logDir);
             }

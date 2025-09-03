@@ -49,7 +49,7 @@ public class PredefinedPattern {
             return; // Already initialized
         }
         
-        int low = 20;
+        int low = 25;
         int high = 25;
         // Pattern 1: Decreasing followed by increasing (V-shape)
         List<PatternNode> pattern2 = new ArrayList<>();
@@ -95,23 +95,21 @@ public class PredefinedPattern {
         registerPattern(new PredefinedPattern(2, "Plateau", "A stable plateau with increasing and decreasing edges", pattern3));
         
         // Pattern 3: Oscillating pattern
-        List<PatternNode> upDown = new ArrayList<>();
-        upDown.add(new SingleNode(
+        List<PatternNode> pattern4 = new ArrayList<>();
+        pattern4.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, low, high),
                 ValueFilter.largeIncrease()
             ),
             RepetitionFactor.exactly(1)
         ));
-        upDown.add(new SingleNode(
+        pattern4.add(new SingleNode(
             new SegmentSpecification(
                 new TimeFilter(false, low, high),
                 ValueFilter.largeDecrease()
             ),
             RepetitionFactor.exactly(1)
         ));
-        List<PatternNode> pattern4 = new ArrayList<>();
-        pattern4.add(new GroupNode(upDown, RepetitionFactor.range(1, 2)));
         registerPattern(new PredefinedPattern(3, "Oscillating", "An oscillating pattern of repeated up-down movements", pattern4));
     }
     

@@ -8,6 +8,9 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import gr.imsi.athenarc.middleware.pattern.AdvancementStrategy;
+import gr.imsi.athenarc.middleware.pattern.MatchingStrategy;
+import gr.imsi.athenarc.middleware.pattern.MatchSelectionStrategy;
 import gr.imsi.athenarc.middleware.pattern.PatternQueryManager;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
@@ -33,15 +36,18 @@ public class NFASketchSearch {
      * Builds the NFA, then runs BFS to collect all matches.
      */
     public List<List<List<Sketch>>> findAllMatches() {
-        return findAllMatches(false);
+        return findMatches(MatchingStrategy.SELECTION, MatchSelectionStrategy.LONGEST, AdvancementStrategy.AFTER_MATCH_END);
     }
     
     /**
-     * Builds the NFA, then runs BFS to collect matches.
-     * @param allowOverlapping if true, finds all possible matches including overlapping ones.
-     *                        if false, finds non-overlapping matches using a greedy approach.
+     * Builds the NFA, then runs search to collect matches using the specified strategies.
+     * @param matchingStrategy Strategy for handling matches
+     * @param selectionStrategy Strategy for selecting among multiple matches at the same position
+     * @param advancementStrategy Strategy for advancing after finding a match (only used when overlapStrategy is NO_OVERLAPS)
      */
-    public List<List<List<Sketch>>> findAllMatches(boolean allowOverlapping) {
+    public List<List<List<Sketch>>> findMatches(MatchingStrategy matchingStrategy, 
+                                               MatchSelectionStrategy selectionStrategy,
+                                               AdvancementStrategy advancementStrategy) {
         if (sketches.isEmpty() || patternNodes.isEmpty()) {
             return new ArrayList<>();
         }
@@ -50,7 +56,7 @@ public class NFASketchSearch {
         NFA nfa = buildNfaFromPattern(patternNodes);
         // printNfaGraphically();
         
-        if (allowOverlapping) {
+        if (matchingStrategy == MatchingStrategy.ALL) {
             // 2a) Run BFS to find ALL successful paths (original behavior)
             List<List<List<Sketch>>> allMatches = new ArrayList<>();
             for (int i = 0; i < sketches.size(); i++) {
@@ -58,8 +64,8 @@ public class NFASketchSearch {
             }
             return allMatches;
         } else {
-            // 2b) Run greedy search to find non-overlapping matches
-            return findNonOverlappingMatches(nfa, sketches);
+            // 2b) Run search to find matches with selection
+            return finMatchesWithSelection(nfa, sketches, selectionStrategy, advancementStrategy);
         }
     }
     
@@ -419,8 +425,8 @@ public class NFASketchSearch {
         TimeFilter timeFilter = spec.getTimeFilter();
         ValueFilter valueFilter = spec.getValueFilter();
     
-        int minSketches = Math.max(2, timeFilter.getTimeLow());
-        int maxSketches = timeFilter.getTimeHigh() + 1;
+        int minSketches = timeFilter.getTimeLow();
+        int maxSketches = timeFilter.getTimeHigh();
         LOG.debug("Trying to match segment at index {}: minSketches={}, maxSketches={}", startIndex, minSketches, maxSketches);
         
         // First, check if the starting sketch has data
@@ -468,7 +474,6 @@ public class NFASketchSearch {
     // ---------------------------
     // Graphical Print Methods
     // ---------------------------
-    
     public String toDotFormat() {
         NFA nfa = buildNfaFromPattern(patternNodes);
         StringBuilder sb = new StringBuilder();
@@ -506,39 +511,92 @@ public class NFASketchSearch {
     }
     
     /**
-     * Finds non-overlapping matches using a greedy approach.
-     * Once a match is found, the algorithm skips ahead to avoid overlapping matches.
+     * Finds matches using the specified selection strategy.
+     * When multiple matches start at the same position, selects based on the strategy.
      */
-    private List<List<List<Sketch>>> findNonOverlappingMatches(NFA nfa, List<Sketch> sketches) {
-        List<List<List<Sketch>>> nonOverlappingMatches = new ArrayList<>();
+    private List<List<List<Sketch>>> finMatchesWithSelection(NFA nfa, List<Sketch> sketches, 
+                                                              MatchSelectionStrategy selectionStrategy,
+                                                              AdvancementStrategy advancementStrategy) {
+        List<List<List<Sketch>>> matches = new ArrayList<>();
         int currentIndex = 0;
         
         while (currentIndex < sketches.size()) {
-            // Try to find a match starting from currentIndex
+            // Try to find all matches starting from currentIndex
             List<List<List<Sketch>>> matchesFromCurrentIndex = simulateNfaAllMatches(nfa, sketches, currentIndex);
             
             if (!matchesFromCurrentIndex.isEmpty()) {
                 // Found at least one match starting from currentIndex
-                // Select the first match (greedy approach) 
-                List<List<Sketch>> selectedMatch = matchesFromCurrentIndex.get(0);
-                nonOverlappingMatches.add(selectedMatch);
+                // Select match based on strategy
+                List<List<Sketch>> selectedMatch = selectMatch(matchesFromCurrentIndex, selectionStrategy);
+                matches.add(selectedMatch);
                 
-                // Calculate the end index of this match to avoid overlaps
-                int matchLength = calculateMatchLength(selectedMatch);
-                currentIndex += matchLength;
+                // Advance based on the advancement strategy
+                int advancement = calculateAdvancement(selectedMatch, advancementStrategy);
+                currentIndex += advancement;
                 
-                LOG.debug("Found match of length {} at index {}, next search starts at {}", 
-                         matchLength, currentIndex - matchLength, currentIndex);
+                LOG.debug("Found match of length {} at index {} using {} selection, advanced by {} using {} strategy, next search starts at {}", 
+                         calculateMatchLength(selectedMatch), currentIndex - advancement, 
+                         selectionStrategy, advancement, advancementStrategy, currentIndex);
             } else {
                 // No match found at currentIndex, move to next position
                 currentIndex++;
             }
         }
         
-        LOG.info("Found {} non-overlapping matches", nonOverlappingMatches.size());
-        return nonOverlappingMatches;
+        LOG.info("Found {} selection matches using {} selection and {} advancement strategies", 
+                matches.size(), selectionStrategy, advancementStrategy);
+        return matches;
     }
     
+    /**
+     * Selects a match from a list of possible matches based on the specified strategy.
+     */
+    private List<List<Sketch>> selectMatch(List<List<List<Sketch>>> matches, 
+                                          MatchSelectionStrategy strategy) {
+        if (matches.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        List<List<Sketch>> selectedMatch;
+        
+        switch (strategy) {            
+            case SHORTEST:
+                selectedMatch = matches.get(0);
+                int shortestLength = calculateMatchLength(selectedMatch);
+                
+                for (List<List<Sketch>> match : matches) {
+                    int currentLength = calculateMatchLength(match);
+                    if (currentLength < shortestLength) {
+                        selectedMatch = match;
+                        shortestLength = currentLength;
+                    }
+                }
+                LOG.debug("Selected shortest match with length {} out of {} possible matches", 
+                         shortestLength, matches.size());
+                break;
+                
+            case LONGEST:
+                selectedMatch = matches.get(0);
+                int longestLength = calculateMatchLength(selectedMatch);
+                
+                for (List<List<Sketch>> match : matches) {
+                    int currentLength = calculateMatchLength(match);
+                    if (currentLength > longestLength) {
+                        selectedMatch = match;
+                        longestLength = currentLength;
+                    }
+                }
+                LOG.debug("Selected longest match with length {} out of {} possible matches", 
+                         longestLength, matches.size());
+                break;
+                
+            default:
+                throw new IllegalArgumentException("Unknown selection strategy: " + strategy);
+        }
+        
+        return selectedMatch;
+    }
+
     /**
      * Calculates the total length (number of sketches) consumed by a match.
      */
@@ -548,5 +606,19 @@ public class NFASketchSearch {
             totalLength += segment.size();
         }
         return totalLength;
+    }
+    
+    /**
+     * Calculates how much to advance the search position based on the advancement strategy.
+     */
+    private int calculateAdvancement(List<List<Sketch>> match, AdvancementStrategy strategy) {
+        switch (strategy) {
+            case AFTER_MATCH_END:
+                return calculateMatchLength(match);
+            case AFTER_MATCH_START:
+                return 1;
+            default:
+                throw new IllegalArgumentException("Unknown advancement strategy: " + strategy);
+        }
     }
 }
