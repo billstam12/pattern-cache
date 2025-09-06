@@ -31,7 +31,7 @@ public class CacheUtils {
                 newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
                 timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
                 break;
-            case "minmax":
+            case "minMax":
             case "visual":
             case "approxOls":
                 newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));

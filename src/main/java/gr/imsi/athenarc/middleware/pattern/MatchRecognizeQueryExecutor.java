@@ -226,20 +226,12 @@ public class MatchRecognizeQueryExecutor {
         sql.append("    SELECT\n");
         sql.append("      ").append(bucketingExpression).append(" AS bucket_start,\n");
         sql.append("      value,\n");
-        sql.append("      -- Normalize timestamp to 0-1 range across entire query time range\n");
-        
- 
-        // Add time range normalization based on each bucket
-        if (alignedFrom > 0 && alignedTo > 0) {
-            // Calculate bucket interval in milliseconds
-            long bucketIntervalMs = timeUnit.toDuration().toMillis();
-            sql.append("      FLOOR((to_unixtime(timestamp) * 1000 - ").append(alignedFrom).append(") / ").append(bucketIntervalMs).append(") + \n");
-            sql.append("      ((to_unixtime(timestamp) * 1000 - ").append(alignedFrom).append(") % ").append(bucketIntervalMs).append(") / ").append(bucketIntervalMs).append(".0 AS normalized_time\n");
-        } else {
-            // If no time bounds specified, calculate relative to dataset min/max with window indexing
-            sql.append("      FLOOR((to_unixtime(timestamp AT TIME ZONE 'UTC') - (SELECT MIN(to_unixtime(timestamp AT TIME ZONE 'UTC')) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("')) * 1000 / ").append(timeUnit.toDuration().toMillis()).append(") + \n");
-            sql.append("      ((to_unixtime(timestamp AT TIME ZONE 'UTC') - (SELECT MIN(to_unixtime(timestamp AT TIME ZONE 'UTC')) FROM ").append(tableName).append(" WHERE id = 'value_").append(measureId).append("')) * 1000 % ").append(timeUnit.toDuration().toMillis()).append(") / ").append(timeUnit.toDuration().toMillis()).append(".0 AS normalized_time\n");
-        }
+        sql.append("      -- Normalize timestamp to 0-1 range inside the bucket, and then offset by the buckets place inside the time series\n");
+
+        long bucketIntervalMs = timeUnit.toDuration().toMillis();
+        long alignedStart = DateTimeUtil.alignToTimeUnitBoundary(dataSource.getDataset().getTimeRange().getFrom(), timeUnit, true);
+        sql.append("      FLOOR((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") / ").append(bucketIntervalMs).append(") + \n");
+        sql.append("      ((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") % ").append(bucketIntervalMs).append(") / ").append(bucketIntervalMs).append(".0 AS normalized_time\n");
         
         sql.append("    FROM ").append(tableName).append("\n");
         sql.append("    WHERE id = '").append(measure).append("'\n");

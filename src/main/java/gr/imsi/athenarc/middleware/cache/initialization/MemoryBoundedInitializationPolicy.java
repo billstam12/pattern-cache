@@ -146,7 +146,7 @@ public class MemoryBoundedInitializationPolicy implements CacheInitializationPol
             break;
         case "visual":
         case "approxOls":
-        case "minmax":
+        case "minMax":
             aggSize = 3; // min, max, count
             break;
         case "ols":

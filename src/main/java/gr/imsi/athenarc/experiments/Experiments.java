@@ -145,7 +145,7 @@ public class Experiments {
             LOG.error("Unknown mode: {}. Supported modes are: timeCacheQueries, timeRawQueries, timeAggregateQueries, timeMinMaxCacheQueries, timeMatchRecognizeQueries, generate", mode);
             return;
         }
-        initOutput(config.methodName);
+        initOutput(config.patternMethod);
         runTimingExperimentWithConfig(config);
     }
 
@@ -156,36 +156,36 @@ public class Experiments {
                 Preconditions.checkArgument(method.equals("m4") 
                     || method.equals("m4Inf")
                     || method.equals("approxOls") 
-                    || method.equals("minmax"), 
-                    "Method must be either 'm4', 'approxOls' or 'minmax' for cache queries.");
-                return new ExperimentConfig(method, true, method, method);
+                    || method.equals("minMax"), 
+                    "Method must be either 'm4', 'approxOls' or 'minMax' for cache queries.");
+                return new ExperimentConfig("cache", true, method, method);
             case "timeminmaxcachequeries":
-                return new ExperimentConfig("minMaxCache", true, "minmax", "firstLastInf");
+                return new ExperimentConfig("minMaxCache", true, "minMax", "firstLastInf");
             case "timerawqueries":
                 return new ExperimentConfig("raw", false, "raw", null);
             case "timeaggregatequeries":
                 Preconditions.checkNotNull(method, "You must specify a method for aggregate queries.");
                 Preconditions.checkArgument(method.equals("firstLast") || method.equals("ols"),
                     "Method must be either 'firstLast' or 'ols' for aggregate queries.");
-                return new ExperimentConfig(method, false, "m4", method);
+                return new ExperimentConfig("aggregate", false, "m4", method);
             case "timematchrecognizequeries":
                 Preconditions.checkNotNull(method, "You must specify a method for match recognize queries.");
                 Preconditions.checkArgument(method.equals("firstLast") || method.equals("ols"),
                     "Method must be either 'firstLast' or 'ols' for match recognize queries.");
-                return new ExperimentConfig(method, false, "m4", method);
+                return new ExperimentConfig("matchRecognize", false, "m4", method);
             default:
                 return null;
         }
     }
 
     private static class ExperimentConfig {
-        final String methodName;
+        final String type;
         final boolean useCache;
         final String visualMethod;
         final String patternMethod;
 
-        ExperimentConfig(String methodName, boolean useCache, String visualMethod, String patternMethod) {
-            this.methodName = methodName;
+        ExperimentConfig(String type, boolean useCache, String visualMethod, String patternMethod) {
+            this.type = type;
             this.useCache = useCache;
             this.visualMethod = visualMethod;
             this.patternMethod = patternMethod;
@@ -194,7 +194,7 @@ public class Experiments {
 
     private void runTimingExperimentWithConfig(ExperimentConfig config) throws IOException, SQLException {
         for (int run = 0; run < runs; run++) {
-            String resultsPath = Paths.get(outFolder, mode, config.methodName, type, table, "run_" + run).toString();
+            String resultsPath = Paths.get(outFolder, mode, config.patternMethod, type, table, "run_" + run).toString();
             FileUtil.build(resultsPath);
             File outFile = Paths.get(resultsPath, "results.csv").toFile();
             
@@ -215,7 +215,7 @@ public class Experiments {
                     cacheManager = CacheManager.builder(dataSource)
                         .withMaxMemory(maxMemoryBytes)
                         .withMethod(cacheMethod)
-                        .withCalendarAlignment(!config.methodName.equalsIgnoreCase("minMaxCache"))
+                        .withCalendarAlignment(!config.type.equalsIgnoreCase("minMaxCache"))
                         .build();
                     
                     // Initialize cache if specified
@@ -303,14 +303,14 @@ public class Experiments {
         
         // cache executions
         if (config.useCache) {
-            if(!config.methodName.equals("minMaxCache"))
+            if(!config.type.equals("minMaxCache"))
                 return cacheManager.executeQuery(query);
             else {
                 // use cache only for visualization
                 if (query instanceof VisualQuery) {
                     return cacheManager.executeQuery(query);
                 } else if (query instanceof PatternQuery) {
-                    return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, config.methodName, config.patternMethod);
+                    return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, config.type, config.patternMethod);
                 } else {
                     throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
                 }
@@ -329,7 +329,7 @@ public class Experiments {
                     throw new IllegalArgumentException("Unknown method: " + config.visualMethod);
             }
         } else if (query instanceof PatternQuery) {
-            return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, config.methodName, config.patternMethod);
+            return PatternQueryExecutor.executePatternQuery((PatternQuery) query, dataSource, config.type, config.patternMethod);
         } else {
             throw new IllegalArgumentException("Unknown query type: " + query.getClass().getName());
         }
@@ -346,7 +346,7 @@ public class Experiments {
         csvWriter.addValue(DateTimeUtil.format(query.getFrom()));
         csvWriter.addValue(DateTimeUtil.format(query.getTo()));
         csvWriter.addValue(typedQuery.getUserOpType());
-        csvWriter.addValue(config.useCache ? initTime : -1);
+        csvWriter.addValue(config.useCache ? (initTime > 0 ? initTime : "")  : "");
         csvWriter.addValue(time);
         
         if (queryResults != null && config.useCache) {

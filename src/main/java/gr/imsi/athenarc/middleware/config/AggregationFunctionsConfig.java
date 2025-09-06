@@ -13,14 +13,14 @@ public class AggregationFunctionsConfig {
     /**
      * Gets the appropriate set of aggregate functions based on the specified type.
      * 
-     * @param type The type of aggregation ("minmax" or "m4*")
+     * @param type The type of aggregation ("minMax" or "m4Inf" or "firstLast" or "approxOls")
      * @return Set of aggregation function names
      */
     public static Set<String> getAggregateFunctions(String type) {
         switch (type){
             case "visual":
             case "approxOls":
-            case "minmax": 
+            case "minMax":
                 return MIN_MAX_FUNCTIONS;
             case "m4Inf":
             case "m4":

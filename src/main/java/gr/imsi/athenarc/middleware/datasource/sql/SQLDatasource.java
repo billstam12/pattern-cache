@@ -56,7 +56,7 @@ public class SQLDatasource implements DataSource {
     public AggregatedDataPoints getSlopeAggregates(long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
             Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
-        return new SQLSlopeAggregatedDataPoints(sqlQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+        throw new UnsupportedOperationException("Slope aggregates not supported in SQLDatasource yet.");
     }
 
     public QueryExecutor getQueryExecutor() {

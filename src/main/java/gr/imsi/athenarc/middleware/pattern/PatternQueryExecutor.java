@@ -64,7 +64,7 @@ public class PatternQueryExecutor {
                 case "m4Inf":
                     sketch = new FirstLastSketch(sketchStart, sketchEnd);
                     break;
-                case "minmax":
+                case "minMax":
                     sketch = new ApproxFirstLastSketch(sketchStart, sketchEnd);
                     break;
                 case "approxOls":
@@ -90,7 +90,7 @@ public class PatternQueryExecutor {
      * @param query The pattern query to execute
      * @param dataSource The data source to use for fetching missing data
      * @param cache The cache to check for existing data and to update with new data
-     * @param method The method type (e.g., "m4Inf", "m4", "minmax", etc.)
+     * @param method The method type (e.g., "m4Inf", "m4", "minMax", etc.)
      * @return Pattern query results
      */
     public static PatternQueryResults executePatternQueryWithCache(PatternQuery query, DataSource dataSource, 
@@ -288,7 +288,7 @@ public class PatternQueryExecutor {
             case "m4Inf":
                 existingSpans = cache.getCompatibleSpans(measure, alignedTimeRange, timeUnit);
                 break;
-            case "minmax":
+            case "minMax":
             case "approxOls":
                 existingSpans = cache.getOverlappingSpansForVisualization(measure, alignedTimeRange, timeUnit);
                 break;
@@ -320,7 +320,7 @@ public class PatternQueryExecutor {
 
         int divider = 1;
 
-        if(method.equalsIgnoreCase("minmax")
+        if(method.equalsIgnoreCase("minMax")
             || method.equalsIgnoreCase("approxOls")) {
             divider = aggFactorService.getAggFactor(measure);
         } 
