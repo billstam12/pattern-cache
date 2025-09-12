@@ -94,29 +94,81 @@ public class PatternQueryExecutor {
      * @return Pattern query results
      */
     public static PatternQueryResults executePatternQueryWithCache(PatternQuery query, DataSource dataSource, 
-                                                                  TimeSeriesCache cache, String method) {        
+                                                                  TimeSeriesCache cache, String method, boolean adaptation) {        
         long startTime = System.currentTimeMillis();
 
         // Extract query parameters and prepare sketches
         QueryParams params = extractQueryParams(query);
         List<PatternNode> patternNodes = query.getPatternNodes();
-        List<Sketch> sketches = prepareSketchesWithCache(params, dataSource, cache, method);
-        
+        List<Sketch> sketches = prepareSketchesWithCache(params, dataSource, cache, method, adaptation);
+
         // Execute pattern matching based on method type
-        List<List<List<Sketch>>> matches = executePatternMatching(sketches, patternNodes, 
-                                                                 MatchingStrategy.ALL, 
-                                                                 MatchSelectionStrategy.LONGEST,
-                                                                 AdvancementStrategy.AFTER_MATCH_START);
-        
+        List<PatternMatch> matches = executePatternMatching(sketches, patternNodes,
+                MatchingStrategy.ALL,
+                MatchSelectionStrategy.LONGEST,
+                AdvancementStrategy.AFTER_MATCH_START);
+
+        double totalMatchError = 0.0;
+        for (PatternMatch match : matches) {
+            double avgError = match.getAverageErrorMargin();
+            LOG.debug("Average error: {}", avgError);
+            totalMatchError += avgError;
+        }
+        double overallAvgError = matches.isEmpty() ? 0.0 : totalMatchError / matches.size();
+        // Only apply the aggFactor doubling logic for minMax and approxOls
+        if (adaptation && overallAvgError > (1.0 - params.accuracy)) {
+            LOG.warn("Overall average error {} exceeds query acceptable error {}. Doubling aggFactor and refetching...", overallAvgError, 1.0 - params.accuracy);
+            AggregationFactorService aggFactorService = AggregationFactorService.getInstance();
+            int currentAggFactor = aggFactorService.getAggFactor(params.measure);
+            int doubledAggFactor = currentAggFactor * 2;
+            aggFactorService.setAggFactor(params.measure, doubledAggFactor);
+
+            // Re-fetch data with doubled aggFactor
+            List<Sketch> sketchesRefetch = generateSketches(params.alignedFrom, params.alignedTo, params.timeUnit, method);
+            fetchMissingDataAndUpdateCache(sketchesRefetch, dataSource, cache, method, params.measure, params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
+            matches = executePatternMatching(sketchesRefetch, patternNodes,
+                    MatchingStrategy.ALL,
+                    MatchSelectionStrategy.LONGEST,
+                    AdvancementStrategy.AFTER_MATCH_START);
+
+            totalMatchError = 0.0;
+            for (PatternMatch match : matches) {
+                double avgError = match.getAverageErrorMargin();
+                LOG.debug("[Refetch] Average error: {}", avgError);
+                totalMatchError += avgError;
+            }
+            overallAvgError = matches.isEmpty() ? 0.0 : totalMatchError / matches.size();
+
+            if (overallAvgError > (1.0 - params.accuracy)) {
+                LOG.warn("[Refetch] Overall average error {} still exceeds query acceptable error {}. Fetching firstLast/ols data...", overallAvgError, 1.0 - params.accuracy);
+                // Fallback to firstLast or ols depending on method
+                String fallbackMethod = "minMax".equalsIgnoreCase(method) ? "firstLast" : "ols";
+                List<Sketch> fallbackSketches = prepareAndPopulateSketches(dataSource, fallbackMethod, params.measure, params.alignedFrom, params.alignedTo, params.timeUnit);
+                matches = executePatternMatching(fallbackSketches, patternNodes,
+                        MatchingStrategy.ALL,
+                        MatchSelectionStrategy.LONGEST,
+                        AdvancementStrategy.AFTER_MATCH_START);
+                totalMatchError = 0.0;
+                for (PatternMatch match : matches) {
+                    double avgError = match.getAverageErrorMargin();
+                    LOG. info("[Fallback] Average error: {}", avgError);
+                    totalMatchError += avgError;
+                }
+                overallAvgError = matches.isEmpty() ? 0.0 : totalMatchError / matches.size();
+                if (overallAvgError > params.accuracy) {
+                    LOG.warn("[Fallback] Overall average error {} still exceeds query accuracy {} after fallback.", overallAvgError, params.accuracy);
+                }
+            }
+        }
         // Return results
-        return createPatternQueryResults(matches, startTime);
+        return createPatternQueryResultsFromMatches(matches, startTime);
     }
 
     /**
      * Prepare sketches with cache support - handles sketch creation, cache population, and missing data fetching
      */
     private static List<Sketch> prepareSketchesWithCache(QueryParams params, DataSource dataSource, 
-                                                        TimeSeriesCache cache, String method) {
+                                                        TimeSeriesCache cache, String method, boolean adaptation) {
         // Create sketches for non-timestamped pattern matching (used with cache)
         List<Sketch> sketches = generateSketches(
                 params.alignedFrom, params.alignedTo, params.timeUnit, method);
@@ -139,9 +191,9 @@ public class PatternQueryExecutor {
     }
 
     /**
-     * Create pattern query results with execution time
+     * Create pattern query results with execution time using new PatternMatch format
      */
-    private static PatternQueryResults createPatternQueryResults(List<List<List<Sketch>>> matches, long startTime) {
+    private static PatternQueryResults createPatternQueryResultsFromMatches(List<PatternMatch> matches, long startTime) {
         long endTime = System.currentTimeMillis();
         long executionTime = endTime - startTime;
         LOG.info("Pattern query executed in {} ms", executionTime);
@@ -151,6 +203,7 @@ public class PatternQueryExecutor {
         patternQueryResults.setExecutionTime(executionTime);
         return patternQueryResults;
     }
+ 
     
     /**
      * Execute a pattern query directly without using cache.
@@ -179,11 +232,11 @@ public class PatternQueryExecutor {
                 params.alignedFrom, params.alignedTo, params.timeUnit);
         
         // Perform pattern matching and return results
-        List<List<List<Sketch>>> matches = executePatternMatching(sketches, patternNodes, 
+        List<PatternMatch> matches = executePatternMatching(sketches, patternNodes, 
                                                                  MatchingStrategy.SELECTION, 
                                                                  MatchSelectionStrategy.LONGEST,
-                                                                 AdvancementStrategy.AFTER_MATCH_START);
-        return createPatternQueryResults(matches, startTime);
+                                                                 AdvancementStrategy.AFTER_MATCH_START);                     
+        return createPatternQueryResultsFromMatches(matches, startTime);
     }
 
 
@@ -305,13 +358,12 @@ public class PatternQueryExecutor {
     /**
      * Fetch missing data from data source and update cache.
      */
-    private static void fetchMissingDataAndUpdateCache(List<Sketch> sketches, DataSource dataSource, 
-                                                   TimeSeriesCache cache,  String method, int measure, 
-                                                   long alignedFrom, long alignedTo, 
-                                                   AggregateInterval timeUnit, 
-                                                   ViewPort viewPort
-                                                ) {
-                                            
+    private static void fetchMissingDataAndUpdateCache(List<Sketch> sketches, DataSource dataSource,
+                                                   TimeSeriesCache cache, String method, int measure,
+                                                   long alignedFrom, long alignedTo,
+                                                   AggregateInterval timeUnit,
+                                                   ViewPort viewPort) {
+
         // Identify unfilled sketches/intervals
         //round down        
         List<TimeInterval> missingIntervals = identifyMissingIntervals(sketches, alignedFrom, alignedTo);
@@ -358,17 +410,19 @@ public class PatternQueryExecutor {
         }
     }
     
-    private static List<List<List<Sketch>>> executePatternMatching(List<Sketch> sketches, 
+    private static List<PatternMatch> executePatternMatching(List<Sketch> sketches, 
                                                          List<PatternNode> patternNodes, 
                                                          MatchingStrategy matchingStrategy,
                                                          MatchSelectionStrategy selectionStrategy,
                                                          AdvancementStrategy advancementStrategy) {
         LOG.info("Starting search over {} aggregate data with {} strategy, {} selection, and {} advancement strategies.", 
                 sketches.size(), matchingStrategy, selectionStrategy, advancementStrategy);
-        NFASketchSearch sketchSearch = new NFASketchSearch(sketches, patternNodes);
         
+        // Use the new SketchSearch implementation
+        NFASketchSearch sketchSearch = new NFASketchSearch(sketches, patternNodes);
+
         long startTime = System.currentTimeMillis();
-        List<List<List<Sketch>>> matches = sketchSearch.findMatches(matchingStrategy, selectionStrategy, advancementStrategy);
+        List<PatternMatch> matches = sketchSearch.findMatches(matchingStrategy, selectionStrategy, advancementStrategy);
         long endTime = System.currentTimeMillis();
 
         LOG.info("Pattern matching completed in {} ms, found {} matches (overlap={}, selection={}, advancement={})", 

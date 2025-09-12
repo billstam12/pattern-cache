@@ -20,6 +20,7 @@ import gr.imsi.athenarc.middleware.query.pattern.SingleNode;
 import gr.imsi.athenarc.middleware.query.pattern.TimeFilter;
 import gr.imsi.athenarc.middleware.query.pattern.ValueFilter;
 import gr.imsi.athenarc.middleware.sketch.Sketch;
+import gr.imsi.athenarc.middleware.pattern.PatternMatch;
 
 public class NFASketchSearch {
     private static final Logger LOG = LoggerFactory.getLogger(PatternQueryManager.class);
@@ -35,7 +36,7 @@ public class NFASketchSearch {
     /**
      * Builds the NFA, then runs BFS to collect all matches.
      */
-    public List<List<List<Sketch>>> findAllMatches() {
+    public List<PatternMatch> findAllMatches() {
         return findMatches(MatchingStrategy.SELECTION, MatchSelectionStrategy.LONGEST, AdvancementStrategy.AFTER_MATCH_END);
     }
     
@@ -45,27 +46,40 @@ public class NFASketchSearch {
      * @param selectionStrategy Strategy for selecting among multiple matches at the same position
      * @param advancementStrategy Strategy for advancing after finding a match (only used when overlapStrategy is NO_OVERLAPS)
      */
-    public List<List<List<Sketch>>> findMatches(MatchingStrategy matchingStrategy, 
+    public List<PatternMatch> findMatches(MatchingStrategy matchingStrategy, 
                                                MatchSelectionStrategy selectionStrategy,
                                                AdvancementStrategy advancementStrategy) {
         if (sketches.isEmpty() || patternNodes.isEmpty()) {
             return new ArrayList<>();
         }
-    
+
         // 1) Build an NFA that matches patternNodes in sequence
         NFA nfa = buildNfaFromPattern(patternNodes);
         // printNfaGraphically();
         
         if (matchingStrategy == MatchingStrategy.ALL) {
-            // 2a) Run BFS to find ALL successful paths (original behavior)
-            List<List<List<Sketch>>> allMatches = new ArrayList<>();
+            // 2a) Run BFS to find ALL successful paths 
+            List<PatternMatch> patternMatches = new ArrayList<>();
             for (int i = 0; i < sketches.size(); i++) {
-                allMatches.addAll(simulateNfaAllMatches(nfa, sketches, i));
+                List<List<List<Sketch>>> matchesFromCurrentIndex = simulateNfaAllMatches(nfa, sketches, i);
+                // Convert matches to PatternMatch objects
+                for (int j = 0; j < matchesFromCurrentIndex.size(); j++) {
+                    PatternMatch patternMatch = new PatternMatch(matchesFromCurrentIndex.get(j));
+                    patternMatches.add(patternMatch);
+                }
             }
-            return allMatches;
+            return patternMatches;
         } else {
             // 2b) Run search to find matches with selection
-            return finMatchesWithSelection(nfa, sketches, selectionStrategy, advancementStrategy);
+            List<List<List<Sketch>>> matchResults = findMatchesWithSelection(nfa, sketches, selectionStrategy, advancementStrategy);
+            
+            // Convert matches to PatternMatch objects
+            List<PatternMatch> patternMatches = new ArrayList<>();
+            for (int i = 0; i < matchResults.size(); i++) {
+                PatternMatch patternMatch = new PatternMatch(matchResults.get(i));
+                patternMatches.add(patternMatch);
+            }
+            return patternMatches;
         }
     }
     
@@ -514,7 +528,7 @@ public class NFASketchSearch {
      * Finds matches using the specified selection strategy.
      * When multiple matches start at the same position, selects based on the strategy.
      */
-    private List<List<List<Sketch>>> finMatchesWithSelection(NFA nfa, List<Sketch> sketches, 
+    private List<List<List<Sketch>>> findMatchesWithSelection(NFA nfa, List<Sketch> sketches, 
                                                               MatchSelectionStrategy selectionStrategy,
                                                               AdvancementStrategy advancementStrategy) {
         List<List<List<Sketch>>> matches = new ArrayList<>();

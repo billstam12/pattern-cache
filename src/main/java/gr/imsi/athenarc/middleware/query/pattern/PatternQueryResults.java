@@ -3,21 +3,21 @@ package gr.imsi.athenarc.middleware.query.pattern;
 import java.io.Serializable;
 import java.util.List;
 
+import gr.imsi.athenarc.middleware.pattern.PatternMatch;
 import gr.imsi.athenarc.middleware.query.QueryResults;
-import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 public class PatternQueryResults implements QueryResults, Serializable {
 
-    List<List<List<Sketch>>> matches;
+    List<PatternMatch> matches;
     long executionTime;
     double cacheHitRatio = 0.0;
     long ioCount = 0;
     
-    public void setMatches(List<List<List<Sketch>>> matches) {
+    public void setMatches(List<PatternMatch> matches) {
         this.matches = matches;
     }   
 
-    public List<List<List<Sketch>>> getMatches() {
+    public List<PatternMatch> getMatches() {
         return matches;
     }
     

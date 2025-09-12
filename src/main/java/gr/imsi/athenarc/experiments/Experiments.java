@@ -19,6 +19,7 @@ import gr.imsi.athenarc.middleware.datasource.config.TrinoConfiguration;
 import gr.imsi.athenarc.middleware.datasource.dataset.*;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.ViewPort;
+import gr.imsi.athenarc.middleware.pattern.PatternMatch;
 import gr.imsi.athenarc.middleware.pattern.PatternQueryExecutor;
 import gr.imsi.athenarc.middleware.query.Query;
 import gr.imsi.athenarc.middleware.query.QueryResults;
@@ -26,8 +27,6 @@ import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
 import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
-import gr.imsi.athenarc.middleware.sketch.Sketch;
-import gr.imsi.athenarc.middleware.sketch.SketchUtils;
 import gr.imsi.athenarc.middleware.visual.VisualUtils;
 import gr.imsi.athenarc.experiments.util.*;
 import org.slf4j.Logger;
@@ -110,6 +109,9 @@ public class Experiments {
     @Parameter(names = "-method", description = "Method to use for query execution (e.g., 'm4Inf', 'm4')")
     private String method;
 
+    @Parameter(names = "-adaptation", description = "Enable adaptation for cache methods that support it (default true)")
+    private boolean adaptation = false;
+
     @Parameter(names = "--help", help = true, description = "Displays help")
     private boolean help;
     public Experiments() {
@@ -158,6 +160,8 @@ public class Experiments {
                     || method.equals("approxOls") 
                     || method.equals("minMax"), 
                     "Method must be either 'm4', 'approxOls' or 'minMax' for cache queries.");
+                Preconditions.checkArgument(!adaptation || method.equals("approxOls") || method.equals("minMax"),
+                    "Adaptation can only be true for 'approxOls' and 'minMax' methods");
                 return new ExperimentConfig("cache", true, method, method);
             case "timeminmaxcachequeries":
                 return new ExperimentConfig("minMaxCache", true, "minMax", "firstLastInf");
@@ -216,6 +220,7 @@ public class Experiments {
                         .withMaxMemory(maxMemoryBytes)
                         .withMethod(cacheMethod)
                         .withCalendarAlignment(!config.type.equalsIgnoreCase("minMaxCache"))
+                        .withAdaptation(adaptation)
                         .build();
                     
                     // Initialize cache if specified
@@ -535,7 +540,7 @@ public class Experiments {
      */
     public static void logMatchesToFile(PatternQuery query, PatternQueryResults patternQueryResults, ExperimentConfig config, String mode, String type, DataSource dataSource, String outputFolder) {
 
-        List<List<List<Sketch>>> matches = patternQueryResults.getMatches();
+        List<PatternMatch> matches = patternQueryResults.getMatches();
         long executionTime = patternQueryResults.getExecutionTime();
 
         try {
@@ -583,43 +588,9 @@ public class Experiments {
                 writer.write(String.format("Total Matches: %d\n", matches.size()));
                 writer.write("\n--- Matches ---\n\n");
                 
-                // Write each match with simplified information
-                for (int matchIdx = 0; matchIdx < matches.size(); matchIdx++) {
-                    List<List<Sketch>> match = matches.get(matchIdx);
-                    
-                    // Calculate the overall match time range and error margin
-                    long matchStart = Long.MAX_VALUE;
-                    long matchEnd = Long.MIN_VALUE;
-                    double totalErrorMargin = 0.0;
-                    int segmentCount = 0;
-                    
-                    for (List<Sketch> segment : match) {
-                        Sketch combinedSketch = SketchUtils.combineSketches(segment);
-                        matchStart = Math.min(matchStart, combinedSketch.getFrom());
-                        matchEnd = Math.max(matchEnd, combinedSketch.getTo());
-                        
-                        // Accumulate error margins for average calculation
-                        double segmentError = combinedSketch.getAngleErrorMargin();
-                        if (!Double.isNaN(segmentError) && !Double.isInfinite(segmentError)) {
-                            totalErrorMargin += segmentError;
-                            segmentCount++;
-                        }
-                    }
-                    
-                    // Calculate average error margin for the match
-                    double averageErrorMargin = segmentCount > 0 ? totalErrorMargin / segmentCount : 0.0;
-
-                    writer.write(String.format("Match #%d: [%d to %d] - Average Error Margin: %.2f%%\n", 
-                        matchIdx + 1, matchStart, matchEnd, averageErrorMargin * 100.0));
-
-                    for (int segmentIdx = 0; segmentIdx < match.size(); segmentIdx++) {
-                        List<Sketch> segment = match.get(segmentIdx);
-                        Sketch combinedSketch = SketchUtils.combineSketches(segment);
-                        double segmentErrorMargin = combinedSketch.getAngleErrorMargin();
-                        writer.write(String.format("  Segment %d: [%d to %d] - Error Margin: %.2f%%\n", 
-                            segmentIdx, combinedSketch.getFrom(), combinedSketch.getTo(), segmentErrorMargin * 100.0));
-                    }
-                    writer.write("\n");
+                // Write each match using the PatternMatch's built-in logging capability
+                for (PatternMatch match : matches) {
+                    match.writeToFile(writer);
                 }
             }
             

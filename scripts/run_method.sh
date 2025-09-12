@@ -18,7 +18,6 @@ TABLE="intel_lab_exp"
 QUERIES=""
 SEQ_COUNT=50
 STATE_FILE="/Users/vasilisstamatopoulos/Documents/Works/ATHENA/PhD/Code/pattern-cache/config/pattern-hunter.properties"
-
 # Path to JAR file (assuming it's in the target directory)
 JAR_PATH="target/pattern-cache-1.0-SNAPSHOT.jar"
 
@@ -32,6 +31,10 @@ while [[ $# -gt 0 ]]; do
     --initCacheAllocation)
       CACHE_ALLOCATION="$2"
       shift 2
+      ;;
+    --adaptation)
+      ADAPTATION="true"
+      shift 1
       ;;
     --type)
       TYPE="$2"
@@ -90,6 +93,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --queries FILE            Path to queries file"
       echo "  --seq-count N             Number of queries in sequence"
       echo "  --state-file FILE         Path to state transitions file"
+      echo "  --adaptation BOOL         Enable pattern adaptation for cache methods that support it (default false)"
       echo "  --help                    Display this help message"
       exit 0
       ;;
@@ -121,6 +125,10 @@ COMMON_ARGS=(
   "-initCacheAllocation" "$CACHE_ALLOCATION"
 )
 
+if [[ "$ADAPTATION" == "true" ]]; then
+  COMMON_ARGS+=("-adaptation")
+fi
+
 # Add queries file if specified
 if [ -n "$QUERIES" ]; then
   COMMON_ARGS+=("-queries" "$QUERIES")
@@ -135,7 +143,8 @@ run_experiment() {
   
   # Build arguments for this run
   local args=("${COMMON_ARGS[@]}" "-method" "$exec_method" "-mode" "$experiment_mode")
-  
+  echo "Args: ${args[@]}"
+
   # Execute the Java application
   java -Xmx4g -cp "$JAR_PATH" gr.imsi.athenarc.experiments.Experiments "${args[@]}"
   

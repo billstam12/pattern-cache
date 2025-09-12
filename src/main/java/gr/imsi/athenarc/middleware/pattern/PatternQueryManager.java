@@ -15,14 +15,16 @@ public class PatternQueryManager {
     private final DataSource dataSource;
     private final TimeSeriesCache cache;
     private final String method;
+    private final boolean adaptation;
 
-    public PatternQueryManager(DataSource dataSource, TimeSeriesCache cache, String method) {
+    public PatternQueryManager(DataSource dataSource, TimeSeriesCache cache, String method, boolean adaptation) {
         this.dataSource = dataSource;
         this.cache = cache;
         this.method = method;
+        this.adaptation = adaptation;
     }
 
     public PatternQueryResults executeQuery(PatternQuery query) {
-        return PatternQueryExecutor.executePatternQueryWithCache(query, dataSource, cache, method);
+        return PatternQueryExecutor.executePatternQueryWithCache(query, dataSource, cache, method, adaptation);
     }
 }

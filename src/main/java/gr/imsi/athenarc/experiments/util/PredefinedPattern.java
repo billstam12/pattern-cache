@@ -49,68 +49,75 @@ public class PredefinedPattern {
             return; // Already initialized
         }
         
-        int low = 25;
-        int high = 25;
-        // Pattern 1: Decreasing followed by increasing (V-shape)
-        List<PatternNode> pattern2 = new ArrayList<>();
-        pattern2.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, low, high),
-                ValueFilter.largeDecrease()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        pattern2.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, low, high),
-                ValueFilter.largeIncrease()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        registerPattern(new PredefinedPattern(1, "V-Shape", "A V-shaped pattern of decreasing followed by increasing", pattern2));
-        
-        // Pattern 2: Stable plateau /-\
-        List<PatternNode> pattern3 = new ArrayList<>();
-        pattern3.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, low, high),
-                ValueFilter.largeIncrease()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        pattern3.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, low, high),
-                ValueFilter.stable()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        pattern3.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, low, high),
-                ValueFilter.largeDecrease()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        registerPattern(new PredefinedPattern(2, "Plateau", "A stable plateau with increasing and decreasing edges", pattern3));
-        
-        // Pattern 3: Oscillating pattern
-        List<PatternNode> pattern4 = new ArrayList<>();
-        pattern4.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, low, high),
-                ValueFilter.largeIncrease()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        pattern4.add(new SingleNode(
-            new SegmentSpecification(
-                new TimeFilter(false, low, high),
-                ValueFilter.largeDecrease()
-            ),
-            RepetitionFactor.exactly(1)
-        ));
-        registerPattern(new PredefinedPattern(3, "Oscillating", "An oscillating pattern of repeated up-down movements", pattern4));
+        // Patterns for (5,5), (15,15), (30,30) with descriptive names
+        int[] values = {5, 15, 25};
+        String[] sizeNames = {"small", "mid", "big"};
+        int id = 1;
+        for (int i = 0; i < values.length; i++) {
+            int val = values[i];
+            String size = sizeNames[i];
+
+            // v_shape
+            List<PatternNode> vShape = new ArrayList<>();
+            vShape.add(new SingleNode(
+                new SegmentSpecification(
+                    new TimeFilter(false, val, val),
+                    ValueFilter.largeDecrease()
+                ),
+                RepetitionFactor.exactly(1)
+            ));
+            vShape.add(new SingleNode(
+                new SegmentSpecification(
+                    new TimeFilter(false, val, val),
+                    ValueFilter.largeIncrease()
+                ),
+                RepetitionFactor.exactly(1)
+            ));
+            registerPattern(new PredefinedPattern(id++, "v_shape_" + size, "V-shape, low=high=" + val, vShape));
+
+            // plateau
+            List<PatternNode> plateau = new ArrayList<>();
+            plateau.add(new SingleNode(
+                new SegmentSpecification(
+                    new TimeFilter(false, val, val),
+                    ValueFilter.largeIncrease()
+                ),
+                RepetitionFactor.exactly(1)
+            ));
+            plateau.add(new SingleNode(
+                new SegmentSpecification(
+                    new TimeFilter(false, val, val),
+                    ValueFilter.stable()
+                ),
+                RepetitionFactor.exactly(1)
+            ));
+            plateau.add(new SingleNode(
+                new SegmentSpecification(
+                    new TimeFilter(false, val, val),
+                    ValueFilter.largeDecrease()
+                ),
+                RepetitionFactor.exactly(1)
+            ));
+            registerPattern(new PredefinedPattern(id++, "plateau_" + size, "Plateau, low=high=" + val, plateau));
+
+            // oscillating
+            List<PatternNode> oscillating = new ArrayList<>();
+            oscillating.add(new SingleNode(
+                new SegmentSpecification(
+                    new TimeFilter(false, val, val),
+                    ValueFilter.largeIncrease()
+                ),
+                RepetitionFactor.exactly(1)
+            ));
+            oscillating.add(new SingleNode(
+                new SegmentSpecification(
+                    new TimeFilter(false, val, val),
+                    ValueFilter.largeDecrease()
+                ),
+                RepetitionFactor.exactly(1)
+            ));
+            registerPattern(new PredefinedPattern(id++, "oscillating_" + size, "Oscillating, low=high=" + val, oscillating));
+        }
     }
     
     private static void registerPattern(PredefinedPattern pattern) {

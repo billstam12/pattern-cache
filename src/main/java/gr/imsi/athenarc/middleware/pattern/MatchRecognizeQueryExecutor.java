@@ -13,6 +13,7 @@ import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
+import gr.imsi.athenarc.middleware.pattern.PatternMatch;
 import gr.imsi.athenarc.middleware.query.pattern.GroupNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternNode;
 import gr.imsi.athenarc.middleware.query.pattern.PatternQuery;
@@ -59,7 +60,7 @@ public class MatchRecognizeQueryExecutor {
             ResultSet resultSet = ((SQLQueryExecutor)dataSource.getQueryExecutor()).executeDbQuery(sqlQuery);
 
             // Process result set and create sketches similar to other pattern executors
-            List<List<List<Sketch>>> matches = processMatchRecognizeResults(resultSet, query, method);
+            List<PatternMatch> matches = processMatchRecognizeResults(resultSet, query, method);
             
             // Create result with the generated SQL query
             PatternQueryResults results = new PatternQueryResults();
@@ -78,17 +79,17 @@ public class MatchRecognizeQueryExecutor {
     }
 
     /**
-     * Process the MATCH_RECOGNIZE query results and convert them to pattern matches with sketches.
+     * Process the MATCH_RECOGNIZE query results and convert them directly to pattern matches.
      * Each row in the result set represents one pattern match, with columns like:
      * seg1_start, seg1_end, seg1_angle, seg2_start, seg2_end, seg2_angle, etc.
      * 
      * @param resultSet The result set from the MATCH_RECOGNIZE query
      * @param query The original pattern query
      * @param method The method used (e.g., "ols", "firstLast", etc.)
-     * @return List of pattern matches, each match contains list of segments, each segment contains a list of sketches
+     * @return List of pattern matches
      */
-    private static List<List<List<Sketch>>> processMatchRecognizeResults(ResultSet resultSet, PatternQuery query, String method) {
-        List<List<List<Sketch>>> allMatches = new ArrayList<>();
+    private static List<PatternMatch> processMatchRecognizeResults(ResultSet resultSet, PatternQuery query, String method) {
+        List<PatternMatch> patternMatches = new ArrayList<>();
         
         try {
             // Determine the number of segments in the pattern
@@ -98,6 +99,7 @@ public class MatchRecognizeQueryExecutor {
             
             LOG.info("Processing MATCH_RECOGNIZE results for {} segments", numSegments);
             
+            int matchIndex = 0;
             // Process each row in the result set (each row = one pattern match)
             while (resultSet.next()) {
                 List<List<Sketch>> matchSegments = new ArrayList<>();
@@ -123,7 +125,7 @@ public class MatchRecognizeQueryExecutor {
                             // Create a sketch for this segment
                             Sketch sketch = createSketchFromMatchRecognizeResult(startTime, endTime, angle, method);
                             
-                            // Each segment contains a list with one sketch (matching the structure used by other executors)
+                            // Each segment contains a list with one sketch
                             List<Sketch> segmentSketches = new ArrayList<>();
                             segmentSketches.add(sketch);
                             matchSegments.add(segmentSketches);
@@ -137,18 +139,20 @@ public class MatchRecognizeQueryExecutor {
                 }
                 
                 if (!matchSegments.isEmpty()) {
-                    allMatches.add(matchSegments);
+                    // Create PatternMatch directly from segments
+                    PatternMatch patternMatch = new PatternMatch(matchSegments);
+                    patternMatches.add(patternMatch);
                 }
             }
             
-            LOG.info("Total pattern matches found: {}", allMatches.size());
+            LOG.info("Total pattern matches found: {}", patternMatches.size());
             
         } catch (SQLException e) {
             LOG.error("Error processing MATCH_RECOGNIZE results", e);
             throw new RuntimeException("Error processing MATCH_RECOGNIZE results", e);
         }
         
-        return allMatches;
+        return patternMatches;
     }
 
     /**

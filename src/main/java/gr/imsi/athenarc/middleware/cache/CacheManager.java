@@ -154,6 +154,7 @@ public class CacheManager {
         private Double memoryUtilizationThreshold = null;
         private String method = "m4_inf";
         private boolean calendarAlignment = true;
+        private boolean adaptation = true;
 
         public Builder(DataSource dataSource) {
             this.dataSource = dataSource;
@@ -213,6 +214,18 @@ public class CacheManager {
             this.maxMemoryBytes = maxMemoryBytes;
             return this;
         }
+
+        /**
+         * Enables or disables adaptation (dynamic aggregation factor adjustment)
+         * during pattern query execution.
+         * 
+         * @param adaptation True to enable adaptation, false to disable
+         * @return The builder instance
+         */
+        public Builder withAdaptation(boolean adaptation) {
+            this.adaptation = adaptation;
+            return this;
+        }
         
         /**
          * Sets the memory utilization threshold (0.0-1.0) at which to start
@@ -244,7 +257,7 @@ public class CacheManager {
             
             // Create a CacheManager that uses our unified cache
             PatternQueryManager patternQueryManager = 
-                new PatternQueryManager(dataSource, cache, method);
+                new PatternQueryManager(dataSource, cache, method, adaptation);
                 
             VisualQueryManager visualQueryManager = 
                 new VisualQueryManager(dataSource, cache, dataReductionFactor, initialAggregationFactor, prefetchingFactor, method, calendarAlignment);
