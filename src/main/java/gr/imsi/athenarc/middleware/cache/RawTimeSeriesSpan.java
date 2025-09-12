@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -243,4 +244,22 @@ public class RawTimeSeriesSpan implements TimeSeriesSpan {
      public boolean isInit() {
         return false;
     }
+
+
+    @Override
+    public int getSize() {
+        return count;
+    }
+
+     @Override
+     public TimeSeriesSpan rollUp(AggregateInterval targetInterval) {
+        
+        throw new UnsupportedOperationException("Roll up not supported for non-aggregate span");
+     }
+
+     @Override
+     public void addAggregatedDataPoint(AggregatedDataPoint aggregatedDataPoint) {
+        throw new UnsupportedOperationException("RawTimeSeries span does not support 'addAggregatedDataPoint'");
+     }
+
 }

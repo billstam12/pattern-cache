@@ -57,7 +57,7 @@ public class InfluxDBDatasource implements DataSource {
     @Override
     public AggregatedDataPoints getSlopeAggregates(long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
+            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, boolean includeMinMax) {
         return new InfluxDBSlopeAggregatedDataPoints(influxDBQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
     }
 

@@ -143,7 +143,7 @@ public class PatternQueryExecutor {
                 LOG.warn("[Refetch] Overall average error {} still exceeds query acceptable error {}. Fetching firstLast/ols data...", overallAvgError, 1.0 - params.accuracy);
                 // Fallback to firstLast or ols depending on method
                 String fallbackMethod = "minMax".equalsIgnoreCase(method) ? "firstLast" : "ols";
-                List<Sketch> fallbackSketches = prepareAndPopulateSketches(dataSource, fallbackMethod, params.measure, params.alignedFrom, params.alignedTo, params.timeUnit);
+                List<Sketch> fallbackSketches = prepareAndPopulateSketches(dataSource, fallbackMethod, params.measure, params.alignedFrom, params.alignedTo, params.timeUnit, true);
                 matches = executePatternMatching(fallbackSketches, patternNodes,
                         MatchingStrategy.ALL,
                         MatchSelectionStrategy.LONGEST,
@@ -229,7 +229,7 @@ public class PatternQueryExecutor {
 
          // Create timestamped sketches for direct data source pattern matching
         List<Sketch> sketches = prepareAndPopulateSketches(dataSource, method, params.measure,
-                params.alignedFrom, params.alignedTo, params.timeUnit);
+                params.alignedFrom, params.alignedTo, params.timeUnit, false);
         
         // Perform pattern matching and return results
         List<PatternMatch> matches = executePatternMatching(sketches, patternNodes, 
@@ -245,7 +245,7 @@ public class PatternQueryExecutor {
      */
     private static List<Sketch> prepareAndPopulateSketches(DataSource dataSource, String method,
                                                              int measure, long from, long to,
-                                                             AggregateInterval timeUnit) {
+                                                             AggregateInterval timeUnit, boolean includeMinMax) {
         List<Sketch> sketches = generateSketches(from, to, timeUnit, method);
         Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
         Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
@@ -265,7 +265,7 @@ public class PatternQueryExecutor {
                 break;
             case "ols":
                 dataPoints = dataSource.getSlopeAggregates(
-                        from, to, intervalsPerMeasure, aggregateIntervalsPerMeasure);
+                        from, to, intervalsPerMeasure, aggregateIntervalsPerMeasure, includeMinMax);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported method for pattern query: " + method);
@@ -339,6 +339,7 @@ public class PatternQueryExecutor {
             case "firstLastInf":
             case "m4":
             case "m4Inf":
+            case "ols":
                 existingSpans = cache.getCompatibleSpans(measure, alignedTimeRange, timeUnit);
                 break;
             case "minMax":

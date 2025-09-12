@@ -2,7 +2,6 @@ package gr.imsi.athenarc.middleware.sketch;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,42 +89,17 @@ public class SketchUtils {
                                       ViewPort viewPort,
                                       String method) {
 
-        if(method.equalsIgnoreCase("visual")){
-                // For visual method, populate pixel columns from spans
-                List<PixelColumn> pixelColumns = sketches.stream()
-                    .map(s -> (PixelColumn) s)
-                    .collect(Collectors.toList());
-            populatePixelColumnsFromSpans(spans, pixelColumns, from, to, timeUnit, viewPort);
-        }
-        else{
-            for(TimeSeriesSpan span : spans) {
-                if (span instanceof RawTimeSeriesSpan) {
-                        // Skip raw spans as they're not useful for pattern detection
-                        continue;
-                }
-                Iterator<AggregatedDataPoint> dataPoints = null;
-                dataPoints = span.iterator(from, to);
-                populateSketchesFromDataPoints(dataPoints, sketches, from, to, timeUnit);
-            }
-        }
-    }
-
-    public static void populatePixelColumnsFromSpans(List<TimeSeriesSpan> spans, List<PixelColumn> pixelColumns,
-            long from, long to, AggregateInterval timeUnit, ViewPort viewPort) {
-        viewPort = new ViewPort(pixelColumns.size(), viewPort.getHeight());
         for(TimeSeriesSpan span : spans) {
             if (span instanceof RawTimeSeriesSpan) {
-                    // Skip raw spans as they're not useful for pattern detection
-                    continue;
+                // Skip raw spans as they're not useful for pattern detection
+                continue;
             }
             Iterator<AggregatedDataPoint> dataPoints = null;
             dataPoints = span.iterator(from, to);
-            while (dataPoints != null && dataPoints.hasNext()) {
-                AggregatedDataPoint point = dataPoints.next();
-                SketchUtils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, point);
-            }
+            populateSketchesFromDataPoints(dataPoints, sketches, from, to, timeUnit);
         }
     }
+
     
     public static int getPixelColumnForTimestamp(long timestamp, long from, long to, int width) {
         long aggregateInterval = (to - from) / width;

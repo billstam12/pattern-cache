@@ -46,9 +46,18 @@ public interface DataSource {
                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, Set<String> aggregateFunctions);                                           
 
 
+    /**
+     * Returns an {@link AggregatedDataPoints} instance to get the sum_x, sum_xy, sum_y, count and sum_x2 for multiple measures,
+     * each with its own missing intervals and aggregate interval. If include minMax is true it also fetches the min and max aggregates (without timestamps).
+     * @param from global start timestamp
+     * @param to global end timestamp
+     * @param missingIntervalsPerMeasure list of measure-specific aggregation requests
+     * @param aggregateIntervalsPerMeasure list of measure-specific aggregation intervals
+     * @return aggregated data points
+     */
     AggregatedDataPoints getSlopeAggregates(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure, 
-                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure);                                  
-    
+                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, boolean includeMinMax);                                  
+                   
     
     public QueryExecutor getQueryExecutor();
     

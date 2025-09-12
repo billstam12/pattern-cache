@@ -25,21 +25,21 @@ public class CacheUtils {
         switch(method){
             case "m4":
                 newDataPoints = dataSource.getAggregatedDataPointsWithTimestamps(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-                timeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
                 break;
             case "m4Inf":
                 newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-                timeSeriesSpans = TimeSeriesSpanFactory.createM4InfAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
                 break;
             case "minMax":
-            case "visual":
             case "approxOls":
                 newDataPoints = dataSource.getAggregatedDataPoints(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, AggregationFunctionsConfig.getAggregateFunctions(method));
-                timeSeriesSpans = TimeSeriesSpanFactory.createMinMaxAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+                break;
+            case "ols":
+                newDataPoints = dataSource.getSlopeAggregates(from, to, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, true);
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported method for fetching data: " + method);
         }
+        timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(newDataPoints, alignedIntervalsPerMeasure, aggregateIntervalsPerMeasure, method);
         return timeSeriesSpans;
     }
 

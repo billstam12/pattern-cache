@@ -309,7 +309,7 @@ public class VisualQueryExecutor {
         
         // Convert to time series spans and add to cache
         Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = 
-            TimeSeriesSpanFactory.createM4Aggregate(dataPoints, intervalsPerMeasure, measureIntervals);
+            TimeSeriesSpanFactory.createAggregate(dataPoints, intervalsPerMeasure, measureIntervals, "m4");
         
         // if cache is given, add the spans to it
         for(int measure : timeSeriesSpans.keySet()){

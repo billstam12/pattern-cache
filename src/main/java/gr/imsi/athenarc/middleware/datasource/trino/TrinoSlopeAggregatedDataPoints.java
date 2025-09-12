@@ -45,16 +45,20 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
     private final Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure;
     private final Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure;
 
+    private final boolean includeMinMax;
+
     public TrinoSlopeAggregatedDataPoints(SQLQueryExecutor trinoQueryExecutor, SQLDataset dataset, long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
+            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure,
+            boolean includeMinMax) {
         this.trinoQueryExecutor = trinoQueryExecutor;
         this.dataset = dataset;
         this.from = from;
         this.to = to;
         this.missingIntervalsPerMeasure = missingIntervalsPerMeasure;
         this.aggregateIntervalsPerMeasure = aggregateIntervalsPerMeasure;
-        
+        this.includeMinMax = includeMinMax;
+
         // Validate parameters
         if (this.missingIntervalsPerMeasure == null || this.missingIntervalsPerMeasure.isEmpty() 
             || aggregateIntervalsPerMeasure == null || aggregateIntervalsPerMeasure.isEmpty()) {
@@ -123,7 +127,7 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
         sqlQuery.append(" ORDER BY measure_name, time_bucket");
 
         ResultSet resultSet = trinoQueryExecutor.executeDbQuery(sqlQuery.toString());
-        return new TrinoSlopeAggregatedDataPointsIterator(resultSet, measuresMap);
+    return new TrinoSlopeAggregatedDataPointsIterator(resultSet, measuresMap);
     }
 
     /**
@@ -153,21 +157,22 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
         query.append("SELECT \n");
         query.append("  ").append(timeBucket).append(" AS time_bucket,\n");
         query.append("  _measure AS measure_name,\n");
-        
         // Calculate normalized x values using the same approach as MatchRecognize:
         // bucket_index + (position_within_bucket / bucket_size)
         query.append("  SUM(normalized_time) AS sum_x,\n");
         query.append("  SUM(_value) AS sum_y,\n");
         query.append("  SUM(normalized_time * _value) AS sum_xy,\n");
         query.append("  SUM(normalized_time * normalized_time) AS sum_x2,\n");
-        query.append("  COUNT(*) AS count\n");
+        query.append("  COUNT(*) AS count");
+        if (includeMinMax) {
+            query.append(",\n  MIN(_value) AS min_value,\n  MAX(_value) AS max_value");
+        }
+        query.append("\n");
         query.append("FROM (\n");
         query.append("  SELECT *,\n");
         query.append("    -- Normalize timestamp using MatchRecognize approach: bucket_index + fractional_position\n");
-        
         query.append("    FLOOR((to_unixtime(").append(timestampColumn).append(") * 1000 - ").append(alignedStart).append(") / ").append(intervalMillis).append(") + \n");
         query.append("    ((to_unixtime(").append(timestampColumn).append(") * 1000 - ").append(alignedStart).append(") % ").append(intervalMillis).append(") / ").append(intervalMillis).append(".0 AS normalized_time\n");
-
         query.append("  FROM (\n");
         query.append("    SELECT *,\n");
         query.append("      ").append(timeBucket).append(" AS bucket_start\n");
@@ -176,7 +181,6 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
         query.append(") normalized_data\n");
         query.append("GROUP BY ").append(timeBucket).append(", _measure\n");
         query.append("HAVING COUNT(*) > 0");
-        
         return query.toString();
     }
 

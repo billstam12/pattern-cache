@@ -55,8 +55,8 @@ public class SQLDatasource implements DataSource {
     @Override
     public AggregatedDataPoints getSlopeAggregates(long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
-        throw new UnsupportedOperationException("Slope aggregates not supported in SQLDatasource yet.");
+            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, boolean includeMinMax) {
+        throw new UnsupportedOperationException("Slope aggregates not supported in standard SQL, use Trino.");
     }
 
     public QueryExecutor getQueryExecutor() {

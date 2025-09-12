@@ -2,6 +2,7 @@ package gr.imsi.athenarc.middleware.datasource.iterator;
 
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.ImmutableAggregatedDataPoint;
+import gr.imsi.athenarc.middleware.domain.OLSSlopeMinMaxStats;
 import gr.imsi.athenarc.middleware.domain.OLSSlopeStats;
 
 import java.sql.ResultSet;
@@ -77,8 +78,17 @@ public class TrinoSlopeAggregatedDataPointsIterator implements Iterator<Aggregat
             double sumX2 = getDoubleOrDefault(resultSet, "sum_x2", 0.0);
             long count = getLongOrDefault(resultSet, "count", 0L);
 
-            // Create OLS slope statistics object
-            OLSSlopeStats stats = new OLSSlopeStats(sumX, sumY, sumXY, sumX2, (int) count);
+            // Try to extract min/max values if present
+            double minValue, maxValue;
+            boolean hasMinMax = false;
+            try {
+                minValue = getDoubleOrDefault(resultSet, "min_value", Double.NaN);
+                maxValue = getDoubleOrDefault(resultSet, "max_value", Double.NaN);
+                hasMinMax = !(Double.isNaN(minValue) && Double.isNaN(maxValue));
+            } catch (SQLException e) {
+                minValue = Double.NaN;
+                maxValue = Double.NaN;
+            }
 
             // Get measure index for the aggregated data point
             Integer measureIdx = measuresMap.get(measureName);
@@ -91,7 +101,14 @@ public class TrinoSlopeAggregatedDataPointsIterator implements Iterator<Aggregat
 
             // Return aggregated data point with OLS statistics as the value
             // Use timeBucket as both from and to since it represents a single time bucket
-            return new ImmutableAggregatedDataPoint(timeBucket, timeBucket, measureIdx, stats);
+            if (hasMinMax) {
+                OLSSlopeMinMaxStats stats =
+                    new OLSSlopeMinMaxStats(sumX, sumY, sumXY, sumX2, (int) count, minValue, maxValue);
+                return new ImmutableAggregatedDataPoint(timeBucket, timeBucket, measureIdx, stats);
+            } else {
+                OLSSlopeStats stats = new OLSSlopeStats(sumX, sumY, sumXY, sumX2, (int) count);
+                return new ImmutableAggregatedDataPoint(timeBucket, timeBucket, measureIdx, stats);
+            }
 
         } catch (SQLException e) {
             throw new RuntimeException("Error reading aggregated data point", e);

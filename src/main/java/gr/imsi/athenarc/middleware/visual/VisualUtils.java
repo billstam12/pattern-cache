@@ -84,7 +84,7 @@ public class VisualUtils {
         AggregatedDataPoints missingDataPoints = 
             dataSource.getAggregatedDataPointsWithTimestamps(startPixelColumn, endPixelColumn, missingIntervalsPerMeasure, aggregateIntervals, AggregationFunctionsConfig.getAggregateFunctions("m4"));
         
-        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createM4Aggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals);
+        Map<Integer, List<TimeSeriesSpan>> timeSeriesSpans = TimeSeriesSpanFactory.createAggregate(missingDataPoints, missingIntervalsPerMeasure, aggregateIntervals, "m4");
         for (Integer measure : query.getMeasures()) {
             List<TimeSeriesSpan> spans = timeSeriesSpans.get(measure);
             List<DataPoint> dataPoints = new ArrayList<>();

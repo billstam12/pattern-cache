@@ -70,7 +70,8 @@ public class M4InfAggregateTimeSeriesSpan implements TimeSeriesSpan {
         initialize(from, to, aggregateInterval, measure);
     }
 
-    protected void addAggregatedDataPoint(AggregatedDataPoint aggregatedDataPoint) {
+    @Override
+    public void addAggregatedDataPoint(AggregatedDataPoint aggregatedDataPoint) {
         int i = DateTimeUtil.indexInInterval(getFrom(), getTo(), aggregateInterval, aggregatedDataPoint.getTimestamp());
         Stats stats = aggregatedDataPoint.getStats();
        

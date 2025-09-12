@@ -69,16 +69,16 @@ public class TimeSeriesSpanFactory {
     }
 
     /**
-     * Read from iterators and create time series spans.
+     * Read from iterators and create aggregate time series spans.
      * All spans take account of the residual interval left from a not exact division with the aggregate interval.
      * @param aggregatedDataPoints fetched aggregated data points
      * @param missingIntervalsPerMeasure  list of ranges for each measure that this points belong to
      * @param aggregateIntervalsPerMeasure aggregate intervals with which to fetch data for each measure
      * @return A list of AggregateTimeSeriesSpan for each measure
      */
-    public static Map<Integer, List<TimeSeriesSpan>> createM4InfAggregate(AggregatedDataPoints aggregatedDataPoints,
+    public static Map<Integer, List<TimeSeriesSpan>> createAggregate(AggregatedDataPoints aggregatedDataPoints,
                                                                      Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-                                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
+                                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, String aggregateMethod) {
         Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
         Iterator<AggregatedDataPoint> it = aggregatedDataPoints.iterator();
         AggregatedDataPoint aggregatedDataPoint = null;
@@ -89,7 +89,23 @@ public class TimeSeriesSpanFactory {
             
             for (TimeInterval range : missingIntervalsPerMeasure.get(measure)) {
                 int count = 0;
-                M4InfAggregateTimeSeriesSpan timeSeriesSpan = new M4InfAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+                TimeSeriesSpan timeSeriesSpan;
+                switch (aggregateMethod){
+                    case "m4Inf":
+                        timeSeriesSpan = new M4InfAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+                        break;
+                    case "m4":
+                        timeSeriesSpan = new M4AggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+                        break;
+                    case "minMax":
+                    case "approxOls":
+                        timeSeriesSpan = new MinMaxAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+                        break;
+                    case "ols":
+                        timeSeriesSpan = new SlopeMinMaxAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+                    default:
+                        throw new IllegalArgumentException("Unssuported method");
+                }
                 while (true) {
                     // Get next point if needed
                     if (!changed && aggregatedDataPoint == null && it.hasNext()) {
@@ -126,174 +142,6 @@ public class TimeSeriesSpanFactory {
         
         return spans;
     }
-
-
-     /**
-     * Read from iterators and create time series spans.
-     * All spans take account of the residual interval left from a not exact division with the aggregate interval.
-     * @param aggregatedDataPoints fetched aggregated data points
-     * @param missingIntervalsPerMeasure  list of ranges for each measure that this points belong to
-     * @param aggregateIntervalsPerMeasure aggregate intervals with which to fetch data for each measure
-     * @return A list of AggregateTimeSeriesSpan for each measure
-     */
-    public static Map<Integer, List<TimeSeriesSpan>> createMinMaxAggregate(AggregatedDataPoints aggregatedDataPoints,
-                                                                     Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-                                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
-        Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
-        Iterator<AggregatedDataPoint> it = aggregatedDataPoints.iterator();
-        AggregatedDataPoint aggregatedDataPoint = null;
-        for (Integer measure : missingIntervalsPerMeasure.keySet()) {
-            AggregateInterval  aggregateInterval = aggregateIntervalsPerMeasure.get(measure);
-            List<TimeSeriesSpan> timeSeriesSpansForMeasure = new ArrayList<>();
-            boolean changed = false; 
-            
-            for (TimeInterval range : missingIntervalsPerMeasure.get(measure)) {
-                int count = 0;
-                MinMaxAggregateTimeSeriesSpan timeSeriesSpan = new MinMaxAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
-                while (true) {
-                    // Get next point if needed
-                    if (!changed && aggregatedDataPoint == null && it.hasNext()) {
-                        aggregatedDataPoint = it.next();
-                    }
-                    
-                    // If there's no point to process, break the loop
-                    if (aggregatedDataPoint == null) {
-                        break;
-                    }
-                
-                    if (aggregatedDataPoint.getTimestamp() < range.getFrom()
-                            || aggregatedDataPoint.getTimestamp() >= range.getTo() 
-                            || aggregatedDataPoint.getMeasure() != measure) {
-                        changed = true;
-                        break;
-                    }
-                    else {
-                        changed = false;
-                        LOG.debug("Adding {} between {}-{} with aggregate interval {} for measure {}",
-                                aggregatedDataPoint.getTimestamp(), range.getFrom(), range.getTo(), aggregateInterval, measure);
-                        timeSeriesSpan.addAggregatedDataPoint(aggregatedDataPoint);
-                        count ++;
-                        // Clear current point and get next one in next iteration
-                        aggregatedDataPoint = null;
-                    }
-                }
-                LOG.info("Created aggregate time series span for measure {} : {}/{}", measure, count, timeSeriesSpan.getSize());
-
-                timeSeriesSpansForMeasure.add(timeSeriesSpan);
-            }
-            spans.put(measure, timeSeriesSpansForMeasure);
-        }
-        
-        return spans;
-    }
-
-
-    /**
-     * Read from iterators and create time series spans that also hold the fetched timestamps.
-     * All spans take account of the residual interval left from a not exact division with the aggregate interval.
-     * @param aggregatedDataPoints fetched aggregated data points
-     * @param missingIntervalsPerMeasure  list of ranges for each measure that this points belong to
-     * @param aggregateIntervalsPerMeasure aggregate intervals with which to fetch data for each measure
-     * @return A list of M4AggregateTimeSeriesSpan for each measure
-     */
-    public static Map<Integer, List<TimeSeriesSpan>> createM4Aggregate(AggregatedDataPoints aggregatedDataPoints,
-                                                                     Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-                                                                     Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
-        Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
-        Iterator<AggregatedDataPoint> it = aggregatedDataPoints.iterator();
-        AggregatedDataPoint aggregatedDataPoint = null;
-        for (Integer measure : missingIntervalsPerMeasure.keySet()) {
-            AggregateInterval  aggregateInterval = aggregateIntervalsPerMeasure.get(measure);
-            List<TimeSeriesSpan> timeSeriesSpansForMeasure = new ArrayList<>();
-            boolean changed = false; 
-            
-            for (TimeInterval range : missingIntervalsPerMeasure.get(measure)) {
-                M4AggregateTimeSeriesSpan timeSeriesSpan = new M4AggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
-                while (true) {
-                    // Get next point if needed
-                    if (!changed && aggregatedDataPoint == null && it.hasNext()) {
-                        aggregatedDataPoint = it.next();
-                    }
-                    
-                    // If there's no point to process, break the loop
-                    if (aggregatedDataPoint == null) {
-                        break;
-                    }
-                
-                    if (aggregatedDataPoint.getTimestamp() < range.getFrom()
-                            || aggregatedDataPoint.getTimestamp() >= range.getTo() 
-                            || aggregatedDataPoint.getMeasure() != measure) {
-                        changed = true;
-                        break;
-                    }
-                    else {
-                        changed = false;
-                        LOG.debug("Adding {} between {}-{} with aggregate interval {} for measure {}",
-                                aggregatedDataPoint.getTimestamp(), range.getFrom(), range.getTo(), aggregateInterval, measure);
-                        timeSeriesSpan.addAggregatedDataPoint(aggregatedDataPoint);
-                        // Clear current point and get next one in next iteration
-                        aggregatedDataPoint = null;
-                    }
-                }
-                LOG.info("Created aggregate time series span for measure {} : {}", measure, timeSeriesSpan.getSize());
-
-                timeSeriesSpansForMeasure.add(timeSeriesSpan);
-            }
-            spans.put(measure, timeSeriesSpansForMeasure);
-        }
-        
-        return spans;
-    }
-
-    public static Map<Integer, List<TimeSeriesSpan>> createSlopeAggregate(AggregatedDataPoints slopeAggregatedDataPoints,
-                                                                    Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-                                                                    Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
-    Map<Integer, List<TimeSeriesSpan>> spans = new HashMap<>();
-        Iterator<AggregatedDataPoint> it = slopeAggregatedDataPoints.iterator();
-        AggregatedDataPoint slopeAggregatedDataPoint = null;
-        for (Integer measure : missingIntervalsPerMeasure.keySet()) {
-            AggregateInterval  aggregateInterval = aggregateIntervalsPerMeasure.get(measure);
-            List<TimeSeriesSpan> timeSeriesSpansForMeasure = new ArrayList<>();
-            boolean changed = false; 
-            
-            for (TimeInterval range : missingIntervalsPerMeasure.get(measure)) {
-                SlopeAggregateTimeSeriesSpan timeSeriesSpan = new SlopeAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
-                while (true) {
-                    // Get next point if needed
-                    if (!changed && slopeAggregatedDataPoint == null && it.hasNext()) {
-                        slopeAggregatedDataPoint = it.next();
-                    }
-                    
-                    // If there's no point to process, break the loop
-                    if (slopeAggregatedDataPoint == null) {
-                        break;
-                    }
-                
-                    if (slopeAggregatedDataPoint.getTimestamp() < range.getFrom()
-                            || slopeAggregatedDataPoint.getTimestamp() >= range.getTo() 
-                            || slopeAggregatedDataPoint.getMeasure() != measure) {
-                        changed = true;
-                        break;
-                    }
-                    else {
-                        changed = false;
-                        LOG.debug("Adding {} between {}-{} with aggregate interval {} for measure {}",
-                                slopeAggregatedDataPoint.getTimestamp(), range.getFrom(), range.getTo(), aggregateInterval, measure);
-                        timeSeriesSpan.addAggregatedDataPoint(slopeAggregatedDataPoint);
-                        // Clear current point and get next one in next iteration
-                        slopeAggregatedDataPoint = null;
-                    }
-                }
-                LOG.debug("Created aggregate time series span for measure {} : {}", measure, timeSeriesSpan.getSize());
-
-                timeSeriesSpansForMeasure.add(timeSeriesSpan);
-            }
-            spans.put(measure, timeSeriesSpansForMeasure);
-        }
-        
-        return spans;
-    }
-
 }
 
 

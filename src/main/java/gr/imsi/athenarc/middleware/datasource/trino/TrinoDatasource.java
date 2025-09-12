@@ -51,8 +51,8 @@ public class TrinoDatasource implements DataSource {
     @Override
     public AggregatedDataPoints getSlopeAggregates(long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
-            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure) {
-        return new TrinoSlopeAggregatedDataPoints(trinoQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure);
+            Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure, boolean includeMinMax) {
+        return new TrinoSlopeAggregatedDataPoints(trinoQueryExecutor, dataset, from, to, missingIntervalsPerMeasure, aggregateIntervalsPerMeasure, includeMinMax);
     }
 
     @Override

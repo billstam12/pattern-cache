@@ -2,6 +2,7 @@ package gr.imsi.athenarc.middleware.cache;
 import java.util.Iterator;
 
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoints;
 
 /**
@@ -37,4 +38,13 @@ public interface TimeSeriesSpan extends DataPoints {
      *  Wethe this span is an initialization span or not.
      */
     boolean isInit();
+
+    void addAggregatedDataPoint(AggregatedDataPoint aggregatedDataPoint);
+
+    /* 
+     * Rolls up the timeseries span into one with coarser granularity
+     */
+    TimeSeriesSpan rollUp(AggregateInterval targetInterval);
+
+    int getSize();
 }
