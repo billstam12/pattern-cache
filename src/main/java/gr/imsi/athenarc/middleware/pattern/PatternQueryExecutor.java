@@ -45,7 +45,7 @@ public class PatternQueryExecutor {
      * @param aggregationType Type of aggregation for the sketches
      * @return List of sketches spanning the time range
      */
-    public static List<Sketch> generateSketches(long from, long to, AggregateInterval timeUnit, String method) {
+    public static List<Sketch> generateSketches(long from, long to, AggregateInterval timeUnit, DataSource dataSource, String method) {
         List<Sketch> sketches = new ArrayList<>();
         
         // Calculate the number of complete intervals
@@ -71,7 +71,7 @@ public class PatternQueryExecutor {
                     sketch = new ApproxOLSSketch(sketchStart, sketchEnd, i);
                     break;
                 case "ols":
-                    sketch = new OLSSketch(sketchStart, sketchEnd);
+                    sketch = new OLSSketch(sketchStart, sketchEnd, i);
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown method: " + method);
@@ -111,7 +111,6 @@ public class PatternQueryExecutor {
         double totalMatchError = 0.0;
         for (PatternMatch match : matches) {
             double avgError = match.getAverageErrorMargin();
-            LOG.debug("Average error: {}", avgError);
             totalMatchError += avgError;
         }
         double overallAvgError = matches.isEmpty() ? 0.0 : totalMatchError / matches.size();
@@ -120,12 +119,13 @@ public class PatternQueryExecutor {
             LOG.warn("Overall average error {} exceeds query acceptable error {}. Doubling aggFactor and refetching...", overallAvgError, 1.0 - params.accuracy);
             AggregationFactorService aggFactorService = AggregationFactorService.getInstance();
             int currentAggFactor = aggFactorService.getAggFactor(params.measure);
+            
             int doubledAggFactor = currentAggFactor * 2;
             aggFactorService.setAggFactor(params.measure, doubledAggFactor);
 
             // Re-fetch data with doubled aggFactor
-            List<Sketch> sketchesRefetch = generateSketches(params.alignedFrom, params.alignedTo, params.timeUnit, method);
-            fetchMissingDataAndUpdateCache(sketchesRefetch, dataSource, cache, method, params.measure, params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
+            List<Sketch> sketchesRefetch = generateSketches(params.alignedFrom, params.alignedTo, params.timeUnit, dataSource, method);
+            fetchMissingDataAndUpdateCache(sketchesRefetch, dataSource, cache, method, adaptation, params.measure, params.alignedFrom, params.alignedTo, params.timeUnit, params.viewPort);
             matches = executePatternMatching(sketchesRefetch, patternNodes,
                     MatchingStrategy.ALL,
                     MatchSelectionStrategy.LONGEST,
@@ -171,7 +171,7 @@ public class PatternQueryExecutor {
                                                         TimeSeriesCache cache, String method, boolean adaptation) {
         // Create sketches for non-timestamped pattern matching (used with cache)
         List<Sketch> sketches = generateSketches(
-                params.alignedFrom, params.alignedTo, params.timeUnit, method);
+                params.alignedFrom, params.alignedTo, params.timeUnit, dataSource, method);
         
         LOG.info("Created {} sketches for aligned time range with time unit {}", 
                 sketches.size(), params.timeUnit);
@@ -183,7 +183,7 @@ public class PatternQueryExecutor {
         
         // Fetch missing data from datasource and update cache
         fetchMissingDataAndUpdateCache(
-                sketches, dataSource, cache, method,
+                sketches, dataSource, cache, method, adaptation,
                 params.measure, params.alignedFrom, params.alignedTo,
                 params.timeUnit, params.viewPort);
         
@@ -230,7 +230,6 @@ public class PatternQueryExecutor {
          // Create timestamped sketches for direct data source pattern matching
         List<Sketch> sketches = prepareAndPopulateSketches(dataSource, method, params.measure,
                 params.alignedFrom, params.alignedTo, params.timeUnit, false);
-        
         // Perform pattern matching and return results
         List<PatternMatch> matches = executePatternMatching(sketches, patternNodes, 
                                                                  MatchingStrategy.SELECTION, 
@@ -246,7 +245,7 @@ public class PatternQueryExecutor {
     private static List<Sketch> prepareAndPopulateSketches(DataSource dataSource, String method,
                                                              int measure, long from, long to,
                                                              AggregateInterval timeUnit, boolean includeMinMax) {
-        List<Sketch> sketches = generateSketches(from, to, timeUnit, method);
+        List<Sketch> sketches = generateSketches(from, to, timeUnit, dataSource, method);
         Map<Integer, List<TimeInterval>> intervalsPerMeasure = new HashMap<>();
         Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure = new HashMap<>();
         List<TimeInterval> intervals = new ArrayList<>();
@@ -339,8 +338,10 @@ public class PatternQueryExecutor {
             case "firstLastInf":
             case "m4":
             case "m4Inf":
-            case "ols":
                 existingSpans = cache.getCompatibleSpans(measure, alignedTimeRange, timeUnit);
+                break;
+            case "ols":
+                existingSpans = cache.getMaxCoverageCompatibleSpans(measure, alignedTimeRange, timeUnit);
                 break;
             case "minMax":
             case "approxOls":
@@ -352,6 +353,10 @@ public class PatternQueryExecutor {
 
         if (!existingSpans.isEmpty()) {
             LOG.info("Found {} existing compatible spans in cache for measure {}", existingSpans.size(), measure);
+            for (TimeSeriesSpan existingSpan : existingSpans) {
+                LOG.debug("Existing span: {} - {}, aggInterval: {}, count: {}", existingSpan.getFrom(), existingSpan.getTo(), existingSpan.getAggregateInterval(), existingSpan.getCount());
+            }
+
             SketchUtils.populateSketchesFromSpans(existingSpans, sketches, alignedFrom, alignedTo, timeUnit, viewPort, method);
         }
     }
@@ -360,7 +365,7 @@ public class PatternQueryExecutor {
      * Fetch missing data from data source and update cache.
      */
     private static void fetchMissingDataAndUpdateCache(List<Sketch> sketches, DataSource dataSource,
-                                                   TimeSeriesCache cache, String method, int measure,
+                                                   TimeSeriesCache cache, String method, boolean adaptation, int measure,
                                                    long alignedFrom, long alignedTo,
                                                    AggregateInterval timeUnit,
                                                    ViewPort viewPort) {
@@ -375,7 +380,13 @@ public class PatternQueryExecutor {
 
         if(method.equalsIgnoreCase("minMax")
             || method.equalsIgnoreCase("approxOls")) {
-            divider = aggFactorService.getAggFactor(measure);
+            if (adaptation) {
+                // Use current aggFactor for the measure
+                divider = aggFactorService.getAggFactor(measure);
+            } else {
+                // For minMax and approxOls without adaptation, always use aggFactor=1
+                divider = 4;
+            }
         } 
 
         subInterval = DateTimeUtil.roundDownToCalendarBasedInterval(timeUnit.toDuration().toMillis() / divider);

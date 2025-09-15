@@ -167,7 +167,7 @@ public class MatchRecognizeQueryExecutor {
     private static Sketch createSketchFromMatchRecognizeResult(long startTime, long endTime, double angle, String method) {
         // For now, create an OLS sketch since MATCH_RECOGNIZE calculates regression angles
         // This could be extended to support other sketch types based on the method parameter
-        OLSSketch sketch = new OLSSketch(startTime, endTime);
+        OLSSketch sketch = new OLSSketch(startTime, endTime, 0);
         
         // Since we already have the calculated angle from SQL, we need to set it directly
         // We'll use reflection or create a specialized constructor/setter for this case
@@ -234,9 +234,9 @@ public class MatchRecognizeQueryExecutor {
 
         long bucketIntervalMs = timeUnit.toDuration().toMillis();
         long alignedStart = DateTimeUtil.alignToTimeUnitBoundary(dataSource.getDataset().getTimeRange().getFrom(), timeUnit, true);
-        sql.append("      FLOOR((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") / ").append(bucketIntervalMs).append(") + \n");
+        sql.append(     "      FLOOR((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") / ").append(bucketIntervalMs).append(") + \n");
         sql.append("      ((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") % ").append(bucketIntervalMs).append(") / ").append(bucketIntervalMs).append(".0 AS normalized_time\n");
-        
+       
         sql.append("    FROM ").append(tableName).append("\n");
         sql.append("    WHERE id = '").append(measure).append("'\n");
         

@@ -170,9 +170,13 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
         query.append("\n");
         query.append("FROM (\n");
         query.append("  SELECT *,\n");
-        query.append("    -- Normalize timestamp using MatchRecognize approach: bucket_index + fractional_position\n");
-        query.append("    FLOOR((to_unixtime(").append(timestampColumn).append(") * 1000 - ").append(alignedStart).append(") / ").append(intervalMillis).append(") + \n");
+
+        // query.append("    -- Normalize timestamp using MatchRecognize approach: bucket_index + fractional_position\n");
+        // query.append("    FLOOR((to_unixtime(").append(timestampColumn).append(") * 1000 - ").append(alignedStart).append(") / ").append(intervalMillis).append(") + \n");
+        
+        query.append("    -- Normalize timestamp using half of the MatchRecognize approach: fractional_position. The bucket_index will be added dynamically on evaluation\n");
         query.append("    ((to_unixtime(").append(timestampColumn).append(") * 1000 - ").append(alignedStart).append(") % ").append(intervalMillis).append(") / ").append(intervalMillis).append(".0 AS normalized_time\n");
+       
         query.append("  FROM (\n");
         query.append("    SELECT *,\n");
         query.append("      ").append(timeBucket).append(" AS bucket_start\n");

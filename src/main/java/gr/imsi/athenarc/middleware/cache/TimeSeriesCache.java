@@ -142,6 +142,43 @@ public class TimeSeriesCache {
             cacheLock.readLock().unlock();
         }
     }
+
+    /**
+     * Gets all time series spans that overlap with a given time interval for a specific measure
+     * and have exactly the same aggregation interval as the target interval.
+     * 
+     * @param measure The measure ID
+     * @param interval The time interval to check for overlap
+     * @param targetInterval The target aggregation interval
+     * @return A list of time series spans that overlap with the interval and have exactly the same aggregation interval
+     */
+    public List<TimeSeriesSpan> getExactCompatibleSpans(int measure, TimeInterval interval, AggregateInterval targetInterval) {
+        try {
+            cacheLock.readLock().lock();
+            
+            // Track access pattern if memory manager is configured
+            if (memoryManager != null) {
+                memoryManager.recordMeasureAccess(measure);
+                memoryManager.recordTimeRangeAccess(new TimeRange(interval.getFrom(), interval.getTo()), targetInterval);
+            }
+            
+            IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
+            if (tree == null) {
+                return new ArrayList<>();
+            }
+            
+            // Filter spans by compatible intervals
+            return StreamSupport.stream(
+                    Spliterators.spliteratorUnknownSize(tree.overlappers(interval), 0), false)
+                    .filter(span -> {
+                        // Check if the span's aggregate interval is compatible
+                        return span.getAggregateInterval() == targetInterval;     
+                    })
+                    .collect(Collectors.toList());
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
     
     /**
      * Gets all time series spans that overlap with a given time interval for a specific measure
@@ -209,6 +246,66 @@ public class TimeSeriesCache {
                     // to ensure at least one fully contained in every pixel column that the span fully overlaps
                     .filter(span -> pixelColumnInterval.toDuration().toMillis() >= 2 * span.getAggregateInterval().toDuration().toMillis())
                     .collect(Collectors.toList());
+        } finally {
+            cacheLock.readLock().unlock();
+        }
+    }
+
+
+    /**
+     * Gets the spans with the most coverage for a compatible aggregate interval.
+     * For the given interval and target aggregate interval, finds all compatible spans,
+     * groups them by their aggregate interval, and returns the group that covers the largest
+     * portion of the interval.
+     *
+     * @param measure The measure ID
+     * @param interval The time interval to check for overlap
+     * @param targetInterval The target aggregation interval
+     * @return A list of time series spans with the most coverage and the same compatible aggregate interval
+     */
+    public List<TimeSeriesSpan> getMaxCoverageCompatibleSpans(int measure, TimeInterval interval, AggregateInterval targetInterval) {
+        try {
+            cacheLock.readLock().lock();
+            IntervalTree<TimeSeriesSpan> tree = measureToIntervalTree.get(measure);
+            if (tree == null) {
+                return new ArrayList<>();
+            }
+
+            // Step 1: Find all compatible spans
+            List<TimeSeriesSpan> compatibleSpans = StreamSupport.stream(
+                    Spliterators.spliteratorUnknownSize(tree.overlappers(interval), 0), false)
+                    .filter(span -> DateTimeUtil.isCompatibleWithTarget(span.getAggregateInterval(), targetInterval))
+                    .collect(Collectors.toList());
+
+            // Step 2: Group by aggregate interval
+            Map<AggregateInterval, List<TimeSeriesSpan>> byAgg = compatibleSpans.stream()
+                    .collect(Collectors.groupingBy(TimeSeriesSpan::getAggregateInterval));
+
+            // Step 3: For each group, calculate total coverage
+            AggregateInterval bestAgg = null;
+            long maxCoverage = -1;
+            for (Map.Entry<AggregateInterval, List<TimeSeriesSpan>> entry : byAgg.entrySet()) {
+                long coverage = 0;
+                for (TimeSeriesSpan span : entry.getValue()) {
+                    coverage += span.percentage(interval)   ;
+                    // long overlapStart = Math.max(span.getFrom(), interval.getFrom());
+                    // long overlapEnd = Math.min(span.getTo(), interval.getTo());
+                    // if (overlapStart < overlapEnd) {
+                    //     coverage += (overlapEnd - overlapStart);
+                    // }
+                }
+                if (coverage > maxCoverage) {
+                    maxCoverage = coverage;
+                    bestAgg = entry.getKey();
+                }
+            }
+
+            // Step 4: Return the spans from the group with max coverage
+            if (bestAgg != null) {
+                return byAgg.get(bestAgg);
+            } else {
+                return new ArrayList<>();
+            }
         } finally {
             cacheLock.readLock().unlock();
         }

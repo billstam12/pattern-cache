@@ -4,6 +4,7 @@ import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.DataPoint;
 import gr.imsi.athenarc.middleware.domain.OLSSlopeMinMaxStats;
+import gr.imsi.athenarc.middleware.domain.OLSSlopeStats;
 import gr.imsi.athenarc.middleware.domain.Stats;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -84,7 +85,7 @@ public class SlopeMinMaxAggregateTimeSeriesSpan implements TimeSeriesSpan {
     public int getSize() { return size; }
     public AggregateInterval getAggregateInterval() { return aggregateInterval; }
     public TimeInterval getResidual() { return new TimeRange(from + (aggregateInterval.toDuration().toMillis()) * (size - 1), to); }
-    public java.util.Iterator<AggregatedDataPoint> iterator(long queryStartTimestamp, long queryEndTimestamp) { return new TimeSeriesSpanIterator(queryStartTimestamp, queryEndTimestamp); }
+    public Iterator<AggregatedDataPoint> iterator(long queryStartTimestamp, long queryEndTimestamp) { return new TimeSeriesSpanIterator(queryStartTimestamp, queryEndTimestamp); }
     public TimeRange getTimeRange() { return new TimeRange(getFrom(), getTo()); }
     
     @Override
@@ -220,15 +221,75 @@ public class SlopeMinMaxAggregateTimeSeriesSpan implements TimeSeriesSpan {
         }
         @Override public int getCount() { return (int) aggregates[currentIndex * AGG_SIZE + 4]; }
         @Override public Stats getStats() {
-            return new OLSSlopeMinMaxStats(
-                Double.longBitsToDouble(aggregates[currentIndex * AGG_SIZE]),
-                Double.longBitsToDouble(aggregates[currentIndex * AGG_SIZE + 1]),
-                Double.longBitsToDouble(aggregates[currentIndex * AGG_SIZE + 2]),
-                Double.longBitsToDouble(aggregates[currentIndex * AGG_SIZE + 3]),
-                (int) aggregates[currentIndex * AGG_SIZE + 4],
-                Double.longBitsToDouble(aggregates[currentIndex * AGG_SIZE + 5]),
-                Double.longBitsToDouble(aggregates[currentIndex * AGG_SIZE + 6])
-            );
+            return new OLSSlopeStats() {
+
+                private int index = currentIndex;
+
+                @Override
+                public int getCount() {
+                    return (int) aggregates[index * AGG_SIZE + 4];
+                }
+
+                @Override
+                public double getSumX() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE]);
+                }
+
+                @Override
+                public double getSumY() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 1]);
+                }
+
+                @Override
+                public double getSumXY() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 2]);
+                }
+
+                @Override
+                public double getSumX2() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 3]);
+                }
+
+                @Override
+                public double getMinValue() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 5]);
+                }   
+
+                @Override
+                public double getMaxValue() {
+                    return Double.longBitsToDouble(aggregates[index * AGG_SIZE + 6]);
+                }
+
+                 @Override
+                public long getMinTimestamp() {
+                    return (getFrom() + getTo()) / 2;
+                }
+
+                @Override
+                public long getMaxTimestamp() {
+                    return (getFrom() + getTo()) / 2;
+                }
+
+                @Override
+                public double getFirstValue() {
+                    return (getMinValue() + getMaxValue()) / 2;
+                }
+
+                @Override
+                public long getFirstTimestamp() {
+                    return getFrom() + 1;
+                }
+
+                @Override
+                public double getLastValue() {
+                    return (getMinValue() + getMaxValue()) / 2;
+                }
+
+                @Override
+                public long getLastTimestamp() {
+                    return getTo() - 1;
+                }
+            };
         }
         @Override public int getMeasure() { return measure; }
         @Override public long getTimestamp() { return timestamp; }

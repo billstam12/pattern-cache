@@ -33,6 +33,7 @@ public class OLSSketch implements Sketch {
     
     private OLSSlopeStatsAggregator slopeStatsAggregator = new OLSSlopeStatsAggregator();
 
+    private int windowId; // Identifier for the window this sketch belongs to
 
     /**
      * Creates a new OLS sketch with the specified aggregation type.
@@ -41,9 +42,10 @@ public class OLSSketch implements Sketch {
      * @param to The end timestamp of this sketch
      * @param aggregationType The function that gets the representative data point
      */
-    public OLSSketch(long from, long to) {
+    public OLSSketch(long from, long to, int windowId) {
         this.from = from;
         this.to = to;
+        this.windowId = windowId;
         this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
     }
 
@@ -55,8 +57,44 @@ public class OLSSketch implements Sketch {
     @Override
     public void addAggregatedDataPoint(AggregatedDataPoint dp) {
         hasInitialized = true; // Mark as having underlying data
-        OLSSlopeStats slopeStats = (OLSSlopeStats) dp.getStats();
-        slopeStatsAggregator.accept(slopeStats);
+        OLSSlopeStats dpStats = (OLSSlopeStats) dp.getStats();
+
+        double sketchInterval = (double) originalAggregateInterval.toDuration().toMillis();
+        double dpInterval = (double) (dp.getTo() - dp.getFrom());
+        double dpStartNorm = (dp.getFrom() - this.from) / sketchInterval;
+        double dpScale = dpInterval / sketchInterval;
+
+        // The original dpStats are for x in [0,1] in dp's interval.
+        // We need to transform x: x' = dpStartNorm + x * dpScale (+ windowId if needed)
+        // For sums:
+        // sumX' = sum(x') = sum(dpStartNorm + x * dpScale) = count * dpStartNorm + dpScale * sumX
+        // sumX2' = sum(x'^2) = sum((dpStartNorm + x * dpScale)^2)
+        //        = count * dpStartNorm^2 + 2 * dpStartNorm * dpScale * sumX + dpScale^2 * sumX2
+        // sumXY' = sum(y * x') = dpStartNorm * sumY + dpScale * sumXY
+
+        int count = dpStats.getCount();
+        double sumX = dpStats.getSumX();
+        double sumY = dpStats.getSumY();
+        double sumXY = dpStats.getSumXY();
+        double sumX2 = dpStats.getSumX2();
+
+        // Optionally add windowId as an offset to x'
+        double windowOffset = windowId; // or 0 if not needed
+
+        double sumX_prime = count * (dpStartNorm + windowOffset) + dpScale * sumX;
+        double sumX2_prime = count * Math.pow(dpStartNorm + windowOffset, 2)
+                        + 2 * (dpStartNorm + windowOffset) * dpScale * sumX
+                        + Math.pow(dpScale, 2) * sumX2;
+        double sumXY_prime = (dpStartNorm + windowOffset) * sumY + dpScale * sumXY;
+        double sumY_prime = sumY; // y values are not transformed
+
+        // Create a new OLSSlopeStats with the transformed sums
+            OLSSlopeStats transformedStats = new OLSSlopeStats(
+            sumX_prime, sumY_prime, sumXY_prime, sumX2_prime, count
+        );
+
+        // Use your aggregator to accumulate the transformed stats
+        slopeStatsAggregator.accept(transformedStats);
     }
     
     /**
@@ -176,7 +214,7 @@ public class OLSSketch implements Sketch {
 
     @Override
     public Sketch clone() {
-        OLSSketch sketch = new OLSSketch(this.from, this.to);
+        OLSSketch sketch = new OLSSketch(this.from, this.to, this.windowId);
         sketch.hasInitialized = this.hasInitialized;
         sketch.angle = this.angle;
         sketch.originalAggregateInterval = this.originalAggregateInterval;

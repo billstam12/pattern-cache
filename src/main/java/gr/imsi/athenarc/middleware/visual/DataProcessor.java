@@ -12,6 +12,7 @@ import gr.imsi.athenarc.middleware.cache.M4AggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.M4InfAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.MinMaxAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.RawTimeSeriesSpan;
+import gr.imsi.athenarc.middleware.cache.SlopeMinMaxAggregateTimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.cache.TimeSeriesSpanFactory;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
@@ -101,7 +102,15 @@ public class DataProcessor {
                     AggregatedDataPoint aggregatedDataPoint = iterator.next();
                     SketchUtils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
                 } 
-             } else {
+             } else if (span instanceof SlopeMinMaxAggregateTimeSeriesSpan) {
+                // Add aggregated data points to pixel columns with errors
+                Iterator<AggregatedDataPoint> iterator = ((SlopeMinMaxAggregateTimeSeriesSpan) span).iterator(from, to);
+                while (iterator.hasNext()) {
+                    AggregatedDataPoint aggregatedDataPoint = iterator.next();
+                    SketchUtils.addAggregatedDataPointToPixelColumns(from, to, viewPort, pixelColumns, aggregatedDataPoint);
+                } 
+            }
+            else {
                 throw new IllegalArgumentException("Time Series Span Read Error");
             }
         }

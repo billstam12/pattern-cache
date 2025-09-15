@@ -25,12 +25,17 @@ for SEG in small mid big; do
 	sh ./scripts/run_method.sh --type trino --method ols --mode timeMatchRecognizeQueries --table soccer_exp --queries "${QUERIES_FOLDER}/soccer_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1
 	sh ./scripts/run_method.sh --type trino --method ols --mode timeMatchRecognizeQueries --table intel_lab_exp --queries "${QUERIES_FOLDER}/intel_lab_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1
 
-	# timeCacheQueries with adaptation
+	# timeCacheQueries with slope cache
+	sh ./scripts/run_method.sh --type trino --method ols --mode timeCacheQueries --table manufacturing_exp --queries "${QUERIES_FOLDER}/manufacturing_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1
+	sh ./scripts/run_method.sh --type trino --method ols --mode timeCacheQueries --table soccer_exp --queries "${QUERIES_FOLDER}/soccer_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1
+	sh ./scripts/run_method.sh --type trino --method ols --mode timeCacheQueries --table intel_lab_exp --queries "${QUERIES_FOLDER}/intel_lab_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1
+
+	# timeCacheQueries with approximate and with adaptation
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table manufacturing_exp --queries "${QUERIES_FOLDER}/manufacturing_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1 --adaptation
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table soccer_exp --queries "${QUERIES_FOLDER}/soccer_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1 --adaptation
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table intel_lab_exp --queries "${QUERIES_FOLDER}/intel_lab_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1 --adaptation
 
-	# timeCacheQueries NO adaptation
+	# timeCacheQueries with approximate and NO adaptation
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table manufacturing_exp --queries "${QUERIES_FOLDER}/manufacturing_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}_no_adapt" --runs 1
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table soccer_exp --queries "${QUERIES_FOLDER}/soccer_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}_no_adapt" --runs 1
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table intel_lab_exp --queries "${QUERIES_FOLDER}/intel_lab_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}_no_adapt" --runs 1
@@ -47,4 +52,3 @@ for ACC_TYPE in low high; do
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table soccer_exp --queries "${QUERIES_FOLDER}/soccer_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1 --adaptation
 	sh ./scripts/run_method.sh --type trino --method approxOls --mode timeCacheQueries --table intel_lab_exp --queries "${QUERIES_FOLDER}/intel_lab_exp_queries_${ACC_STR}.txt" --out "${OUT_FOLDER}" --runs 1 --adaptation
 done
-

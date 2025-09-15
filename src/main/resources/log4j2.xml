@@ -19,10 +19,10 @@
             <AppenderRef ref="Console"/>
             <AppenderRef ref="File"/>
         </Logger>
-        <!-- <Logger name="gr.imsi.athenarc.middleware.sketch.SingleValueSketch" level="debug" additivity="false">
+        <Logger name="gr.imsi.athenarc.middleware.pattern.PatternQueryExecutor" level="debug" additivity="false">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="File"/>
-        </Logger> -->
+        </Logger>
 
         <Root level="info">
             <AppenderRef ref="Console"/>

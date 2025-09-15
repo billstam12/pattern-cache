@@ -103,6 +103,7 @@ public class TimeSeriesSpanFactory {
                         break;
                     case "ols":
                         timeSeriesSpan = new SlopeMinMaxAggregateTimeSeriesSpan(range.getFrom(), range.getTo(), measure, aggregateInterval);
+                        break;
                     default:
                         throw new IllegalArgumentException("Unssuported method");
                 }

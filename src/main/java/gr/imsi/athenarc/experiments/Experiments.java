@@ -158,6 +158,7 @@ public class Experiments {
                 Preconditions.checkArgument(method.equals("m4") 
                     || method.equals("m4Inf")
                     || method.equals("approxOls") 
+                    || method.equals("ols")
                     || method.equals("minMax"), 
                     "Method must be either 'm4', 'approxOls' or 'minMax' for cache queries.");
                 Preconditions.checkArgument(!adaptation || method.equals("approxOls") || method.equals("minMax"),

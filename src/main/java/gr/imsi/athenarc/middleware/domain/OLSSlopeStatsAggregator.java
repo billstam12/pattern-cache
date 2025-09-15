@@ -8,11 +8,11 @@ import java.util.function.Consumer;
  */
 public class OLSSlopeStatsAggregator implements Consumer<OLSSlopeStats>, Serializable {
     
-    private double sumX;
-    private double sumY;
-    private double sumXY;
-    private double sumX2;
-    private int count;
+    private double sumX = 0.0;
+    private double sumY = 0.0;
+    private double sumXY = 0.0;
+    private double sumX2 = 0.0;
+    private int count = 0;
 
     
     public OLSSlopeStatsAggregator() {    }
