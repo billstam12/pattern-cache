@@ -37,7 +37,7 @@ public class VisualEvaluator {
             }
         }
         error /= validColumns;
-        hasError = error > 1 - accuracy || validColumns != pixelColumns.size();
+        hasError = error > 1 - accuracy;
         return error;
     }
 

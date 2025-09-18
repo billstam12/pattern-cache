@@ -20,7 +20,7 @@ public class ApproxOLSSketch implements Sketch {
 
     private long from;
     private long to;
-    private int windowId;
+    private long windowId;
     
     private double angle;
     private double minAngle; // Lower bound of angle error
@@ -43,7 +43,7 @@ public class ApproxOLSSketch implements Sketch {
      * @param to The end timestamp of this sketch
      * @param windowId The window id of this sketch, used to calculate the angle
      */
-    public ApproxOLSSketch(long from, long to, int windowId) {
+    public ApproxOLSSketch(long from, long to, long windowId) {
         this.from = from;
         this.to = to;
         this.windowId = windowId;

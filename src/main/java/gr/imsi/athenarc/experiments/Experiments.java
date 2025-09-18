@@ -29,6 +29,7 @@ import gr.imsi.athenarc.middleware.query.visual.VisualQuery;
 import gr.imsi.athenarc.middleware.query.visual.VisualQueryResults;
 import gr.imsi.athenarc.middleware.visual.VisualUtils;
 import gr.imsi.athenarc.experiments.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,6 +70,9 @@ public class Experiments {
     
     @Parameter(names = "-a", required = false)
     private float accuracy;
+
+    @Parameter(names = "-segSize", required = false, description = "Segment size for pattern queries 'small', 'mid', 'big' ")
+    private String segSize;
 
     @Parameter(names = "-agg", required = false)
     private int aggFactor;
@@ -421,8 +425,10 @@ public class Experiments {
             }
         }
         Preconditions.checkNotNull(seqCount, "No sequence count specified.");
-        List<TypedQuery> querySequence = sequenceGenerator.generateQuerySequence(q0, seqCount);
-        String per = q == 1 ? "guided" : ((int) (q * 100)) + "p";
+        Preconditions.checkNotNull(segSize, "No segment size specified.");
+
+        List<TypedQuery> querySequence = sequenceGenerator.generateQuerySequence(q0, seqCount, segSize);
+        String per = ((int) (q * 100)) + "p";
         String genFile = dataset.getTableName() + "_queries_" + per + ".txt";
         if(save) {
             sequenceGenerator.saveQueriesToFile(querySequence, Paths.get(outFolder, genFile).toString());

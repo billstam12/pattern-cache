@@ -2,7 +2,7 @@ package gr.imsi.athenarc.middleware.datasource.trino;
 
 import gr.imsi.athenarc.middleware.datasource.dataset.SQLDataset;
 import gr.imsi.athenarc.middleware.datasource.executor.SQLQueryExecutor;
-import gr.imsi.athenarc.middleware.datasource.iterator.TrinoSlopeAggregatedDataPointsIterator;
+import gr.imsi.athenarc.middleware.datasource.iterator.SQLSlopeAggregatedDataPointsIterator;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
@@ -127,7 +127,7 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
         sqlQuery.append(" ORDER BY measure_name, time_bucket");
 
         ResultSet resultSet = trinoQueryExecutor.executeDbQuery(sqlQuery.toString());
-    return new TrinoSlopeAggregatedDataPointsIterator(resultSet, measuresMap);
+    return new SQLSlopeAggregatedDataPointsIterator(resultSet, measuresMap);
     }
 
     /**
@@ -148,17 +148,15 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
      * approach as MatchRecognize.
      */
     private String buildSlopeAggregateQuery(String dataSourceQuery, String timestampColumn,
-            AggregateInterval aggregateInterval, long offset, long alignedStart) {
+            AggregateInterval aggregateInterval, long offset, long alignedFrom) {
         
         long intervalMillis = aggregateInterval.getMultiplier() * getChronoUnitMillis(aggregateInterval.getChronoUnit());
         String timeBucket = generateTimeBucketExpression(timestampColumn, intervalMillis, offset);
-        
+
         StringBuilder query = new StringBuilder();
         query.append("SELECT \n");
         query.append("  ").append(timeBucket).append(" AS time_bucket,\n");
         query.append("  _measure AS measure_name,\n");
-        // Calculate normalized x values using the same approach as MatchRecognize:
-        // bucket_index + (position_within_bucket / bucket_size)
         query.append("  SUM(normalized_time) AS sum_x,\n");
         query.append("  SUM(_value) AS sum_y,\n");
         query.append("  SUM(normalized_time * _value) AS sum_xy,\n");
@@ -173,9 +171,8 @@ public class TrinoSlopeAggregatedDataPoints implements AggregatedDataPoints {
 
         // query.append("    -- Normalize timestamp using MatchRecognize approach: bucket_index + fractional_position\n");
         // query.append("    FLOOR((to_unixtime(").append(timestampColumn).append(") * 1000 - ").append(alignedStart).append(") / ").append(intervalMillis).append(") + \n");
-        
         query.append("    -- Normalize timestamp using half of the MatchRecognize approach: fractional_position. The bucket_index will be added dynamically on evaluation\n");
-        query.append("    ((to_unixtime(").append(timestampColumn).append(") * 1000 - ").append(alignedStart).append(") % ").append(intervalMillis).append(") / ").append(intervalMillis).append(".0 AS normalized_time\n");
+        query.append("    ((to_unixtime(").append(timestampColumn).append(") * 1000 - to_unixtime(bucket_start) * 1000) % ").append(intervalMillis).append(") / ").append(intervalMillis).append(".0 AS normalized_time\n");
        
         query.append("  FROM (\n");
         query.append("    SELECT *,\n");

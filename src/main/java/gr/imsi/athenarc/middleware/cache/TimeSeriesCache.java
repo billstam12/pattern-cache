@@ -108,6 +108,8 @@ public class TimeSeriesCache {
                     memoryManager.trackSpanAddition(span);
                 }
             }
+        } catch (Exception e) {
+            LOG.error("Error adding spans to cache", e);
         } finally {
             cacheLock.writeLock().unlock();
         }

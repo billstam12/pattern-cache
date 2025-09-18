@@ -70,7 +70,8 @@ public class VisualQueryExecutor {
             return executeQueryWithMeasureIntervals(query, dataSource, cache);
         }
         
-        if(query.getAccuracy() == 1) return VisualUtils.executeM4Query(query, dataSource);
+        double accuracy = query.getAccuracy();
+        if(accuracy == 1) return VisualUtils.executeM4Query(query, dataSource);
 
         // Bound from and to to dataset range
         long from = Math.max(dataset.getTimeRange().getFrom(), query.getFrom());
@@ -124,7 +125,7 @@ public class VisualQueryExecutor {
             // Calculate Error
             VisualEvaluator errorCalculator = new VisualEvaluator();
             ErrorResults errorResults = new ErrorResults();
-            double errorForMeasure = errorCalculator.calculateTotalError(pixelColumns, viewPort, pixelColumnInterval, query.getAccuracy());
+            double errorForMeasure = errorCalculator.calculateTotalError(pixelColumns, viewPort, pixelColumnInterval, accuracy);
             errorResults.setError(errorForMeasure);
             errorResults.setFalsePixels(errorCalculator.getFalsePixels());
             errorResults.setMissingPixels(errorCalculator.getMissingPixels());
@@ -140,10 +141,13 @@ public class VisualQueryExecutor {
                 
                 int spanFactor = (int) Math.ceil(((query.getTo() - query.getFrom()) / viewPort.getWidth()) / span.getAggregateInterval().toDuration().toMillis());
                 double w = span.percentage(query);                // weight ∈ [0,1]
+                
+                // Prefer spans with larger aggregate intervals (lower agg factors) by giving them higher weight
+                // The inverse of spanFactor gives higher weight to lower agg factors
+                // double preferenceWeight = w * (1.0 / Math.max(1.0, spanFactor));
+                
                 weightedSum += w * spanFactor;
                 weightSum += w;
-                // weightedSum += spanFactor;
-                // weightSum += 1;
             }
 
             // --- 3. Process missing intervals ----------------------------------
@@ -151,8 +155,6 @@ public class VisualQueryExecutor {
                 double w = missing.percentage(query);
                 weightedSum += w * initialAggFactor;
                 weightSum += w;
-                // weightedSum += initialAggFactor;
-                // weightSum += 1;
             }
 
             // --- 4. Compute ceiled mean safely --------------------------------
@@ -203,7 +205,7 @@ public class VisualQueryExecutor {
             // Recalculate error per measure
             VisualEvaluator errorCalculator = new VisualEvaluator();
             ErrorResults errorResults = new ErrorResults();
-            double errorForMeasure = errorCalculator.calculateTotalError(pixelColumns, viewPort, pixelColumnInterval, query.getAccuracy());
+            double errorForMeasure = errorCalculator.calculateTotalError(pixelColumns, viewPort, pixelColumnInterval, accuracy);
 
             if (errorCalculator.hasError()) measuresWithError.add(measureWithMiss);
             errorResults.setError(errorForMeasure);

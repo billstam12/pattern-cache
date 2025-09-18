@@ -99,7 +99,20 @@ public class SQLAggregateDataPointsIterator extends SQLIterator<AggregatedDataPo
     public void logAggregateDataPoint(long timeBucket, long timeBucketEnd, String measureName, AggregateStats stats) {    
         String firstValue = "N/A";
         String lastValue = "N/A";
-        
+        String minValue = "N/A";
+        String maxValue = "N/A";
+
+        try {
+            minValue = String.valueOf(stats.getMinValue());
+        } catch (Exception e) {
+            // Min value not available
+        }
+        try {
+            maxValue = String.valueOf(stats.getMaxValue());
+        } catch (Exception e) {
+            // Max value not available
+        }
+
         try {
             firstValue = String.valueOf(stats.getFirstValue());
         } catch (Exception e) {
@@ -113,7 +126,7 @@ public class SQLAggregateDataPointsIterator extends SQLIterator<AggregatedDataPo
         }
         
         LOG.debug("Created aggregate DataPoint for measure {}: min={}, max={}, first={}, last={} in bucket [{} - {}]",
-            measureName, stats.getMinValue(), stats.getMaxValue(), firstValue, lastValue, timeBucket, timeBucketEnd);
+            measureName, minValue, maxValue, firstValue, lastValue, timeBucket, timeBucketEnd);
     }
 
     private long getChronoUnitMillis(ChronoUnit unit) {

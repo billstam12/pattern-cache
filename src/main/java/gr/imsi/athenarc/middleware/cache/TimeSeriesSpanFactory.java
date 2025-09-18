@@ -134,7 +134,7 @@ public class TimeSeriesSpanFactory {
                         aggregatedDataPoint = null;
                     }
                 }
-                LOG.info("Created aggregate time series span for measure {} : {}/{}", measure, count, timeSeriesSpan.getSize());
+                LOG.info("Created {} time series span for measure {} : {}/{}", timeSeriesSpan.getClass().getSimpleName(), measure, count, timeSeriesSpan.getSize());
 
                 timeSeriesSpansForMeasure.add(timeSeriesSpan);
             }

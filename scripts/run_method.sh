@@ -17,6 +17,7 @@ SCHEMA="more"
 TABLE="intel_lab_exp"
 QUERIES=""
 SEQ_COUNT=50
+SEG_SIZE="big"
 STATE_FILE="/Users/vasilisstamatopoulos/Documents/Works/ATHENA/PhD/Code/pattern-cache/config/pattern-hunter.properties"
 # Path to JAR file (assuming it's in the target directory)
 JAR_PATH="target/pattern-cache-1.0-SNAPSHOT.jar"
@@ -30,6 +31,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --initCacheAllocation)
       CACHE_ALLOCATION="$2"
+      shift 2
+      ;;
+    --segSize)
+      SEG_SIZE="$2"
       shift 2
       ;;
     --adaptation)
@@ -87,6 +92,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --mode MODE               Mode: timeCacheQueries, timeAggregateQueries, timeMinMaxCacheQueries, timeMatchRecognizeQueries, generate"
       echo "  --runs N                  Number of runs"
       echo "  --out FOLDER              Output folder"
+      echo " --segSize SIZE             Segment size for pattern queries (small, mid, big)"
       echo "  --measures IDS            Measure IDs (space-separated)"
       echo "  --schema SCHEMA           Schema name"
       echo "  --table TABLE             Table name"

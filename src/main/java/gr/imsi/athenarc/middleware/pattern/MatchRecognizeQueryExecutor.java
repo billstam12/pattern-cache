@@ -228,24 +228,30 @@ public class MatchRecognizeQueryExecutor {
         sql.append("    COUNT(*) AS n\n");
         sql.append("  FROM (\n");
         sql.append("    SELECT\n");
-        sql.append("      ").append(bucketingExpression).append(" AS bucket_start,\n");
+        sql.append("      bucket_start,\n");
         sql.append("      value,\n");
         sql.append("      -- Normalize timestamp to 0-1 range inside the bucket, and then offset by the buckets place inside the time series\n");
 
         long bucketIntervalMs = timeUnit.toDuration().toMillis();
         long alignedStart = DateTimeUtil.alignToTimeUnitBoundary(dataSource.getDataset().getTimeRange().getFrom(), timeUnit, true);
-        sql.append(     "      FLOOR((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") / ").append(bucketIntervalMs).append(") + \n");
-        sql.append("      ((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") % ").append(bucketIntervalMs).append(") / ").append(bucketIntervalMs).append(".0 AS normalized_time\n");
+        sql.append("      FLOOR((to_unixtime(timestamp) * 1000 - ").append(alignedStart).append(") / ").append(bucketIntervalMs).append(") + \n");
+        sql.append("      ((to_unixtime(timestamp) * 1000 - to_unixtime(bucket_start) * 1000) %  ").append(bucketIntervalMs).append(") / ").append(bucketIntervalMs).append(".0 AS normalized_time\n");
        
-        sql.append("    FROM ").append(tableName).append("\n");
-        sql.append("    WHERE id = '").append(measure).append("'\n");
+        sql.append("    FROM (\n");
+        sql.append("      SELECT\n");
+        sql.append("        ").append(bucketingExpression).append(" AS bucket_start,\n");
+        sql.append("        value,\n");
+        sql.append("        timestamp\n");
+        sql.append("      FROM ").append(tableName).append("\n");
+        sql.append("      WHERE id = '").append(measure).append("'\n");
         
         // Add time range filter if specified
         if (alignedFrom > 0 && alignedTo > 0) {
-            sql.append("      AND timestamp >= TIMESTAMP '").append(DateTimeUtil.format(alignedFrom)).append("'\n");
-            sql.append("      AND timestamp < TIMESTAMP '").append(DateTimeUtil.format(alignedTo)).append("'\n");
+            sql.append("        AND timestamp >= TIMESTAMP '").append(DateTimeUtil.format(alignedFrom)).append("'\n");
+            sql.append("        AND timestamp < TIMESTAMP '").append(DateTimeUtil.format(alignedTo)).append("'\n");
         }
         
+        sql.append("    ) bucket_data\n");
         sql.append("  ) normalized_data\n");
         sql.append("  GROUP BY bucket_start\n");
         sql.append(") bucketed_stats\n");

@@ -25,7 +25,7 @@ import java.util.NoSuchElementException;
  * encapsulate the five key regression parameters needed for least squares
  * slope calculations.
  */
-public class TrinoSlopeAggregatedDataPointsIterator implements Iterator<AggregatedDataPoint> {
+public class SQLSlopeAggregatedDataPointsIterator implements Iterator<AggregatedDataPoint> {
 
     private final ResultSet resultSet;
     private final Map<String, Integer> measuresMap;
@@ -38,7 +38,7 @@ public class TrinoSlopeAggregatedDataPointsIterator implements Iterator<Aggregat
      * @param resultSet SQL ResultSet containing aggregated regression statistics
      * @param measuresMap Mapping from measure names to their indices in the dataset
      */
-    public TrinoSlopeAggregatedDataPointsIterator(ResultSet resultSet, Map<String, Integer> measuresMap) {
+    public SQLSlopeAggregatedDataPointsIterator(ResultSet resultSet, Map<String, Integer> measuresMap) {
         this.resultSet = resultSet;
         this.measuresMap = measuresMap;
         this.hasNext = true;

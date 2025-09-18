@@ -262,7 +262,7 @@ public class QuerySequenceGenerator {
          return idx;
     }
 
-    public List<TypedQuery> generateQuerySequence(Query q0, int count) {
+    public List<TypedQuery> generateQuerySequence(Query q0, int count, String segSize) {
         Direction[] directions = Direction.getRandomDirections(count);
         Random shiftRandom = new Random(mainRandom.nextLong());
         double[] shifts = shiftRandom.doubles(count, minShift, maxShift).toArray();
@@ -364,7 +364,7 @@ public class QuerySequenceGenerator {
             if(opType.equals(PD)){
                 Random patternRandom = new Random(mainRandom.nextInt());
                 // Generate pattern query and capture pattern ID
-                typedQuery = generatePatternQuery(q, patternRandom);
+                typedQuery = generatePatternQuery(q, patternRandom, segSize);
                 // q will be updated inside the method
             } else {
                 // Generate a visual query
@@ -391,7 +391,7 @@ public class QuerySequenceGenerator {
      * @param random Random generator
      * @return The ID of the pattern used
      */
-    private TypedQuery generatePatternQuery(Query baseQuery, Random random) {
+    private TypedQuery generatePatternQuery(Query baseQuery, Random random, String segSize) {
         long from = baseQuery.getFrom();
         long to = baseQuery.getTo();
         int measure = baseQuery.getMeasures().get(0);
@@ -404,8 +404,20 @@ public class QuerySequenceGenerator {
         // Generate a random aggregation type
         SlopeFunction slopeFunction = SlopeFunction.FIRST_LAST;
         
-        // Choose a predefined pattern ID and get the pattern
-        List<Integer> patternIds = PredefinedPattern.getAllPatternIds();
+        // Choose a predefined pattern ID based on segSize
+        List<Integer> patternIds;
+        if (segSize == null) {
+            // If segSize is null, select from all patterns randomly
+            patternIds = PredefinedPattern.getAllPatternIds();
+        } else {
+            // Filter patterns by the specified size
+            patternIds = PredefinedPattern.getPatternIdsBySize(segSize);
+            // If no patterns match the size, fall back to all patterns
+            if (patternIds.isEmpty()) {
+                patternIds = PredefinedPattern.getAllPatternIds();
+            }
+        }
+        
         int patternId = patternIds.get(random.nextInt(patternIds.size()));
         PredefinedPattern predefinedPattern = PredefinedPattern.getPatternById(patternId);
         

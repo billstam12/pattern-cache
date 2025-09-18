@@ -51,12 +51,14 @@ public class PatternQueryExecutor {
         // Calculate the number of complete intervals
         long unitDurationMs = timeUnit.toDuration().toMillis();
         int numIntervals = DateTimeUtil.numberOfIntervals(from, to, timeUnit);
-        
+        long alignedStart = DateTimeUtil.alignToTimeUnitBoundary(dataSource.getDataset().getTimeRange().getFrom(), timeUnit, true);
+
         // Create a sketch for each interval
         for (int i = 0; i < numIntervals; i++) {
             long sketchStart = from + (i * unitDurationMs);
             long sketchEnd = Math.min(sketchStart + unitDurationMs, to);
             Sketch sketch = null;
+            long bucketId = Math.floorDiv(sketchStart - alignedStart, unitDurationMs);
             switch(method){
                 case "firstLast":
                 case "firstLastInf":
@@ -68,10 +70,10 @@ public class PatternQueryExecutor {
                     sketch = new ApproxFirstLastSketch(sketchStart, sketchEnd);
                     break;
                 case "approxOls":
-                    sketch = new ApproxOLSSketch(sketchStart, sketchEnd, i);
+                    sketch = new ApproxOLSSketch(sketchStart, sketchEnd, bucketId);
                     break;
                 case "ols":
-                    sketch = new OLSSketch(sketchStart, sketchEnd, i);
+                    sketch = new OLSSketch(sketchStart, sketchEnd, bucketId);
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown method: " + method);
@@ -186,7 +188,6 @@ public class PatternQueryExecutor {
                 sketches, dataSource, cache, method, adaptation,
                 params.measure, params.alignedFrom, params.alignedTo,
                 params.timeUnit, params.viewPort);
-        
         return sketches;
     }
 
@@ -230,6 +231,8 @@ public class PatternQueryExecutor {
          // Create timestamped sketches for direct data source pattern matching
         List<Sketch> sketches = prepareAndPopulateSketches(dataSource, method, params.measure,
                 params.alignedFrom, params.alignedTo, params.timeUnit, false);
+
+
         // Perform pattern matching and return results
         List<PatternMatch> matches = executePatternMatching(sketches, patternNodes, 
                                                                  MatchingStrategy.SELECTION, 
@@ -384,7 +387,7 @@ public class PatternQueryExecutor {
                 // Use current aggFactor for the measure
                 divider = aggFactorService.getAggFactor(measure);
             } else {
-                // For minMax and approxOls without adaptation, always use aggFactor=1
+                // For minMax and approxOls without adaptation, always use aggFactor=4
                 divider = 4;
             }
         } 

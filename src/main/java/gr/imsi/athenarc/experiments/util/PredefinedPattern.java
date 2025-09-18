@@ -140,4 +140,25 @@ public class PredefinedPattern {
     public static List<Integer> getAllPatternIds() {
         return new ArrayList<>(PATTERNS_BY_ID.keySet());
     }
+    
+    /**
+     * Get pattern IDs by size
+     * @param size the size ("small", "mid", "big")
+     * @return list of pattern IDs matching the size
+     */
+    public static List<Integer> getPatternIdsBySize(String size) {
+        if (size == null) {
+            return getAllPatternIds();
+        }
+        
+        List<Integer> matchingIds = new ArrayList<>();
+        for (Map.Entry<Integer, PredefinedPattern> entry : PATTERNS_BY_ID.entrySet()) {
+            PredefinedPattern pattern = entry.getValue();
+            if (pattern.getName().contains("_" + size)) {
+                matchingIds.add(entry.getKey());
+            }
+        }
+        
+        return matchingIds;
+    }
 }
