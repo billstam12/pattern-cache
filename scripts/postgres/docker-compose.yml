@@ -1,0 +1,35 @@
+# Local Postgres for the pattern-cache experiments.
+#
+# Brought up by scripts/postgres/start.sh when DB=postgres is set on
+# scripts/run.sh / scripts/run_exps.sh. Mirrors the DuckDB UX: the user
+# never has to touch SQL — Java auto-creates the table and COPYs the CSV
+# on first connect.
+#
+# The repo's ./data directory is bind-mounted read-only into /data inside
+# the container so the JDBC client can ask the server to COPY FROM
+# '/data/<file>.csv' (server-side path, fast). Host CSV paths passed via
+# --csv are mapped to /data/<basename> in Java (see DataSourceFactory).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pattern-cache-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: zenvisage
+      POSTGRES_DB: postgres
+    ports:
+      - "15432:5432"
+    volumes:
+      - pattern_cache_pgdata:/var/lib/postgresql/data
+      - ../../data:/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  pattern_cache_pgdata:
+    name: pattern_cache_pgdata

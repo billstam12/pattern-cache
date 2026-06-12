@@ -1,0 +1,12 @@
+pandas
+numpy
+scipy
+matplotlib
+seaborn
+scikit-learn
+scikit-image
+pillow
+pycairo
+python-dateutil
+jupyter
+ipykernel

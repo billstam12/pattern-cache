@@ -1,0 +1,322 @@
+package gr.imsi.athenarc.middleware.sketch;
+
+import com.google.common.collect.ImmutableRangeSet;
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
+
+import gr.imsi.athenarc.middleware.domain.AggregateInterval;
+import gr.imsi.athenarc.middleware.domain.AggregatedDataPoint;
+import gr.imsi.athenarc.middleware.domain.DataPoint;
+import gr.imsi.athenarc.middleware.domain.ImmutableAggregatedDataPoint;
+import gr.imsi.athenarc.middleware.domain.Stats;
+import gr.imsi.athenarc.middleware.domain.StatsAggregator;
+import gr.imsi.athenarc.middleware.domain.TimeInterval;
+import gr.imsi.athenarc.middleware.domain.TimeRange;
+import gr.imsi.athenarc.middleware.domain.ViewPort;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class PixelColumn implements Sketch {
+
+    private static final Logger LOG = LoggerFactory.getLogger(PixelColumn.class);
+
+    private long from;
+    private long to;
+
+    private final RangeSet<Long> fullyContainedRangeSet = TreeRangeSet.create();
+
+    private StatsAggregator statsAggregator;
+    
+    private StatsAggregator fullyContainedStatsAggregator;
+    
+    private AggregateInterval originalAggregateInterval; 
+
+    private AggregatedDataPoint leftPartial;
+    private AggregatedDataPoint rightPartial;
+
+    // The left and right agg data points of this pixel column. These can be either partially-contained inside this pixel column and overlap, or fully-contained.
+    private List<AggregatedDataPoint> left = new ArrayList<>();
+    private List<AggregatedDataPoint> right = new ArrayList<>();
+
+    private boolean hasNoError = false;
+
+    private boolean hasInitialized = false;
+
+    public void markAsNoError() {
+        this.hasNoError = true;
+    }
+
+    public void markAsHasError() {
+        this.hasNoError = false;
+    }
+
+    public boolean hasNoError() {
+        return hasNoError;
+    }
+
+    public PixelColumn(long from, long to) {
+        this.from = from;
+        this.to = to;
+        statsAggregator = new StatsAggregator();
+        fullyContainedStatsAggregator = new StatsAggregator();
+        this.originalAggregateInterval = AggregateInterval.fromMillis(to - from);
+    }
+
+    public void addDataPoint(DataPoint dp){
+        hasInitialized = true;
+        statsAggregator.accept(dp);
+    }
+
+    public void addAggregatedDataPoint(AggregatedDataPoint dp) {
+        hasInitialized = true;
+        if (dp.getFrom() <= from) {
+            left.add(ImmutableAggregatedDataPoint.fromAggregatedDataPoint(dp));
+        }
+
+        if (dp.getTo() >= to) {
+            right.add(ImmutableAggregatedDataPoint.fromAggregatedDataPoint(dp));
+        }
+        Stats stats = dp.getStats();
+        if (this.encloses(dp)) {
+            Range<Long> guavaRange = Range.closedOpen(dp.getFrom(), dp.getTo());
+            fullyContainedRangeSet.add(guavaRange);
+            if (stats.getCount() > 0) {
+                fullyContainedStatsAggregator.accept(stats.getMinDataPoint());
+                fullyContainedStatsAggregator.accept(stats.getMaxDataPoint());
+            }
+        }
+         if (stats.getCount() > 0){
+            if (this.contains(stats.getMinTimestamp())) {
+                statsAggregator.accept(dp.getStats().getMinDataPoint());
+            }
+
+            if (this.contains(stats.getMaxTimestamp())) {
+                statsAggregator.accept(dp.getStats().getMaxDataPoint());
+            }
+        }
+    }
+
+
+    private void determinePartialContained() {
+        Range<Long> pixelColumnTimeRange = Range.closedOpen(from, to);
+        Range<Long> fullyContainedRange = fullyContainedRangeSet.span();
+
+        ImmutableRangeSet<Long> immutableFullyContainedRangeSet = ImmutableRangeSet.copyOf(fullyContainedRangeSet);
+
+        // Compute difference between pixel column range and fullyContainedRangeSet
+        ImmutableRangeSet<Long> differenceSet = ImmutableRangeSet.of(pixelColumnTimeRange).difference(immutableFullyContainedRangeSet);
+
+        List<Range<Long>> differenceList = differenceSet.asRanges().stream()
+                .collect(Collectors.toList());
+
+        Range<Long> leftSubRange = null;
+        Range<Long> rightSubRange = null;
+
+        if (differenceList.size() == 2) {
+            leftSubRange = differenceList.get(0);
+            rightSubRange = differenceList.get(1);
+        } else if (differenceList.size() == 1) {
+            if (differenceList.get(0).lowerEndpoint() < fullyContainedRange.lowerEndpoint()) {
+                leftSubRange = differenceList.get(0);
+            } else {
+                rightSubRange = differenceList.get(0);
+            }
+        }
+
+
+        if (leftSubRange != null) {
+            Range<Long> finalLeftSubRange = leftSubRange;
+            if(left.size() == 0) leftPartial = null;
+            else {
+                leftPartial = left.stream().filter(aggregatedDataPoint -> aggregatedDataPoint.getTo() >= finalLeftSubRange.upperEndpoint())
+                          .min(Comparator.comparingLong(aggregatedDataPoint -> aggregatedDataPoint.getTo() - aggregatedDataPoint.getFrom()))
+                          .orElseGet(() ->  null);                      
+            }
+        } else {
+            leftPartial = null;
+        }
+        if (rightSubRange != null) {
+            Range<Long> finalRightSubRange = rightSubRange;
+            if(right.size() == 0) rightPartial = null;
+            else
+                rightPartial = right.stream().filter(aggregatedDataPoint -> aggregatedDataPoint.getFrom() <= finalRightSubRange.lowerEndpoint())
+                        .min(Comparator.comparingLong(aggregatedDataPoint -> aggregatedDataPoint.getTo() - aggregatedDataPoint.getFrom()))
+                        .orElseGet(() ->  null);
+        } else {
+            rightPartial = null;
+        }
+    }
+
+    /**
+     * @return true if the inner-column error for this pixel column can be evaluated:
+     *         exactly one fully-contained range exists (no gaps, at least one group)
+     *         and the column carries data. Side-effect: identifies the boundary
+     *         partial groups via {@link #determinePartialContained()} so subsequent
+     *         {@link #getLeftPartial()} / {@link #getRightPartial()} calls return the
+     *         correct groups.
+     */
+    public boolean canEvaluateInnerColumn() {
+        Set<Range<Long>> fullyContainedDisjointRanges = fullyContainedRangeSet.asRanges();
+        if (fullyContainedDisjointRanges.size() > 1) {
+            LOG.debug("There are gaps in the fully contained ranges of this pixel column.");
+            return false;
+        } else if (fullyContainedDisjointRanges.size() == 0) {
+            LOG.debug("There is no fully contained range in this pixel column.");
+            return false;
+        }
+        determinePartialContained();
+        if (statsAggregator.getCount() <= 0) {
+            throw new IllegalStateException("There are no data in this pixel column.");
+        }
+        return true;
+    }
+
+
+    /**
+     * Returns a closed range of pixel IDs that the line segment intersects within this pixel column.
+     *
+     * @param t1            The first timestamp of the line segment.
+     * @param v1            The value at the first timestamp of the line segment.
+     * @param t2            The second timestamp of the line segment.
+     * @param v2            The value at the second timestamp of the line segment.
+     * @param viewPortStats The stats for the entire view port.
+     * @return A Range object representing the range of pixel IDs that the line segment intersects within the pixel column.
+     */
+    public Range<Integer> getPixelIdsForLineSegment(double t1, double v1, double t2, double v2, ViewPort viewPort, Stats viewPortStats) {
+        // Calculate the slope of the line segment
+        double slope = (v2 - v1) / (t2 - t1);
+
+        // Calculate the y-intercept of the line segment
+        double yIntercept = v1 - slope * t1;
+
+        // Find the first and last timestamps of the line segment within the pixel column
+        double tStart = Math.max(from, Math.min(t1, t2));
+        double tEnd = Math.min(to, Math.max(t1, t2));
+
+        // Calculate the values at the start and end timestamps
+        double vStart = Math.max(viewPortStats.getMinValue(), slope * tStart + yIntercept);
+        double vEnd = Math.min(viewPortStats.getMaxValue(), slope * tEnd + yIntercept);
+
+        // Convert the values to pixel ids       
+        int pixelIdStart = viewPort.getPixelId(vStart, viewPortStats);
+        int pixelIdEnd = viewPort.getPixelId(vEnd, viewPortStats);
+
+        if(pixelIdEnd < 0 || pixelIdStart < 0 || pixelIdEnd >= viewPort.getHeight() || pixelIdStart >= viewPort.getHeight()) {
+            LOG.error("Calculated pixel IDs are out of bounds: start={}, end={}, height={}", pixelIdStart, pixelIdEnd, viewPort.getHeight());
+            throw new IllegalStateException("Calculated pixel IDs are out of bounds: start=" + pixelIdStart + ", end=" + pixelIdEnd + ", height=" + viewPort.getHeight());
+        }
+        
+        // Create a range from the pixel ids and return it
+        return Range.closed(Math.min(pixelIdStart, pixelIdEnd), Math.max(pixelIdStart, pixelIdEnd));
+    }
+
+    /**
+     * Returns the range of inner-column pixel IDs that can be correctly determined for this pixel column for the give measure.
+     * This range is determined by the min and max values over the fully contained groups in this pixel column.
+     *
+     * @param viewPortStats The stats for the entire view port.
+     * @return A Range object representing the range of inner-column pixel IDs
+     */
+    public Range<Integer> getActualInnerColumnPixelRange(ViewPort viewPort, Stats viewPortStats) {
+        if(fullyContainedStatsAggregator.getCount() <= 0) return Range.open(0, viewPort.getHeight()); // If not initialized or empty
+        return Range.closed(viewPort.getPixelId(fullyContainedStatsAggregator.getMinValue(), viewPortStats),
+                viewPort.getPixelId(fullyContainedStatsAggregator.getMaxValue(), viewPortStats));
+    }
+
+    @Override
+    public long getFrom() {
+        return from;
+    }
+
+    @Override
+    public long getTo() {
+        return to;
+    }
+
+    public TimeInterval getRange(){
+        return new TimeRange(from, to);
+    }
+
+    public Stats getStats() {
+        return statsAggregator;
+    }
+
+    public AggregatedDataPoint getLeftPartial() {
+        return leftPartial;
+    }
+
+    public AggregatedDataPoint getRightPartial() {
+        return rightPartial;
+    }
+
+    public List<AggregatedDataPoint> getLeft() {
+        return left;
+    }
+
+    public List<AggregatedDataPoint> getRight() {
+        return right;
+    }
+
+    public boolean hasInitialized() {
+        return hasInitialized;
+    }
+
+    @Override
+    public String toString() {
+        return "PixelColumn{ timeInterval: " + getIntervalString() + ", stats: " + statsAggregator + "}";
+    }
+
+    @Override
+    public double getAngle() {
+        throw new UnsupportedOperationException("Angle calculation is not supported for PixelColumn. Use getSlope method instead.");
+    }
+
+    /**
+     * Checks if this sketch can be combined with another sketch.
+     * 
+     * @param other The sketch to check
+     * @return true if sketches can be combined, false otherwise
+     */
+    @Override
+    public boolean canCombineWith(Sketch other) {
+        throw new UnsupportedOperationException("Combine operation is not supported for PixelColumn. Use combineWith method instead.");
+    }
+
+    /**
+     * Combines this pixel column with another sketch.
+     */
+    @Override
+    public Sketch combine(Sketch other) {
+        throw new UnsupportedOperationException("Combine operation is not supported for PixelColumn. Use combineWith method instead.");
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return this.statsAggregator.getCount() == 0;
+    }
+
+    @Override
+    public Optional<AggregateInterval> getOriginalAggregateInterval() {
+        return Optional.ofNullable(originalAggregateInterval);
+    }
+
+    public PixelColumn clone() {
+        PixelColumn clone = new PixelColumn(this.from, this.to);
+        clone.statsAggregator = this.statsAggregator.clone();
+        clone.fullyContainedStatsAggregator = this.fullyContainedStatsAggregator.clone();
+        clone.fullyContainedRangeSet.addAll(this.fullyContainedRangeSet);
+        clone.leftPartial = leftPartial == null ? null : ImmutableAggregatedDataPoint.fromAggregatedDataPoint(this.leftPartial);
+        clone.rightPartial = rightPartial == null ? null : ImmutableAggregatedDataPoint.fromAggregatedDataPoint(this.rightPartial);
+        clone.left.addAll(this.left.stream().map(ImmutableAggregatedDataPoint::fromAggregatedDataPoint).collect(Collectors.toList()));
+        clone.right.addAll(this.right.stream().map(ImmutableAggregatedDataPoint::fromAggregatedDataPoint).collect(Collectors.toList()));
+        clone.hasNoError = this.hasNoError;
+        clone.hasInitialized = this.hasInitialized;
+        clone.originalAggregateInterval = this.originalAggregateInterval;
+        return clone;
+    }
+}

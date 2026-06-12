@@ -1,0 +1,535 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{enumitem}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{theorem}{Theorem}
+
+\title{Bounding the OLS Slope of a Time Series\\
+       When You Only Have Bucket Summaries}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{The problem, concretely}
+
+We have a time series of raw points $(x_{ij}, y_{ij})$. We want one
+number: the ordinary least-squares (OLS) slope of a contiguous stretch
+of that series, the segment. Written out, that slope is
+
+\[
+\beta \;=\; \frac{S_{xy}}{S_{xx}},
+\qquad
+S_{xx}=\sum_{i,j}(x_{ij}-\bar X)^2,
+\qquad
+S_{xy}=\sum_{i,j}(x_{ij}-\bar X)(y_{ij}-\bar Y),
+\]
+
+where $\bar X,\bar Y$ are the means of all the points in the segment.
+
+\paragraph{What we actually have.}
+We do \emph{not} have the raw points. The store has already chopped the
+segment into $n$ consecutive \emph{buckets} and thrown the raw points
+away, keeping for each bucket $i$ only a five-number summary:
+
+\begin{itemize}[noitemsep]
+  \item its time span $[a_i,b_i]$ (exact calendar boundaries),
+  \item how many points it holds, $c_i$,
+  \item the smallest and largest $y$ in it, $\ell_i$ and $h_i$,
+  \item the exact mean of its $y$ values, $\mu_i$.
+\end{itemize}
+
+That is everything. We never see an individual $x_{ij}$ or $y_{ij}$
+again.
+
+\paragraph{What we want to produce.}
+Because the raw points are gone, we cannot compute $\beta$ exactly --
+many different point clouds are consistent with the same bucket
+summaries, and they have different slopes. So instead of a single
+number we will produce an \textbf{interval} $[\beta^-,\beta^+]$ that is
+\emph{guaranteed} to contain the true slope, whatever the (unknown) raw
+points were, as long as they are consistent with the summaries. The
+whole proof is the construction of that interval and the argument that
+it really does trap $\beta$.
+
+\paragraph{The one source of uncertainty.}
+For a single bucket, the summary pins down a lot but not everything.
+The $y$ side is well controlled: every $y_{ij}$ lies in $[\ell_i,h_i]$,
+and we know the bucket's exact $y$-mean $\mu_i$. The $x$ side is the
+problem. We know every $x_{ij}$ lies in the time span $[a_i,b_i]$, but
+we have \emph{no} information about where inside that span the points
+fall. They could be bunched at the left edge, bunched at the right,
+spread out -- the summary does not say. This single unknown -- the
+horizontal placement of points inside each bucket -- is the entire
+source of slack in everything that follows. Keep an eye on it.
+
+\section{Setting up the bookkeeping}
+
+Fix notation per bucket $i$:
+
+\[
+m_i=\frac{a_i+b_i}{2}\ \ (\text{the midpoint}),
+\qquad
+w_i=b_i-a_i\ \ (\text{the width}),
+\qquad
+N=\sum_i c_i\ \ (\text{total points}).
+\]
+
+The true (but unknown) average $x$-position of the points in bucket
+$i$ is
+
+\[
+\bar x_i \;=\; \frac{1}{c_i}\sum_j x_{ij}.
+\]
+
+We do not know $\bar x_i$. All the summary tells us is that it lies
+somewhere in the bucket's span $[a_i,b_i]$.
+
+\paragraph{Why the midpoint --- a minimax choice.}
+To compute anything we must pick a single representative $x$-position
+for bucket $i$ to stand in for the unknown $\bar x_i$. Call our choice
+$p_i\in[a_i,b_i]$. Whatever we pick, the error we will carry is
+$\bar x_i-p_i$, and an adversary -- choosing the worst point cloud
+consistent with the summary -- may place the true $\bar x_i$ anywhere
+in $[a_i,b_i]$. So the worst-case size of our error is
+
+\[
+\max_{\bar x_i\in[a_i,b_i]}\bigl|\bar x_i-p_i\bigr|
+=\max\bigl(p_i-a_i,\ b_i-p_i\bigr).
+\]
+
+We get to pick $p_i$ \emph{before} the adversary picks $\bar x_i$, so
+we should pick the $p_i$ that makes this worst case as small as
+possible. The maximum of the two distances $p_i-a_i$ and $b_i-p_i$ is
+smallest exactly when they are equal,
+
+\[
+p_i-a_i=b_i-p_i
+\quad\Longleftrightarrow\quad
+p_i=\frac{a_i+b_i}{2}=m_i,
+\]
+
+i.e.\ the \textbf{midpoint}. Any other point in the bucket makes one of
+the two distances longer, and the adversary simply places $\bar x_i$ at
+that far end, giving a strictly larger guaranteed error. The midpoint
+is therefore not a convenience -- it is the unique choice that
+minimizes the worst-case $x$-error, and with it that worst case is
+exactly half the bucket width:
+
+\[
+\delta_i \;:=\; \bar x_i - m_i,
+\qquad
+|\delta_i|\le \frac{w_i}{2}.
+\tag{$\star$}
+\]
+
+Inequality $(\star)$ is the \emph{only} thing we know about the
+$x$-placement, and the whole bound is built by pushing $(\star)$
+through the algebra. Because the midpoint achieves the smallest
+possible constant ($w_i/2$) on the right of $(\star)$, every error term
+that later inherits this constant -- $E_P$, $E_\downarrow$,
+$E_\uparrow$ -- is as tight as the available information allows. Pick
+any other representative and all of them grow.
+
+The $y$ side needs no such choice: the summary stores the
+\emph{exact} bucket mean $\mu_i$, so the bucket's $y$-centroid is
+exactly $\mu_i$ (write $\bar y_i=\mu_i$) -- an equality, not a bound.
+
+\paragraph{Quantities we can actually compute.}
+We cannot compute $\bar X$ (it needs the unknown $\bar x_i$). But with
+the midpoint as each bucket's $x$-representative, and the exact mean as
+each bucket's $y$-representative, we can compute the count-weighted
+surrogates
+
+\[
+\hat X=\frac1N\sum_i c_i\,m_i,
+\qquad
+\hat Y=\frac1N\sum_i c_i\,\mu_i.
+\]
+
+These are our stand-ins for the unknown true means $\bar X,\bar Y$.
+(A second, technical reason the midpoint is convenient: it makes the
+sums $\sum_i c_i(\mu_i-\hat Y)$ and $\sum_i c_i u_i$ collapse to zero,
+which is what kills the first-order error terms in Lemmas~B and~C.
+That cancellation actually works for any affine choice of
+representative; the minimax argument above is the reason the midpoint
+in particular is the \emph{right} affine choice.) The first job is to
+measure how wrong the stand-ins are.
+
+\section{Step 1 --- the means (Lemma A)}
+
+\begin{lemma}\label{lem:means}
+$\bar Y=\hat Y$ exactly. And the $x$-mean error,
+$\Delta:=\bar X-\hat X$, satisfies
+
+\[
+\Delta=\frac1N\sum_i c_i\,\delta_i,
+\qquad
+|\Delta|\le \frac1N\sum_i c_i\,\frac{w_i}{2}\;=:\;D.
+\]
+\end{lemma}
+
+\begin{proof}
+Group the global $y$-average by bucket. The points in bucket $i$
+contribute total $y$ equal to $c_i\bar y_i=c_i\mu_i$, so
+
+\[
+\bar Y=\frac1N\sum_{i,j}y_{ij}
+      =\frac1N\sum_i c_i\bar y_i
+      =\frac1N\sum_i c_i\mu_i
+      =\hat Y.
+\]
+
+This is exact -- nothing was approximated, because $\mu_i$ is the exact
+bucket mean. The $y$ side carries no slack.
+
+For $x$, do the same grouping but substitute
+$\bar x_i = m_i + \delta_i$ (the definition of $\delta_i$):
+
+\[
+\bar X=\frac1N\sum_i c_i\bar x_i
+      =\frac1N\sum_i c_i\,(m_i+\delta_i)
+      =\underbrace{\frac1N\sum_i c_i m_i}_{=\,\hat X}
+      \;+\;\frac1N\sum_i c_i\delta_i .
+\]
+
+So $\bar X-\hat X=\frac1N\sum_i c_i\delta_i$, which is the stated
+$\Delta$. Bounding it: by the triangle inequality and $(\star)$,
+
+\[
+|\Delta|\le\frac1N\sum_i c_i\,|\delta_i|
+        \le\frac1N\sum_i c_i\,\frac{w_i}{2}=D. \qedhere
+\]
+\end{proof}
+
+\noindent Plain meaning: our $y$ stand-in is perfect; our $x$ stand-in
+is off by an unknown amount $\Delta$, but that amount is provably no
+larger than $D$, a number we can compute from widths and counts alone.
+
+\section{Step 2 --- separating ``between'' and ``within''}
+
+To bound $S_{xx}$ and $S_{xy}$ we split each into two parts: variation
+\emph{between} the buckets (driven by where the bucket centroids sit)
+and variation \emph{within} each bucket (driven by the spread of points
+around their own centroid). This split is exact.
+
+For any bucket the points satisfy two zero-sum identities by definition
+of the centroid:
+
+\[
+\sum_{j}(x_{ij}-\bar x_i)=0,
+\qquad
+\sum_{j}(y_{ij}-\bar y_i)=0.
+\]
+
+Write $x_{ij}-\bar X=(\bar x_i-\bar X)+(x_{ij}-\bar x_i)$ and similarly
+for $y$, then expand the squares/products in $S_{xx},S_{xy}$. Every
+cross term contains a factor $\sum_j(x_{ij}-\bar x_i)$ or
+$\sum_j(y_{ij}-\bar y_i)$, which is zero, so the cross terms vanish and
+we are left with exactly:
+
+\[
+S_{xx}=\underbrace{\sum_i c_i(\bar x_i-\bar X)^2}_{\text{between}}
+       \;+\;\underbrace{\sum_i A_i}_{\text{within}},
+\qquad
+A_i=\sum_j (x_{ij}-\bar x_i)^2,
+\]
+
+\[
+S_{xy}=\underbrace{\sum_i c_i(\bar x_i-\bar X)(\mu_i-\bar Y)}_{\text{between}}
+       \;+\;\underbrace{\sum_i B_i}_{\text{within}},
+\qquad
+B_i=\sum_j (x_{ij}-\bar x_i)(y_{ij}-\bar y_i).
+\]
+
+Both identities are exact. Now we bound the two parts separately: the
+between part using Lemma~\ref{lem:means} (it involves the unknown
+$\bar X$, which we replace by $\hat X$ at the cost of $\Delta$), and the
+within part using the bucket's min/max and width.
+
+\section{Step 3 --- bounding $S_{xy}$ (Lemma B)}
+
+Define the quantity we \emph{can} compute -- the between part with the
+unknown true means replaced by the computable stand-ins:
+
+\[
+P_0=\sum_i c_i\,(m_i-\hat X)(\mu_i-\hat Y).
+\]
+
+\begin{lemma}\label{lem:B}
+$\bigl|\,S_{xy}-P_0\,\bigr|\le E_P$, where, writing
+$d_i=\max(h_i-\mu_i,\ \mu_i-\ell_i)$ for the largest possible
+$y$-deviation in bucket $i$,
+
+\[
+E_P=\sum_i c_i\,|\mu_i-\hat Y|\,\frac{w_i}{2}
+   \;+\;\sum_i c_i\,w_i\,d_i.
+\]
+\end{lemma}
+
+\begin{proof}
+Start from the exact between part of $S_{xy}$ and replace the unknown
+$\bar x_i-\bar X$ by computable pieces plus error. Using
+$\bar x_i=m_i+\delta_i$ and $\bar X=\hat X+\Delta$ (Lemma~A),
+
+\[
+\bar x_i-\bar X=(m_i-\hat X)+(\delta_i-\Delta).
+\]
+
+Also $\bar Y=\hat Y$ exactly (Lemma~A), so $\mu_i-\bar Y=\mu_i-\hat Y$.
+Substitute into the between sum:
+
+\[
+\sum_i c_i(\bar x_i-\bar X)(\mu_i-\bar Y)
+=\sum_i c_i\bigl[(m_i-\hat X)+(\delta_i-\Delta)\bigr](\mu_i-\hat Y).
+\]
+
+Distribute into three groups:
+
+\[
+=\underbrace{\sum_i c_i(m_i-\hat X)(\mu_i-\hat Y)}_{=\,P_0}
+\;+\;\sum_i c_i\,\delta_i(\mu_i-\hat Y)
+\;-\;\Delta\sum_i c_i(\mu_i-\hat Y).
+\]
+
+The last group vanishes. Why: $\Delta$ does not depend on $i$, so pull
+it out, and
+
+\[
+\sum_i c_i(\mu_i-\hat Y)
+=\Bigl(\sum_i c_i\mu_i\Bigr)-\hat Y\sum_i c_i
+=N\hat Y-\hat Y\,N
+=0,
+\]
+
+using the definition $\hat Y=\frac1N\sum_i c_i\mu_i$. So the entire
+$\Delta$ term is $-\Delta\cdot 0=0$. This is the key cancellation:
+the error in our $x$-mean stand-in does \emph{not} corrupt the between
+part of $S_{xy}$ at first order.
+
+What remains, after adding back the within part $\sum_i B_i$:
+
+\[
+S_{xy}-P_0
+=\underbrace{\sum_i c_i\,\delta_i(\mu_i-\hat Y)}_{\text{(I): unknown }x\text{-placement}}
+\;+\;\underbrace{\sum_i B_i}_{\text{(II): within-bucket spread}}.
+\]
+
+Bound each piece using only what the summaries give us.
+
+\emph{Piece (I).} The only unknown is $\delta_i$, and $(\star)$ says
+$|\delta_i|\le w_i/2$. Everything else is computable. So
+
+\[
+\Bigl|\sum_i c_i\,\delta_i(\mu_i-\hat Y)\Bigr|
+\le\sum_i c_i\,|\mu_i-\hat Y|\,|\delta_i|
+\le\sum_i c_i\,|\mu_i-\hat Y|\,\frac{w_i}{2}.
+\]
+
+That is exactly the first sum in $E_P$.
+
+\emph{Piece (II).} Inside bucket $i$, bound the product term by term.
+Both $x_{ij}$ and $\bar x_i$ lie in the span $[a_i,b_i]$, so their
+difference is at most the width: $|x_{ij}-\bar x_i|\le w_i$. And every
+$y_{ij}$ lies in $[\ell_i,h_i]$ while $\bar y_i=\mu_i$, so
+$|y_{ij}-\mu_i|\le\max(h_i-\mu_i,\mu_i-\ell_i)=d_i$. Therefore
+
+\[
+|B_i|\le\sum_j |x_{ij}-\bar x_i|\,|y_{ij}-\mu_i|
+\le\sum_j w_i\,d_i
+= c_i\,w_i\,d_i,
+\]
+
+and summing over buckets gives the second sum in $E_P$.
+
+Adding the two bounds via the triangle inequality yields
+$|S_{xy}-P_0|\le E_P$.
+\end{proof}
+
+\noindent Plain meaning: $P_0$ is our computable estimate of $S_{xy}$.
+It is wrong by at most $E_P$, and $E_P$ has two clearly identified
+causes -- not knowing the horizontal placement (piece I) and not
+knowing how points scatter inside a bucket (piece II). Both are
+controlled purely by widths, counts, and the stored min/max.
+
+\section{Step 4 --- bounding $S_{xx}$ (Lemma C)}
+
+Now the denominator. Define the computable estimate
+
+\[
+Q_0=\sum_i c_i\,u_i^2,
+\qquad u_i:=m_i-\hat X .
+\]
+
+\begin{lemma}\label{lem:C}
+$Q_0-E_\downarrow\;\le\;S_{xx}\;\le\;Q_0+E_\downarrow+E_\uparrow$, where
+
+\[
+E_\downarrow=\sum_i c_i\,|m_i-\hat X|\,w_i,
+\qquad
+E_\uparrow=\sum_i c_i\Bigl(\tfrac{w_i}{2}+D\Bigr)^2
+          +\sum_i c_i\,\tfrac{w_i^2}{4}.
+\]
+\end{lemma}
+
+\begin{proof}
+Take the exact between part of $S_{xx}$ and substitute
+$\bar x_i-\bar X=u_i+e_i$ where $e_i:=\delta_i-\Delta$ collects all the
+$x$-placement uncertainty. Expanding the square:
+
+\[
+\sum_i c_i(\bar x_i-\bar X)^2
+=\sum_i c_i u_i^2
+\;+\;2\sum_i c_i u_i e_i
+\;+\;\sum_i c_i e_i^2 .
+\]
+
+The first sum is $Q_0$. In the cross sum, replace $e_i$ by
+$\delta_i-\Delta$; the $-\Delta$ piece drops out because
+$\sum_i c_i u_i=\sum_i c_i(m_i-\hat X)=N\hat X-\hat X N=0$ (same kind of
+cancellation as before). So $\sum_i c_i u_i e_i=\sum_i c_i u_i\delta_i$.
+Putting the within part $\sum_i A_i$ back:
+
+\[
+S_{xx}=Q_0
+\;+\;2\sum_i c_i u_i\delta_i
+\;+\;\underbrace{\sum_i c_i e_i^2}_{\ge 0}
+\;+\;\underbrace{\sum_i A_i}_{\ge 0}.
+\tag{$\dagger$}
+\]
+
+The last two sums are sums of squares, hence $\ge 0$. The middle
+(signed) term is controlled by $(\star)$:
+
+\[
+\Bigl|2\sum_i c_i u_i\delta_i\Bigr|
+\le 2\sum_i c_i\,|u_i|\,|\delta_i|
+\le 2\sum_i c_i\,|m_i-\hat X|\,\frac{w_i}{2}
+=\sum_i c_i\,|m_i-\hat X|\,w_i
+=E_\downarrow.
+\]
+
+\emph{Lower bound.} In $(\dagger)$, the two squared sums only add to
+$S_{xx}$, so dropping them can only decrease the right-hand side:
+
+\[
+S_{xx}\ge Q_0+2\sum_i c_i u_i\delta_i\ge Q_0-E_\downarrow.
+\]
+
+\emph{Upper bound.} Bound the two non-negative sums from above.
+
+For $\sum_i c_i e_i^2$: $e_i=\delta_i-\Delta$, and
+$|\delta_i|\le w_i/2$ by $(\star)$ while $|\Delta|\le D$ by Lemma~A, so
+$|e_i|\le w_i/2+D$ and $e_i^2\le(w_i/2+D)^2$. Hence
+$\sum_i c_i e_i^2\le\sum_i c_i(w_i/2+D)^2$, the first sum in
+$E_\uparrow$.
+
+For $\sum_i A_i$: $A_i=\sum_j(x_{ij}-\bar x_i)^2$ is the total squared
+spread of $c_i$ points confined to an interval of width $w_i$. That
+spread is largest when the points are pushed as far apart as the
+interval allows, i.e.\ split between the two endpoints; a short
+calculation shows the maximum is $c_i w_i^2/4$. So
+$A_i\le c_i w_i^2/4$ and $\sum_i A_i\le\sum_i c_i w_i^2/4$, the second
+sum in $E_\uparrow$.
+
+Substituting both into $(\dagger)$ and using
+$|2\sum c_i u_i\delta_i|\le E_\downarrow$:
+
+\[
+S_{xx}\le Q_0+E_\downarrow+E_\uparrow. \qedhere
+\]
+\end{proof}
+
+\noindent Plain meaning: $Q_0$ is our computable estimate of $S_{xx}$.
+Unlike $S_{xy}$, the uncertainty here is one-sided in character -- the
+unknown placement and the within-bucket spread can only \emph{inflate}
+$S_{xx}$ relative to the estimate (that is why the upper error
+$E_\uparrow$ is separate and larger), while the lower side is
+controlled by the single signed term $E_\downarrow$.
+
+\section{Step 5 --- from the two boxes to a slope interval}
+
+We now know, with certainty,
+
+\[
+S_{xy}\in[\,P^-,P^+\,],\quad P^\pm=P_0\pm E_P,
+\qquad
+S_{xx}\in[\,Q^-,Q^+\,],\quad
+\begin{aligned}
+Q^-&=Q_0-E_\downarrow,\\
+Q^+&=Q_0+E_\downarrow+E_\uparrow.
+\end{aligned}
+\]
+
+So the true pair $(S_{xy},S_{xx})$ lies somewhere in the rectangle
+$[P^-,P^+]\times[Q^-,Q^+]$. We want the range of the ratio
+$\beta=S_{xy}/S_{xx}$ over that rectangle.
+
+\begin{theorem}
+Suppose $Q^->0$ (the routine checks this; otherwise see the remark
+below). Let
+
+\[
+C=\Bigl\{\,\tfrac{P^-}{Q^-},\ \tfrac{P^-}{Q^+},\
+            \tfrac{P^+}{Q^-},\ \tfrac{P^+}{Q^+}\,\Bigr\}
+\]
+
+be the four ratios at the rectangle's corners. Then
+
+\[
+\min C\;\le\;\beta\;\le\;\max C.
+\]
+\end{theorem}
+
+\begin{proof}
+Consider $f(p,q)=p/q$ on the rectangle. Because $Q^->0$, the whole
+rectangle has $q>0$, so $f$ is finite throughout. Hold $q$ fixed:
+$f$ is linear in $p$, hence monotone in $p$. Hold $p$ fixed:
+$\partial f/\partial q=-p/q^2$ has a constant sign on the rectangle
+(the sign of $-p$, and $p$ does not change sign because $[P^-,P^+]$ is
+one interval), hence $f$ is monotone in $q$. A function that is
+monotone in each coordinate separately on a rectangle attains its
+maximum and minimum at the rectangle's corners. So the extreme values
+of $f$ over the rectangle are among the four corner ratios in $C$.
+Since the true $(S_{xy},S_{xx})$ is some point of the rectangle, its
+ratio $\beta$ is between the smallest and largest of those corner
+ratios.
+\end{proof}
+
+\paragraph{The degenerate case.}
+If $Q^-\le 0$ (or the estimate $Q_0\le 0$), the denominator interval
+$[Q^-,Q^+]$ straddles $0$. Then $\beta$ is genuinely unbounded -- some
+point clouds consistent with the summaries make $S_{xx}$ arbitrarily
+small and the slope blows up -- so the only honest answer is
+$(-\infty,+\infty)$, and that is what the routine returns. It is a
+valid (if useless) enclosure.
+
+\section{What the bound is, in one paragraph}
+
+We could not compute the slope because the raw points were discarded
+and many point clouds fit the same summaries. We replaced the two
+unknown means by computable midpoint surrogates (Lemma~A), split each
+of $S_{xx},S_{xy}$ into an exact between/within decomposition, and
+bounded every place an unknown entered using only two facts: each
+point's $x$ sits within its bucket's width $w_i$ of the centroid
+($\star$), and each point's $y$ sits within the stored
+$[\ell_i,h_i]$. That produced a computable estimate and a computable
+error bar for the numerator ($P_0\pm E_P$) and for the denominator
+($Q_0$, with $-E_\downarrow$ / $+E_\downarrow+E_\uparrow$). The true
+$(S_{xy},S_{xx})$ lives in the resulting rectangle, and a ratio is
+monotone on a positive rectangle, so the four corner ratios bracket
+the true slope. Every error term is proportional to a bucket
+\emph{width}: shrink the buckets and the interval shrinks with them.
+That is the whole proof, and the practical lever.
+
+\paragraph{Numerical note.}
+Everything above is exact in real arithmetic. A floating-point
+implementation should widen the final interval by the accumulated
+round-off (roughly machine epsilon times the magnitude of the sums).
+That is slack, not a gap in the argument.
+
+\end{document}

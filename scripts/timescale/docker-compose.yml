@@ -1,0 +1,36 @@
+# Local TimescaleDB for the pattern-cache experiments.
+#
+# Brought up by scripts/timescale/start.sh when DB=timescale is set on
+# scripts/run.sh / scripts/run_exps.sh. Mirrors the Postgres UX exactly
+# (Timescale is a Postgres extension): the user never has to touch SQL —
+# Java auto-creates the hypertable, COPYs the CSV, and compresses chunks
+# on first connect (see DataSourceFactory.ensurePostgresTableLoaded).
+#
+# Kept separate from the plain-Postgres service (own container, port and
+# volume) so the two baselines can coexist and be benchmarked back to back.
+# The repo's ./data directory is bind-mounted read-only into /data so the
+# JDBC client can ask the server to COPY FROM '/data/<file>.csv'.
+
+services:
+  timescale:
+    image: timescale/timescaledb:latest-pg16
+    container_name: pattern-cache-timescale
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: zenvisage
+      POSTGRES_DB: postgres
+    ports:
+      - "15433:5432"
+    volumes:
+      - pattern_cache_tsdata:/var/lib/postgresql/data
+      - ../../data:/data:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  pattern_cache_tsdata:
+    name: pattern_cache_tsdata

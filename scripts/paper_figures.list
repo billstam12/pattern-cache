@@ -1,0 +1,36 @@
+# Curated source list for scripts/gather_paper_figures.sh.
+# One file per non-blank line, repo-relative. Blank lines and lines starting
+# with '#' are ignored. The destination basename is taken from each source's
+# basename and dropped into paper_figures/. To switch a figure's dataset
+# (e.g. canonical → matchall), edit the path on the left only — the .tex
+# keeps referring to body/plots/<basename>.
+
+# §5.2 cost — MNF + SOCC, canonical (default LONGEST matcher).
+figures/manufacturing/fig_5_2_time_manufacturing.pdf
+figures/manufacturing/fig_5_2_memory_manufacturing.pdf
+figures/soccer/fig_5_2_time_soccer.pdf
+figures/soccer/fig_5_2_memory_soccer.pdf
+
+# §5.3 risk-coverage — MNF, ALL matcher (so recall isolates the bound).
+figures/manufacturing/matchall/fig_5_3_f1_vs_rho.pdf
+figures/manufacturing/matchall/fig_5_3_time_vs_rho.pdf
+figures/manufacturing/matchall/fig_5_3_overshoot_vs_rho.pdf
+figures/manufacturing/matchall/fig_5_3_bound_vs_rho.pdf
+
+# §5.4 slope-bound tightness — SOCC.
+figures/soccer/fig_5_4_width_vs_alpha_soccer.pdf
+figures/soccer/fig_5_4_unbounded_vs_alpha_soccer.pdf
+
+# §5.5 visual quality — MNF.
+figures/manufacturing/fig_5_5_ssim_manufacturing.pdf
+figures/manufacturing/fig_5_5_pixdiff_manufacturing.pdf
+
+# §5.6 cohorts — MNF precision across length / angle width / selectivity.
+# Recall pins at ~1.0 under the bound (see §5.3), so precision carries the
+# cohort-level story; macroF1/microF1 variants are still emitted but unused.
+figures/manufacturing/fig_5_6_length_precision.pdf
+figures/manufacturing/fig_5_6_width_precision.pdf
+figures/manufacturing/fig_5_6_selectivity_precision.pdf
+
+# §5.8 scalability — synthetic family, SNT5M→SNT1B.
+figures/synth_10y_1m/fig_5_8_scalability.pdf
