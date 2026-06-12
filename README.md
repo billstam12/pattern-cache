@@ -210,7 +210,7 @@ sh scripts/run_method.sh --type timescale --table synth_10y_1m \
   --adaptation --agg 4 --refinementScope scoped
 ```
 
-> Results and figures can be found at:  <https://drive.google.com/open?id=1OPP89PfnndQRsmUTkOkf-nJ094JbI7oc&usp=drive_fs>
+> Results and figures can be found at:  <[https://drive.google.com/open?id=1OPP89PfnndQRsmUTkOkf-nJ094JbI7oc&usp=drive_fs](https://drive.google.com/drive/folders/1yiokSOsn365vRMu51rAmpk9YNtcZFSj6?usp=sharing)>
 ---
 
 ## 3. Repository layout
