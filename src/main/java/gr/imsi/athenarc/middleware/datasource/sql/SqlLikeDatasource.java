@@ -44,6 +44,19 @@ public abstract class SqlLikeDatasource implements DataSource {
     }
 
     @Override
+    public boolean supportsRawSampling() {
+        return true;
+    }
+
+    @Override
+    public DataPoints getRawSamples(long from, long to,
+            Map<Integer, List<TimeInterval>> intervalsPerMeasure, long bucketMs,
+            int fromRankExclusive, int toRankInclusive) {
+        return new SqlLikeSampledDataPoints(queryExecutor, dialect, dataset, from, to,
+                intervalsPerMeasure, bucketMs, fromRankExclusive, toRankInclusive);
+    }
+
+    @Override
     public AggregatedDataPoints getAggregatedDataPoints(long from, long to,
             Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure,
             Map<Integer, AggregateInterval> aggregateIntervalsPerMeasure,

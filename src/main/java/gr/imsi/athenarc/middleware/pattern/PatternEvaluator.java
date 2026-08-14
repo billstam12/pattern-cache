@@ -41,7 +41,7 @@ public class PatternEvaluator {
      */
     public Classification evaluate(List<Sketch> sketches, List<PatternNode> patternNodes,
                                    PatternMethod method, double targetSlack) {
-        MatchMode mode = method == PatternMethod.APPROX_OLS ? MatchMode.RELAXED : MatchMode.STRICT;
+        MatchMode mode = method == PatternMethod.OLS ? MatchMode.STRICT : MatchMode.RELAXED;
         List<PatternMatch> matches = executePatternMatching(sketches, patternNodes, mode);
 
         List<PatternMatch> confident = new ArrayList<>();

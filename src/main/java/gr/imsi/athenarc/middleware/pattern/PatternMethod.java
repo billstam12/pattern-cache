@@ -17,7 +17,8 @@ package gr.imsi.athenarc.middleware.pattern;
  */
 public enum PatternMethod {
     OLS("ols"),
-    APPROX_OLS("approxOls");
+    APPROX_OLS("approxOls"),
+    SAMPLED_OLS("sampledOls");
 
     private final String canonical;
 

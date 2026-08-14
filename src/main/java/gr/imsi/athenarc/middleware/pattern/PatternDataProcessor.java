@@ -1,9 +1,12 @@
 package gr.imsi.athenarc.middleware.pattern;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +17,8 @@ import gr.imsi.athenarc.middleware.cache.TimeSeriesSpan;
 import gr.imsi.athenarc.middleware.datasource.DataSource;
 import gr.imsi.athenarc.middleware.domain.AggregateInterval;
 import gr.imsi.athenarc.middleware.domain.AggregatedDataPoints;
+import gr.imsi.athenarc.middleware.domain.DataPoint;
+import gr.imsi.athenarc.middleware.domain.DataPoints;
 import gr.imsi.athenarc.middleware.domain.DateTimeUtil;
 import gr.imsi.athenarc.middleware.domain.TimeInterval;
 import gr.imsi.athenarc.middleware.domain.TimeRange;
@@ -173,5 +178,46 @@ public class PatternDataProcessor {
         }
         LOG.info("Identified {} missing intervals", missing.size());
         return missing;
+    }
+
+    /**
+     * Returns the sampled raw points whose deterministic per-bucket rank is in
+     * {@code (fromRankExclusive, toRankInclusive]} over {@code regions}, grouped by
+     * timeUnit-bucket index relative to {@code from}. Successive disjoint rank bands
+     * accumulate into a growing per-bucket sample.
+     */
+    public Map<Integer, List<DataPoint>> getRawSampleDelta(int measure, List<TimeInterval> regions,
+            long from, long to, AggregateInterval timeUnit, int fromRankExclusive, int toRankInclusive) {
+        Map<Integer, List<DataPoint>> out = new HashMap<>();
+        if (toRankInclusive <= fromRankExclusive || regions == null || regions.isEmpty()) {
+            return out;
+        }
+        long unitMs = timeUnit.toDuration().toMillis();
+        Map<Integer, List<TimeInterval>> req = new HashMap<>();
+        req.put(measure, regions);
+        DataPoints delta = dataSource.getRawSamples(from, to, req, unitMs, fromRankExclusive, toRankInclusive);
+        Iterator<DataPoint> it = delta.iterator();
+        int added = 0;
+        while (it.hasNext()) {
+            DataPoint dp = it.next();
+            int idx = (int) ((dp.getTimestamp() - from) / unitMs);
+            if (idx < 0) continue;
+            out.computeIfAbsent(idx, k -> new ArrayList<>())
+               .add(new SamplePoint(dp.getTimestamp(), dp.getValue(), measure));
+            added++;
+        }
+        LOG.info("Sampled delta fetch: {} points across {} buckets over {} region(s), ranks ({}, {}]",
+                added, out.size(), regions.size(), fromRankExclusive, toRankInclusive);
+        return out;
+    }
+
+    private static final class SamplePoint implements  DataPoint {
+        private final long ts;
+        private final double val;
+        private final int measure;
+        SamplePoint(long ts, double val, int measure) { this.ts = ts; this.val = val; this.measure = measure; }
+        @Override public long getTimestamp() { return ts; }
+        @Override public double getValue() { return val; }
+        @Override public int getMeasure() { return measure; }
     }
 }

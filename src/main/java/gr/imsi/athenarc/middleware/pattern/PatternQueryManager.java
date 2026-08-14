@@ -66,10 +66,7 @@ public class PatternQueryManager {
     }
 
     private static PatternExecutor selectExecutor(RefinementScope scope) {
-        boolean full = scope == RefinementScope.FULL;
-         return full
-                        ? FullPatternQueryExecutor::executePatternQueryWithCache
-                        : ScopedPatternQueryExecutor::executePatternQueryWithCache;
+        return PatternQueryExecutor::executePatternQueryWithCache;
     }
 
     public PatternQueryResults executeQuery(PatternQuery query) {

@@ -21,12 +21,13 @@ import gr.imsi.athenarc.middleware.query.pattern.PatternQueryResults;
 import gr.imsi.athenarc.middleware.refinement.RefinementPredictor;
 import gr.imsi.athenarc.middleware.sketch.ApproxOLSSketch;
 import gr.imsi.athenarc.middleware.sketch.OLSSketch;
+import gr.imsi.athenarc.middleware.sketch.SampledOLSSketch;
 import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 /**
  * Pattern utilities — public entry points that don't fit either scope executor,
- * plus package-private building blocks shared between {@link
- * FullPatternQueryExecutor} and {@link ScopedPatternQueryExecutor}: pure data
+ * plus package-private building blocks used by {@link
+ * PatternQueryExecutor}: pure data
  * extraction, sketch factory, cache+processor composition, result building, and
  * the per-query stats container. Mirror of visual's {@code VisualUtils}.
  */
@@ -117,8 +118,9 @@ public final class PatternUtils {
      *  span object exists to query {@code calculateDeepMemorySize()} from. */
     static int aggSizeFor(PatternMethod method) {
         switch (method) {
-            case OLS:        return 7;
-            case APPROX_OLS: return 4;
+            case OLS:         return 7;
+            case APPROX_OLS:  return 4;
+            case SAMPLED_OLS: return 2;
             default: throw new IllegalStateException("Unknown method: " + method);
         }
     }
@@ -156,6 +158,24 @@ public final class PatternUtils {
                 case OLS:
                     sketch = new OLSSketch(sketchStart, sketchEnd, bucketId);
                     break;
+                case SAMPLED_OLS: {
+                    boolean bootstrap = "bootstrap".equalsIgnoreCase(
+                            System.getProperty("pattern.sampled.ci", "closed"));
+                    if (bootstrap) {
+                        sketch = new SampledOLSSketch(
+                                sketchStart, sketchEnd, bucketId,
+                                (double) unitDurationMs, alignedStart,
+                                SampledOLSSketch.DEFAULT_BOOTSTRAP_REPLICATES,
+                                SampledOLSSketch.DEFAULT_CI_LEVEL,
+                                bucketId);
+                    } else {
+                        sketch = new SampledOLSSketch(
+                                sketchStart, sketchEnd, bucketId,
+                                (double) unitDurationMs, alignedStart,
+                                SampledOLSSketch.DEFAULT_CRITICAL_VALUE);
+                    }
+                    break;
+                }
                 default:
                     throw new IllegalStateException("Unhandled pattern method: " + method);
             }

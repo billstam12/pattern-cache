@@ -20,6 +20,22 @@ public interface DataSource {
     /* Returns raw datapoints for each measure */
     DataPoints getDataPoints(long from, long to, Map<Integer, List<TimeInterval>> missingIntervalsPerMeasure);
 
+    default boolean supportsRawSampling() {
+        return false;
+    }
+
+    /**
+     * Returns the raw points whose deterministic per-bucket rank lies in
+     * {@code (fromRankExclusive, toRankInclusive]}, per measure, sampled in the
+     * data source. Ranks are stable across calls, so successive disjoint bands
+     * accumulate into a growing per-bucket sample.
+     */
+    default DataPoints getRawSamples(long from, long to,
+            Map<Integer, List<TimeInterval>> intervalsPerMeasure, long bucketMs,
+            int fromRankExclusive, int toRankInclusive) {
+        throw new UnsupportedOperationException("raw sampling not supported by this data source");
+    }
+
     /**
      * Returns an {@link AggregatedDataPoints} instance to access aggregated data points (with timestamps) for multiple measures,
      * each with its own missing intervals and aggregate interval.

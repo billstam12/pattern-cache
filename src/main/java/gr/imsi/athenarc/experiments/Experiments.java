@@ -204,10 +204,11 @@ public class Experiments {
                 Preconditions.checkArgument(method.equals("m4")
                     || method.equals("minMax")
                     || method.equals("approxOls")
-                    || method.equals("ols"),
-                    "Method must be one of 'm4', 'minMax', 'approxOls' or 'ols' for cache queries.");
-                Preconditions.checkArgument(!adaptation || method.equals("approxOls"),
-                    "Adaptation can only be true for the 'approxOls' method");
+                    || method.equals("ols")
+                    || method.equals("sampledOls"),
+                    "Method must be one of 'm4', 'minMax', 'approxOls', 'ols' or 'sampledOls' for cache queries.");
+                Preconditions.checkArgument(!adaptation || method.equals("approxOls") || method.equals("sampledOls"),
+                    "Adaptation can only be true for the 'approxOls' or 'sampledOls' methods");
                 Preconditions.checkArgument(aggFactor >= 1,
                     "-agg must be >= 1 (got %s)", aggFactor);
                 return new ExperimentConfig("cache", true, method, method);

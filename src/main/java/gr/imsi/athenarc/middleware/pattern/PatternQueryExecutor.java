@@ -23,14 +23,14 @@ import gr.imsi.athenarc.middleware.refinement.RefinementPredictor;
 import gr.imsi.athenarc.middleware.sketch.Sketch;
 
 /**
- * Scoped pattern executor — refines only the regions covered by still-ambiguous
+ * Pattern executor — refines only the regions covered by still-ambiguous
  * matches, mirroring the visual path's scoped fetch ladder. After an initial
  * relaxed-NFA classify, refinement (and the eventual strict-OLS replay) target
  * just those ambiguous regions; confident regions are never re-touched.
  */
-public class ScopedPatternQueryExecutor {
+public class PatternQueryExecutor {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ScopedPatternQueryExecutor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PatternQueryExecutor.class);
 
     /** Pad each scoped ambiguous-region replay (relaxed-refinement at finer α, or
      *  strict-OLS over exact slopes) by this many timeUnits on each side. Gives the
@@ -95,6 +95,11 @@ public class ScopedPatternQueryExecutor {
         long startTime = System.currentTimeMillis();
 
         PatternMethod patternMethod = PatternMethod.from(method);
+        if (patternMethod == PatternMethod.SAMPLED_OLS) {
+            return SampledPatternQueryExecutor.executePatternQueryWithCache(
+                    query, dataSource, cache, method, adaptation, initialAggregationFactor,
+                    calendarAlignment, dataReductionFactor, relaxedCacheReuse, maxRefinementSteps);
+        }
         QueryParams params = PatternUtils.extractQueryParams(query);
         List<PatternNode> patternNodes = query.getPatternNodes();
         double targetSlack = 1.0 - params.accuracy;
